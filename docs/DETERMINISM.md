@@ -27,12 +27,28 @@ the effect log must match bit for bit.
 
 ## Status
 
-**Nothing below is fixed yet.** This tree is layer 1, the fork: Luau 0.741 with a rename. Every entry
-is a source of non-determinism found in the 0.741 VM, compiler, codegen and standard
-library, with its file and line in this tree and the fix moo proposes. The fixes are layers
-2 to 4 in [DESIGN.md](DESIGN.md).
+The inventory below lists every source of non-determinism found in the 0.741 VM, compiler,
+codegen and standard library, with its file and line in the fork commit and the fix moo
+proposes. Line numbers are as of the fork commit; they move as the files change.
 
-Line numbers are as of the fork commit; they move as the files change.
+Layer 1 (determinism without numbers, [DESIGN.md](DESIGN.md)) is being built in small PRs.
+Each fix lands with a test in `tests/Moo.test.cpp`. This table is the state of `main`:
+
+| # | Source | State |
+|---|---|---|
+| 9 | `os` and time | **fixed**: the `os` library is deleted (`VM/src/loslib.cpp`) |
+| 10 | `math.random` seeding | **fixed**: constant default seed, `moo_setrandomseed` in `VM/include/moo.h` |
+| 14 | FMA in native codegen | **fixed for moo's binaries**: `moo --codegen*` and `--jit-inliner` are refused |
+
+Upstream tests moo changed, and why:
+
+- `tests/conformance/datetime.luau` tested `os`. It is replaced by the moo-specific expected
+  file `tests/conformance/moo/datetime.luau`, which checks that `os` is gone.
+- `tests/conformance/sort.luau` timed each sort with `os.clock` and printed the time. The
+  timing is removed; the sorts and their checks are unchanged.
+- `tests/conformance/types.luau` checks that the VM's globals match the analyzer's builtin
+  definitions. It ignores `_G.os` until the analyzer's definitions drop `os` (owed, with
+  `vector` and `integer`, see DESIGN.md "Analyzer").
 
 ## Inventory
 

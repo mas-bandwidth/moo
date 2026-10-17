@@ -683,12 +683,9 @@ static void displayHelp(const char* argv0)
     printf("  -g<n>: compile with debug level n (default 1, n should be between 0 and 2).\n");
     printf("  --profile[=N]: profile the code using N Hz sampling (default 10000) and output results to profile.out\n");
     printf("  --timetrace: record compiler time tracing information into trace.json\n");
-    printf("  --codegen: execute code using native code generation\n");
-    printf("  --codegen-cold: execute code using native code generation, including any functions deemed not profitable to natively compile\n");
-    printf("  --codegen-perf: execute code using native code generation and profile using perf (only on Linux)\n");
     printf("  --program-args,-a: declare start of arguments to be passed to the Luau program\n");
     printf("  --fflags=<flags>: comma-separated list of fast flags to enable/disable (--fflags=true,false,LuauFlag1=true,LuauFlag2=false).\n");
-    printf("  --jit-inliner: enable JIT bytecode inliner\n");
+    printf("moo runs the interpreter only: native code generation and the JIT inliner are off (docs/DETERMINISM.md, 14).\n");
 }
 
 static int assertionHandler(const char* expr, const char* file, int line, const char* function)
@@ -751,19 +748,11 @@ int replMain(int argc, char** argv)
         {
             profile = atoi(argv[i] + 10);
         }
-        else if (strcmp(argv[i], "--codegen") == 0)
+        else if (strncmp(argv[i], "--codegen", 9) == 0 || strcmp(argv[i], "--jit-inliner") == 0)
         {
-            codegen = true;
-        }
-        else if (strcmp(argv[i], "--codegen-cold") == 0)
-        {
-            codegen = true;
-            codegenCold = true;
-        }
-        else if (strcmp(argv[i], "--codegen-perf") == 0)
-        {
-            codegen = true;
-            codegenPerf = true;
+            // moo: native codegen is off until it is rebuilt on fixed point (docs/DETERMINISM.md, 14)
+            fprintf(stderr, "Error: %s: native code generation is off in moo (interpreter only)\n", argv[i]);
+            return 1;
         }
         else if (strcmp(argv[i], "--coverage") == 0)
         {
@@ -776,10 +765,6 @@ int replMain(int argc, char** argv)
         else if (strcmp(argv[i], "--timetrace") == 0)
         {
             FFlag::DebugLuauTimeTracing.value = true;
-        }
-        else if (strcmp(argv[i], "--jit-inliner") == 0)
-        {
-            jitInliner = true;
         }
         else if (strncmp(argv[i], "--fflags=", 9) == 0)
         {

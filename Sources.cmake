@@ -380,6 +380,7 @@ target_sources(Luau.VM PRIVATE
     VM/include/lua.h
     VM/include/luaconf.h
     VM/include/lualib.h
+    VM/include/moo.h
 
     VM/src/lapi.cpp
     VM/src/laux.cpp
@@ -400,7 +401,6 @@ target_sources(Luau.VM PRIVATE
     VM/src/lmem.cpp
     VM/src/lnumprint.cpp
     VM/src/lobject.cpp
-    VM/src/loslib.cpp
     VM/src/lperf.cpp
     VM/src/lstate.cpp
     VM/src/lstring.cpp
@@ -602,6 +602,7 @@ if(TARGET Luau.Conformance)
         tests/RegisterCallbacks.cpp
         tests/ConformanceIrHooks.h
         tests/Conformance.test.cpp
+        tests/Moo.test.cpp
         tests/DirectFieldAccess.test.cpp
         tests/FeedbackVector.test.cpp
         tests/IrLowering.test.cpp

@@ -2,6 +2,8 @@
 // This code is based on Lua 5.x implementation licensed under MIT License; see lua_LICENSE.txt for details
 #include "lstate.h"
 
+#include "moo.h"
+
 #include "ltable.h"
 #include "lstring.h"
 #include "lfunc.h"
@@ -251,6 +253,7 @@ lua_State* lua_newstate(lua_Alloc allocator, void* ud)
         g->gcstats = GCStats();
 
         g->lastprotoid = 1;
+        g->randomseed = MOO_DEFAULT_RANDOM_SEED;
 
 #ifdef LUAI_GCMETRICS
         g->gcmetrics = GCMetrics();
@@ -287,6 +290,7 @@ lua_State* lua_newstate(lua_Alloc allocator, void* ud)
         g->registryfree = 0;
         g->errorjmp = NULL;
         g->rngstate = 0;
+        g->randomseed = MOO_DEFAULT_RANDOM_SEED;
         g->ptrenckey[0] = 1;
         g->ptrenckey[1] = 0;
         g->ptrenckey[2] = 0;

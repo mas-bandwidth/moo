@@ -61,3 +61,8 @@ jobs:
           build/moo tests/conformance/assert.luau
           build/moo-analyze tests/conformance/assert.luau
           build/moo-compile tests/conformance/assert.luau > /dev/null
+
+      - name: native codegen is refused
+        run: |
+          ! build/moo --codegen tests/conformance/assert.luau
+          ! build/moo --jit-inliner tests/conformance/assert.luau

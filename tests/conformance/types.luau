@@ -10,6 +10,10 @@ local ignore =
 
 	-- what follows is a set of mismatches that hopefully eventually will go down to 0
 	"_G.require", -- need to move to Roblox type defs
+
+	-- moo: the VM has no os library (docs/DETERMINISM.md, 9). The analyzer's builtin
+	-- definitions still declare it until they drop os, vector and integer together.
+	"_G.os",
 }
 
 function verify(real, rtti, path)
