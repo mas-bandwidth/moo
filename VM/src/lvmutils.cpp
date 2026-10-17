@@ -769,6 +769,9 @@ LUAU_NOINLINE void luaV_prepareFORN(lua_State* L, StkId plimit, StkId pstep, Stk
         luaG_forerror(L, plimit, "limit");
     if (!ttisnumber(pstep) && !luaV_tonumber(pstep, pstep))
         luaG_forerror(L, pstep, "step");
+    // moo: a zero step would never end (docs/DESIGN.md, "Exact integers")
+    if (nvalue(pstep) == 0)
+        luaG_runerror(L, "'for' step is zero");
 }
 
 // calls a C function f with no yielding support; optionally save one resulting value to the res register

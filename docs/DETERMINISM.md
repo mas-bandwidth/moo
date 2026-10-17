@@ -86,7 +86,8 @@ the surface without transcendentals (`library`). Measured 2026-10-17, all identi
 and macOS arm64; CI runs it on Linux clang on every push. Floats are still the number type, so
 the suite avoids libm functions and `^`; layer 2 removes that limit.
 
-When literals became exact, `strings.luau` and `attrib.luau` moved too (literals beyond the range are compile errors),
+When the `for` trip count became exact, `interrupt.luau` moved (its endless loops used a zero step, now an error) and
+`basic.luau` lost its zero-step cases. When literals became exact, `strings.luau` and `attrib.luau` moved too (literals beyond the range are compile errors),
 nine parser, linter, pretty-printer and frontend cases that assert double literals or precision lints are skipped with
 the reason beside each, and four compiler cases had their expected decimal constants updated to the Q48.16 values,
 marked `// moo:`.

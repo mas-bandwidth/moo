@@ -3781,7 +3781,7 @@ TEST_CASE("Interrupt")
 
     static int index;
 
-    StateRef globalState = runConformance("interrupt.luau", nullptr, nullptr, nullptr, &copts);
+    StateRef globalState = runConformance("moo/interrupt.luau", nullptr, nullptr, nullptr, &copts);
 
     lua_State* L = globalState.get();
 

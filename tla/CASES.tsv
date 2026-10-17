@@ -2,3 +2,5 @@ config	module	expected	property
 MCDestructorQueue.cfg	DestructorQueue.tla	pass	-
 MCDestructorQueueBrokenSweepOrder.cfg	DestructorQueue.tla	invariant	BatchInCreationOrder
 MCDestructorQueueBrokenCycleEnd.cfg	DestructorQueue.tla	invariant	QueueEmptyBetweenSteps
+MCNumericFor.cfg	NumericFor.tla	pass	-
+MCNumericForBrokenSaturate.cfg	NumericFor.tla	invariant	NeverTooMany

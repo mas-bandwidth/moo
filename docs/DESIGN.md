@@ -33,12 +33,15 @@ file and line, is in [DETERMINISM.md](DETERMINISM.md). This document says what r
     (`moo_numbridgetodouble`, `moo_numbridgefromdouble`), until the math library is rebuilt on fixed and the vector
     type is removed;
   - `buffer.readf32`/`writef32`, `readf64`/`writef64` and `string.pack` floats round by the bridge (the boundary PR);
-  - numeric `for` adds the step saturating and stops when the index cannot advance (the trip count PR).
 - **Literals are exact** (`Common/include/moo_parse.h`): the parser reads a decimal literal as the exact rational it
   denotes and rounds once to Q48.16, ties to even, with no libc and no locale; exponent notation stays; `0x` and `0b`
   literals are integers. A literal beyond the range is the compile error `Number literal out of range`; a nonzero
   literal that rounds to 0 is the lint warning "below the resolution". Until the bytecode version PR, the AST and
   the bytecode carry the double that holds the value, which is exact below 2^37.
+- **Numeric `for` is exact** (`tla/NumericFor.tla`): `LOP_FORNPREP` computes the trip count once, in integer
+  arithmetic on the raw values (`moo_numfortrips`), and keeps the iterations left in the limit's register; the index
+  never steps past the limit and never saturates. `for i = 0, 1, 0.1` runs 10 times (0.1 is 6554/65536). A zero step
+  is the named error `'for' step is zero`. The compiler's loop unrolling already counts small integer loops exactly.
 - **Exact already:** `math.abs`, `floor`, `ceil`, `min`, `max`, `clamp`, `sign`, `round` and `random` (16 bits per draw),
   table keys (integer-valued numbers use the array part; numbers hash by their raw value), and every integer
   conversion (toward zero, saturating at the int range, so no undefined float-to-int cast). The SSE4.1 fastcalls of
@@ -404,8 +407,8 @@ Each is detailed, with file and line, in [DETERMINISM.md](DETERMINISM.md):
 
 Per house practice, each state machine moo adds or changes gets a TLA+ module beside it, checked
 with TLC on a small instance before the code is merged: the GC pacing and destructor queue
-(layer 2), the coroutine resume/yield/close/error states (layer 5), and the numeric `for` trip
-count (layer 3). Each code change cites its model.
+(layer 2, `tla/DestructorQueue.tla`), the coroutine resume/yield/close/error states (layer 5), and the numeric `for`
+trip count (layer 3, `tla/NumericFor.tla`). Each code change cites its model.
 
 ## Upstream merges
 

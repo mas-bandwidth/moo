@@ -125,6 +125,15 @@ inline int64_t moo_numceil(fixed_t a)
     return -moo_numfloor(-a);
 }
 
+// the number of iterations of `for i = from, to, step` (step != 0): one for each k >= 0 with from + k * step between
+// from and to inclusive, computed exactly before the loop starts (tla/NumericFor.tla). At most 2^64 - 1.
+inline uint64_t moo_numfortrips(fixed_t from, fixed_t to, fixed_t step)
+{
+    if (step > 0)
+        return from <= to ? (uint64_t(to) - uint64_t(from)) / uint64_t(step) + 1 : 0;
+    return from >= to ? (uint64_t(from) - uint64_t(to)) / (uint64_t(0) - uint64_t(step)) + 1 : 0;
+}
+
 // the nearest integer, halves away from zero (Luau's math.round), as a number
 inline fixed_t moo_numround(fixed_t a)
 {
