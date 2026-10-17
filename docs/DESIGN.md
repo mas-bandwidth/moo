@@ -295,4 +295,5 @@ with Glenn.
    hashes and effect logs, including adversarial programs (object-keyed tables, heavy GC with
    destructors and weak tables, coroutines); bit-exact agreement with `fixed`'s C; fuzzing; and
    the coroutine TLA+ model.
-6. **virtualgo switches from Luau to moo.**
+6. **First adoption.** An existing Luau consumer switches from Luau to moo, and its own
+   determinism checks pass.
