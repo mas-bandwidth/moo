@@ -31,8 +31,8 @@ The inventory below lists every source of non-determinism found in the 0.741 VM,
 codegen and standard library, with its file and line in the fork commit and the fix moo
 proposes. Line numbers are as of the fork commit; they move as the files change.
 
-Layer 1 (determinism without numbers, [DESIGN.md](DESIGN.md)) is being built in small PRs.
-Each fix lands with a test in `tests/Moo.test.cpp`. This table is the state of `main`:
+Layer 2 (determinism without numbers, [DESIGN.md](DESIGN.md)) is built. Each fix landed with a
+test in `tests/Moo.test.cpp`. This table is the state of `main`:
 
 | # | Source | State |
 |---|---|---|
@@ -61,7 +61,7 @@ no change to the hot allocation path. `lua_gc` and `gcinfo` report it, so both a
 `lua_allocationrate` returns -1 (cannot be measured), always.
 
 **The determinism suite.** `tests/Determinism.test.cpp` (doctest `DeterminismSuite`, in
-`Luau.Conformance`) runs each adversarial program in `tests/determinism` in a fresh VM with a fixed
+`Moo.Test`) runs each adversarial program in `tests/determinism` in a fresh VM with a fixed
 host seed and logging host functions, twice, and takes two hashes: the **effects** (every log line,
 every destructor with the GC step boundaries, `lua_close`'s destructors) and the **state** (every GC
 object's header mid-cycle, then after a full collection every object's header and contents: table
