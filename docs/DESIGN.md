@@ -202,14 +202,130 @@ against the unmodified upstream code until then, so upstream merges into CodeGen
 `number` keeps its name and the type checker needs no new type: it never depended on the
 representation. What changes is outside the type lattice: the builtin definitions drop `os`,
 `vector` and the integer library while those are out, and `moo-analyze` gains the
-literal-below-resolution warning.
+literal-below-resolution warning. Layer 3b adds `vec3`, `quat` and `transform` as builtin types,
+defined the way Luau already defines `vector`.
 
-## vector
+## vec3, quat and transform (layer 3b)
 
-Luau's `vector` is three float32 components packed into the `TValue`. Three Q48.16 values do not
-fit in 16 bytes. moo removes `vector` in layer 3 (the library, the type and the bytecode
-constant, each refused by name). It comes back only as a fixed-point type, and whether that is
-a boxed value or a wider `TValue` is a later decision for Glenn.
+Luau's `vector` is three float32 components packed into the `TValue`. moo removes it in layer 3
+(the library, the type and the bytecode constant, each refused by name). Layer 3b, after
+`number` = fixed, brings in three fixed-point types with **full Q48.16 components**, the same as
+`number` and fixed3d:
+
+| type | layout (fixed's C) | payload |
+|---|---|---|
+| `vec3` | `fixVec3 { x, y, z }` | 24 bytes |
+| `quat` | `fixQuat { v: fixVec3, s }` | 32 bytes |
+| `transform` | `fixTransform { p: fixVec3, q: fixQuat }`, which fixed3d's `b3Transform` is | 56 bytes |
+
+None of these fits the 16-byte `TValue`. mat3 waits until a script needs inertia or skew; mat4
+stays out because the renderer owns projection.
+
+### Operations
+
+All are values: immutable, compared by value, never aliased. Each operation calls the `fixed` C
+function fixed3d calls (fixed3d's `b3*` vector functions are thin wrappers over them in
+`include/box3d/fixed_compat.h`), so the bits match by construction:
+
+| moo | fixed |
+|---|---|
+| `vec3 + vec3`, `vec3 - vec3`, `-vec3` | `fixVecAdd`, `fixVecSub`, `fixVecNeg` |
+| `vec3 * vec3` (component-wise) | `fixVecMul` |
+| `vec3 * number`, `number * vec3` | `fixMulSV` |
+| `vec3 == vec3` | component equality |
+| `vec3.dot`, `vec3.cross` | `fixDot`, `fixCross` |
+| `vec3.length`, `vec3.normalize` | `fixLength` (exact 128-bit sum of squares, integer square root), `fixNormalize` |
+| `quat * quat` | `fixMulQuat` |
+| `quat * vec3` (rotate) | `fixRotateVector` |
+| `quat.conjugate` | `fixConjugate` |
+| `quat.nlerp` | `fixNLerp` |
+| `quat.slerp` | **does not exist in `fixed` yet** (see below) |
+| `transform * transform` (compose) | `fixMulTransforms` |
+| `transform.inverse` | `fixInvertTransform` |
+| `transform * vec3`, `transform.point` | `fixTransformPoint` |
+| `transform.direction` | `fixRotateVector(t.q, v)` |
+| `transform.invpoint`, `transform.invdirection` | `fixInvTransformPoint`, `fixInvRotateVector(t.q, v)` |
+
+`quat.slerp` is added **upstream to `fixed`** first (built from `fixAtan2`, `fixSqrt` and
+`fixComputeCosSin`), so fixed3d and moo share one implementation. Until then moo exposes `nlerp`
+only. Luau's `vector` library names (`create`, `dot`, `cross`, `magnitude`, `normalize`) are kept
+as aliases on `vec3`, so Luau vector code carries over.
+
+**Saturation, stated precisely.** moo's own operators on these types (`+`, `-`, `*`, unary `-`)
+follow `number`'s rules: saturate, never wrap, named error in debug. Compound functions (cross,
+rotate, compose, normalize) are `fixed`'s functions verbatim. Two gaps exist at this `fixed` pin:
+`fixVecAdd`/`fixVecSub` and the intermediate sums inside `fixCross`, `fixRotateVector` and
+`fixMulTransforms` are plain int64 adds (signed overflow, undefined in C), and fixed3d's default
+build does not define `BOX3D_FIXED_SATURATE`, so `fixMul` wraps there. Within range the results
+are identical. To make them identical everywhere, moo proposes saturating adds in `fixed` under
+`FIX_SATURATE`, and the layer 3b oracle is fixed3d built with `BOX3D_FIXED_SATURATE`. Overflow
+behaviour is tested separately.
+
+### Representations costed
+
+Measured on Luau 0.741 itself, so the numbers are real VM costs, not estimates. Each variant is a
+scratch build (nothing committed), interpreter only, `-O2`, on Apple M5 Pro, median of 20 runs per
+program over Luau's own benchmark suite: 40 general programs and 3 vector programs.
+
+- **(a)** is Luau's own `LUA_VECTOR_DOUBLE=1` build. It makes every vector a 24-byte immutable GC
+  object, which is exactly the vec3 payload, with one allocation per vector operation.
+- **(b)** is the `TValue` padded to 24, 32 and 40 bytes. 32 bytes holds a vec3 plus its tag;
+  40 holds a quat.
+- **The baseline** is stock 0.741: a 16-byte `TValue` with float32 vectors in the slot.
+
+| | (a) GC object | (b) 24 B TValue | (b) 32 B TValue (vec3) | (b) 40 B TValue (quat) |
+|---|---|---|---|---|
+| general programs, time (geomean; min to max) | **0.997** (0.91 to 1.07) | 1.095 | 1.077 (0.89 to 1.42) | 1.181 (0.97 to 1.68) |
+| general programs, peak RSS (geomean; max) | **0.999** (1.04) | 1.057 (1.40) | 1.115 (1.80) | 1.166 (2.19) |
+| vector programs, time (geomean; min to max) | 2.58 (1.89 to 4.30) | 1.070 | 1.082 | 1.165 |
+| one vector op (`acc + a*s - b + b*2`) | 5.3 ns | 1.5 ns | 1.9 ns | 1.9 ns |
+| 1M numbers in an array | 15.7 MB | 23.5 MB | 31.3 MB | 39.1 MB |
+| 1M number keys in a hash | 32.8 MB | 49.2 MB | 65.6 MB | 82.0 MB |
+| 1M vec3 in an array | 46.9 MB | n/a | 31.3 MB | 39.1 MB |
+
+The baseline is 1.9 ns per vector op, and 15.7 MB and 32.8 MB for the two number tables.
+`TableCreate_number` and `LargeTableCtor_hash` take the worst wide-slot hits (1.42x and 1.29x at
+32 bytes, 1.68x and 1.44x at 40). A transform needs a 64-byte `TValue`, which was not built; the
+trend from 16 to 40 bytes says it would cost more again.
+
+- **(a) Immutable GC objects.** No cost to code that does not use the types: the general suite
+  is unchanged within noise, and numbers stay 16 bytes everywhere. Each operation that produces
+  a value allocates: about 3.4 ns extra per op, a 1.9x to 4.3x slowdown on vector-bound programs,
+  and 48 bytes per stored vec3 (16-byte slot plus a 32-byte object). Sizes are 32 bytes for
+  vec3, 40 for quat and 64 for transform with the GC header. Luau's allocator already pops
+  fixed-size classes off per-page free lists, so the measured 3.4 ns already includes a
+  small-object free list; a dedicated per-type list would gain little. What remains is GC work,
+  and the lever for it is the compiler. A value an arithmetic op produces into an
+  expression temporary has never been stored, passed or captured, so the next op in the same
+  expression may overwrite it in place. In `acc + a*s - b + b*2` that cuts four allocations to
+  two. It is a compiler decision, so it is deterministic. The gain is an estimate until built.
+- **(b) A wider TValue.** Fast vector ops (no allocation), but it taxes everything: +7.7% time and
+  +11.5% memory on general code at 32 bytes (vec3 only), +18% and +17% at 40 bytes (quat), every
+  number array and hash node twice the size, and the table and stack layouts that Luau's code
+  assumes (`static_assert`s in `VM/src/lmem.cpp`, `kTValueSizeLog2` in CodeGen) all change. That
+  is a large, permanent diff against upstream in exactly the files that merge most often.
+  Transform still would not fit.
+- **(c) A host-side handle arena.** Not built: it is dominated by (a). Handles are copied freely
+  into tables, upvalues and stacks, so a slot can be reused only when no handle reaches it, which
+  is a tracing GC over the arena. That is (a)'s work plus an indirection and a generation compare
+  on every read. The generation check catches use-after-free, which tracing already rules out.
+  Slot reuse order would also be one more piece of state that the determinism guarantee has to
+  pin.
+
+**Recommendation: (a) for all three types**, with the expression-temporary reuse in the compiler.
+It is the only option with zero cost to code that does not use the types, the only one that holds
+a transform, and the smallest upstream diff (one GC object kind per type, no change to `TValue`).
+Its cost falls on vector-heavy script loops; in the intended use the heavy vector math (physics)
+runs in fixed3d's C, not in scripts. If a vec3-bound script ever matters, (b) at 32 bytes for vec3 alone
+is the fallback: about 8% everywhere, with quat and transform staying as objects.
+
+### Conformance (layer 3b)
+
+Bit-exact against fixed3d's own vec, quat and transform functions over dense inputs: random
+operands across the full range, unit and near-unit quaternions, axis-aligned and degenerate
+vectors (zero, single component, the saturation edges), and every operation in the table above.
+Each case runs in moo and in C against the same `fixed` pin, and the bits must match. Overflow
+and saturation cases are compared against fixed3d built with `BOX3D_FIXED_SATURATE`.
 
 ## integer
 
@@ -287,6 +403,10 @@ with Glenn.
    literals; the compiler's folding and the bytecode constant; integer-valued indexing, `#` and
    `for`; the C API's `lua_Number`; the boundary functions; `vector` and `integer` out. Checked
    by: bit-exact agreement with `fixed`'s C on every operator over random and edge operands.
+3b. **vec3, quat and transform.** Full Q48.16 components as immutable GC objects, the operations
+   above on `fixed`'s functions, slerp upstreamed to `fixed`, and expression-temporary reuse in
+   the compiler. Checked by: bit-exact agreement with fixed3d's vec, quat and transform over
+   dense inputs, and the representation benchmarks rerun against the numbers above.
 4. **math and formatting.** The math library on `fixed`; `pow`/`^`; `tostring`, `tonumber`
    and `string.format`; float bytes in buffers and `string.pack`. Checked by: the CORE-MATH
    error table, round-trip of every formatted value, and bit-exact agreement with `fixed`.

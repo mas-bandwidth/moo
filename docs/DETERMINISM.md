@@ -265,8 +265,8 @@ deterministic function of the table's history, and the determinism suite pins it
   `LUA_VECTOR_SIZE` is 3. `VM/src/lveclib.cpp` and the compiler's vector folding
   (`Compiler/src/ConstantFolding.cpp:371-433`) compute in float.
 
-**Fix:** see DESIGN.md, "vector". In layer 3 the vector type is removed; it comes back
-only as a fixed-point type.
+**Fix:** in layer 3 the float vector type is removed. Layer 3b brings `vec3`, `quat` and
+`transform` back with full Q48.16 components (DESIGN.md, "vec3, quat and transform").
 
 ### 18. Float bytes in buffers and string.pack
 
