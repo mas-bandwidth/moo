@@ -61,6 +61,9 @@ target_sources(Luau.Bytecode PRIVATE
 )
 
 # Luau.Inliner Sources
+# moo: the JIT bytecode inliner folds numbers as doubles at run time; it is excluded until it is rebuilt on fixed point
+# (MOO_JIT_INLINER, docs/DESIGN.md "Native codegen"). moo_jitinliner_off.cpp answers its API by doing nothing.
+if(MOO_JIT_INLINER)
 target_sources(Luau.Inliner PRIVATE
     Inliner/include/Luau/JitInliner.h
     Inliner/include/luajitinliner.h
@@ -71,6 +74,13 @@ target_sources(Luau.Inliner PRIVATE
     Inliner/src/luajitinliner.cpp
     Inliner/src/RuntimeBytecodeBuilder.h
 )
+else()
+target_sources(Luau.Inliner PRIVATE
+    Inliner/include/Luau/JitInliner.h
+    Inliner/include/luajitinliner.h
+    Inliner/src/moo_jitinliner_off.cpp
+)
+endif()
 
 # Luau.Compiler Sources
 target_sources(Luau.Compiler PRIVATE

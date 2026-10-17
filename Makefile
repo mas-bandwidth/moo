@@ -22,7 +22,8 @@ BYTECODE_SOURCES=$(wildcard Bytecode/src/*.cpp)
 BYTECODE_OBJECTS=$(BYTECODE_SOURCES:%=$(BUILD)/%.o)
 BYTECODE_TARGET=$(BUILD)/libluaubytecode.a
 
-JITINLINER_SOURCES=$(wildcard Inliner/src/*.cpp)
+# moo: the JIT inliner is excluded until it is rebuilt on fixed point (docs/DESIGN.md, "Native codegen")
+JITINLINER_SOURCES=Inliner/src/moo_jitinliner_off.cpp
 JITINLINER_OBJECTS=$(JITINLINER_SOURCES:%=$(BUILD)/%.o)
 JITINLINER_TARGET=$(BUILD)/libluaujitinliner.a
 

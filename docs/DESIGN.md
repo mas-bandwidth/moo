@@ -243,6 +243,11 @@ moo's number is fixed point; code that computes wrong answers is worse than abse
   allocators) are not built; the conformance tests that exercise codegen return early when it
   is not supported;
 - `moo --codegen*` and `--jit-inliner` are refused by name.
+- The JIT bytecode inliner is excluded the same way (CMake option `MOO_JIT_INLINER`, off; on is a configure error):
+  it folds number constants at run time as doubles. `Luau.Inliner` (and the Makefile's `libluaujitinliner.a`) is
+  `Inliner/src/moo_jitinliner_off.cpp`, whose `luau_enable_jit_inliner` does nothing; the conformance case
+  `JitInliner` still runs its script, on the interpreter. Found while the number swap was being finished, from a
+  `-Wformat` warning in its constant dump.
 
 A later layer reinstates it, rebuilt on the fixed type (no FMA, integer lowering), with its tests.
 
