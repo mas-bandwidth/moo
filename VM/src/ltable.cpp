@@ -87,6 +87,24 @@ static LuaNode* hashpointer(const LuaTable* t, const void* p)
     return hashpow2(t, h);
 }
 
+// moo: collectable keys hash by their creation number, never their address (docs/DETERMINISM.md, 1)
+static LuaNode* hashgco(const LuaTable* t, const GCObject* o)
+{
+    uint64_t k = o->gch.gcseq;
+
+    // MurmurHash3 64-bit finalizer
+    if (!ALT_HASH_FUNCTION)
+    {
+        k ^= k >> 33;
+        k *= 0xff51afd7ed558ccdull;
+        k ^= k >> 33;
+        k *= 0xc4ceb9fe1a85ec53ull;
+        k ^= k >> 33;
+    }
+
+    return hashpow2(t, unsigned(k));
+}
+
 static LuaNode* hashnum(const LuaTable* t, double n)
 {
     static_assert(sizeof(double) == sizeof(unsigned int) * 2, "expected a 8-byte double");
@@ -225,7 +243,7 @@ static LuaNode* mainposition(const LuaTable* t, const TValue* key)
     case LUA_TLIGHTUSERDATA:
         return hashpointer(t, pvalue(key));
     default:
-        return hashpointer(t, gcvalue(key));
+        return hashgco(t, gcvalue(key));
     }
 }
 
@@ -274,7 +292,7 @@ LUAU_FORCEINLINE LuaNode* mainpositiontagged<LUA_TSTRING>(const LuaTable* t, TSt
 template<>
 LUAU_FORCEINLINE LuaNode* mainpositiontagged<LUA_TGCO>(const LuaTable* t, GCObject* key)
 {
-    return hashpointer(t, key);
+    return hashgco(t, key);
 }
 
 // For static luaO_rawequalKey dispatch on a known tag (or GCO). Only used specializations are implemented

@@ -15,6 +15,7 @@
 #include <fstream>
 #include <sstream>
 #include <string>
+#include <vector>
 
 namespace
 {
@@ -83,6 +84,29 @@ const char* const kRandomSequence = R"(
     return table.concat(t, ",")
 )";
 
+// Object keys of every collectable kind, with deletes during traversal and a rehash after.
+const char* const kObjectKeyOrder = R"(
+    local keys = {}
+    local t = {}
+    for i = 1, 40 do
+        local k
+        local m = i % 5
+        if m == 0 then k = {}
+        elseif m == 1 then k = function() return i end
+        elseif m == 2 then k = coroutine.create(function() end)
+        elseif m == 3 then k = buffer.create(i)
+        else k = newproxy() end
+        keys[k] = i
+        t[k] = true
+    end
+    local n = 0
+    for k in pairs(t) do n += 1; if n % 3 == 0 then t[k] = nil end end
+    for i = 41, 60 do local k = {} keys[k] = i; t[k] = true end
+    local order = {}
+    for k in pairs(t) do table.insert(order, keys[k]) end
+    return table.concat(order, ",")
+)";
+
 } // namespace
 
 TEST_SUITE_BEGIN("moo");
@@ -138,6 +162,69 @@ TEST_CASE("RandomSeedIsHostInput")
     // reseeding restarts the sequence
     moo_setrandomseed(after.L, 42);
     CHECK(seeded == mooRun(after.L, kRandomSequence));
+}
+
+// DETERMINISM.md 1: object keys hash by creation number, so pairs order is a function of the program.
+TEST_CASE("ObjectKeyOrderIgnoresAddresses")
+{
+    MooState a;
+    std::string order = mooRun(a.L, kObjectKeyOrder);
+
+    // Move the second VM's objects to other addresses: hold host allocations of assorted sizes.
+    std::vector<std::vector<char>> perturb;
+    for (int i = 1; i <= 64; ++i)
+        perturb.emplace_back(size_t(i * 37 % 509 + 1));
+
+    MooState b;
+    CHECK(order == mooRun(b.L, kObjectKeyOrder));
+
+    // Pinned: a change here changes the iteration order of every object-keyed table.
+    CHECK(order == "18,3,32,8,9,5,24,20,60,59,54,50,37,11,52,13,27,56,55,51,53,47,28,49,19,31,46,44,26,35,15,43,48,23,41,14,25,34,42,16,7,22,57,4,29,58,45");
+}
+
+// DETERMINISM.md 6: tostring prints the creation number, never the address.
+TEST_CASE("TostringPrintsCreationNumber")
+{
+    MooState s;
+
+    std::string pair = mooRun(s.L, "local a, b = {}, {} return tostring(a) .. ' ' .. tostring(b)");
+    CHECK(pair == "table: #400 table: #401");
+
+    const char* const kinds = R"(
+        local values = { {}, function() end, coroutine.create(function() end), buffer.create(1), newproxy() }
+        local out = {}
+        for _, v in values do
+            local text = tostring(v)
+            assert(string.match(text, "^%a+: #%d+$"), text)
+            table.insert(out, (string.gsub(text, "#%d+", "#")))
+        end
+        return table.concat(out, " ")
+    )";
+    CHECK(mooRun(s.L, kinds) == "table: # function: # thread: # buffer: # userdata: #");
+
+    // the host's value is never printed
+    lua_pushlightuserdata(s.L, (void*)0x12345678);
+    lua_setglobal(s.L, "lud");
+    CHECK(mooRun(s.L, "return tostring(lud)") == "userdata: light");
+
+    // tostring and the C API agree
+    mooRun(s.L, "t = {}");
+    lua_getglobal(s.L, "t");
+    std::string viaApi = "table: #" + std::to_string(moo_objectseq(s.L, -1));
+    lua_pop(s.L, 1);
+    CHECK(mooRun(s.L, "return tostring(t)") == viaApi);
+
+    // creation numbers count up per VM; the main thread is 0; non-collectable values are 0
+    CHECK(moo_objectseq(s.L, LUA_GLOBALSINDEX) > 0);
+    lua_pushnumber(s.L, 1);
+    CHECK(moo_objectseq(s.L, -1) == 0);
+    lua_pop(s.L, 1);
+    lua_pushthread(s.L);
+    CHECK(moo_objectseq(s.L, -1) == 0);
+    lua_pop(s.L, 1);
+
+    MooState other;
+    CHECK(mooRun(other.L, "local a, b = {}, {} return tostring(a) .. ' ' .. tostring(b)") == pair);
 }
 
 TEST_SUITE_END();

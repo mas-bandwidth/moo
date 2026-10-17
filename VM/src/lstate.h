@@ -234,6 +234,7 @@ typedef struct global_State
     struct lua_jmpbuf* errorjmp; // jump buffer data for longjmp-style error handling
 
     uint64_t rngstate; // PCG random number generator state
+    uint64_t gcseq;      // moo: the creation number of the next object (the main thread is 0)
     uint64_t randomseed; // moo: the host's math.random seed (moo_setrandomseed), MOO_DEFAULT_RANDOM_SEED by default
     uint64_t ptrenckey[4]; // pointer encoding key for display (remove when unreferenced)
 

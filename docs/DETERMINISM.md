@@ -36,9 +36,16 @@ Each fix lands with a test in `tests/Moo.test.cpp`. This table is the state of `
 
 | # | Source | State |
 |---|---|---|
+| 1 | object keys hash by address | **fixed**: every object header starts with its 8-byte creation number (`gcseq`); object keys hash by it |
+| 6 | `tostring` shows an address | **fixed**: `table: #123`; light userdata prints `userdata: light`; `moo_objectseq` gives the number to the host |
 | 9 | `os` and time | **fixed**: the `os` library is deleted (`VM/src/loslib.cpp`) |
 | 10 | `math.random` seeding | **fixed**: constant default seed, `moo_setrandomseed` in `VM/include/moo.h` |
 | 14 | FMA in native codegen | **fixed for moo's binaries**: `moo --codegen*` and `--jit-inliner` are refused |
+
+The creation number costs 8 bytes in every object (16 in a userdata, whose data stays 16-byte
+aligned at offset 32): a table header is 56 bytes (was 48), a string header 32 (24), a closure
+72 (64), an upvalue 48 (40), a buffer header 16 (8). The static asserts in `VM/src/lmem.cpp` pin
+these sizes, and moo now refuses to build for a 32-bit target.
 
 Upstream tests moo changed, and why:
 

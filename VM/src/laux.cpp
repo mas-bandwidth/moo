@@ -1,6 +1,7 @@
 // This file is part of the Luau programming language and is licensed under MIT License; see LICENSE.txt for details
 // This code is based on Lua 5.x implementation licensed under MIT License; see lua_LICENSE.txt for details
 #include "lualib.h"
+#include "moo.h"
 
 #include "lobject.h"
 #include "lstate.h"
@@ -664,13 +665,14 @@ const char* luaL_tolstring(lua_State* L, int idx, size_t* len)
         lua_pushlstring(L, s, e - s);
         break;
     }
-    default:
-    {
-        const void* ptr = lua_topointer(L, idx);
-        unsigned long long enc = lua_encodepointer(L, uintptr_t(ptr));
-        lua_pushfstring(L, "%s: 0x%016llx", luaL_typename(L, idx), enc);
+    case LUA_TLIGHTUSERDATA:
+        // moo: a light userdata's value is the host's; it is never printed (docs/DETERMINISM.md, 6)
+        lua_pushfstring(L, "%s: light", luaL_typename(L, idx));
         break;
-    }
+    default:
+        // moo: the creation number, never the address (docs/DETERMINISM.md, 6)
+        lua_pushfstring(L, "%s: #%llu", luaL_typename(L, idx), (unsigned long long)moo_objectseq(L, idx));
+        break;
     }
     return lua_tolstring(L, -1, len);
 }

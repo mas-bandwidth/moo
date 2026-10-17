@@ -126,6 +126,7 @@
 
 #define luaC_init(L, o, tt_) \
     { \
+        o->gcseq = L->global->gcseq++; \
         o->marked = luaC_white(L->global); \
         o->tt = tt_; \
         o->memcat = L->activememcat; \

@@ -121,12 +121,14 @@ static_assert(sizeof(TValue) == ABISWITCH(16, 16, 16), "size mismatch for value"
 static_assert(sizeof(LuaNode) == ABISWITCH(32, 32, 32), "size mismatch for table entry");
 #endif
 
-static_assert(offsetof(TString, data) == ABISWITCH(24, 20, 20), "size mismatch for string header");
-static_assert(sizeof(LuaTable) == ABISWITCH(48, 32, 32), "size mismatch for table header");
-static_assert(offsetof(Buffer, data) == ABISWITCH(8, 8, 8), "size mismatch for buffer header");
+// moo: every object header grew by its 8-byte creation number (lobject.h CommonHeader)
+static_assert(sizeof(void*) == 8, "moo supports 64-bit targets only");
+static_assert(offsetof(TString, data) == 32, "size mismatch for string header");
+static_assert(sizeof(LuaTable) == 56, "size mismatch for table header");
+static_assert(offsetof(Buffer, data) == 16, "size mismatch for buffer header");
 
 // The userdata is designed to provide 16 byte alignment for 16 byte and larger userdata sizes
-static_assert(offsetof(Udata, data) == 16, "data must be at precise offset provide proper alignment");
+static_assert(offsetof(Udata, data) == 32, "data must be at precise offset provide proper alignment");
 
 const size_t kSizeClasses = LUA_SIZECLASSES;
 
