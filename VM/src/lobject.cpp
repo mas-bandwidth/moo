@@ -84,26 +84,32 @@ int luaO_rawequalKey(const TKey* t1, const TValue* t2)
         }
 }
 
-// moo: TEMPORARY until moo's own parser (docs/DESIGN.md, "Literals"): strtod, then the boundary rule;
-// a value outside the range is not a number
+// moo: tonumber and string coercion use the literal parser (moo_parse.h): the exact rational, rounded once, ties to
+// even, no strtod and no locale. Spaces around it and one sign are allowed; out of range is not a number.
 int luaO_str2d(const char* s, lua_Number* result)
 {
-    char* endptr;
-    double d = luai_str2num(s, &endptr);
-    if (endptr == s)
-        return 0;                         // conversion failed
-    int64_t n = 0;
-    if (moo_fromdouble(d, &n) != MOO_NUMBER_OK)
+    while (isspace(cast_to(unsigned char, *s)))
+        s++;
+    bool neg = false;
+    if (*s == '-' || *s == '+')
+        neg = *s++ == '-';
+    const char* end = s;
+    while (*end && !isspace(cast_to(unsigned char, *end)))
+        end++;
+    const char* rest = end;
+    while (isspace(cast_to(unsigned char, *rest)))
+        rest++;
+    size_t len = size_t(end - s);
+    if (*rest != '\0' || len == 0 || len > MOO_PARSE_MAX_DIGITS + 32)
         return 0;
-    *result = n;
-    if (*endptr == 'x' || *endptr == 'X') // maybe an hexadecimal constant?
-        *result = cast_num(strtoul(s, &endptr, 16));
-    if (*endptr == '\0')
-        return 1; // most common case
-    while (isspace(cast_to(unsigned char, *endptr)))
-        endptr++;
-    if (*endptr != '\0')
-        return 0; // invalid trailing characters?
+    char buf[MOO_PARSE_MAX_DIGITS + 33];
+    memcpy(buf, s, len);
+    buf[len] = '\0';
+    fixed_t v = 0;
+    int status = moo_numparse(buf, &v);
+    if (status == MOO_PARSE_MALFORMED || status == MOO_PARSE_OUT_OF_RANGE)
+        return 0;
+    *result = neg ? -v : v;
     return 1;
 }
 

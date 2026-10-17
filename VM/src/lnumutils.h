@@ -3,6 +3,8 @@
 #pragma once
 
 #include "moo_number.h"
+#include "moo_format.h"
+#include "moo_parse.h"
 
 #include <math.h>
 #include <cstdint>
@@ -146,11 +148,10 @@ inline double luai_lerpd(double a, double b, double t)
 #define LUAI_MAXINT2STR 30
 
 LUAI_FUNC char* luai_num2str(char* buf, double n);
-// TEMPORARY BRIDGE until moo's exact formatter (docs/DESIGN.md, "Number formatting"): a number printed
-// through the double that holds it exactly (every raw value below 2^53 is exact in a double)
+// moo: the shortest decimal that reads back to exactly the number (moo_format.h, docs/DESIGN.md "Number formatting")
 inline char* luai_fixed2str(char* buf, fixed_t n)
 {
-    return luai_num2str(buf, moo_numbridgetodouble(n));
+    return moo_numtostr(buf, n);
 }
 LUAI_FUNC char* luai_int2str(char* buf, int64_t n);
 

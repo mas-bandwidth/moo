@@ -24,11 +24,8 @@ file and line, is in [DETERMINISM.md](DETERMINISM.md). This document says what r
   double that holds it exactly); it does not fold division by zero, `^`, or any builtin call or `math` constant.
 - **Native code generation** is excluded (below).
 - **TEMPORARY bridges**, each marked in the code and each removed by a later layer 3 PR:
-  - `tonumber` and string-to-number coercion still go through `strtod` and the boundary rule (the tostring and
-    tonumber PR);
   - bytecode carries a double per number constant, rounded by the boundary rule at load, saturating (the bytecode
     version PR);
-  - `tostring` and `string.format("%f", ...)` print through the double that holds the number exactly (the formatting PR);
   - the libm functions of `math`, `^`, `math.noise`, and the float `vector` type convert through doubles
     (`moo_numbridgetodouble`, `moo_numbridgefromdouble`), until the math library is rebuilt on fixed and the vector
     type is removed;
@@ -38,6 +35,11 @@ file and line, is in [DETERMINISM.md](DETERMINISM.md). This document says what r
   literals are integers. A literal beyond the range is the compile error `Number literal out of range`; a nonzero
   literal that rounds to 0 is the lint warning "below the resolution". Until the bytecode version PR, the AST and
   the bytecode carry the double that holds the value, which is exact below 2^37.
+- **Formatting and tonumber are exact** (`Common/include/moo_format.h`): `tostring` prints the shortest decimal that
+  reads back to exactly the same value (`0.1 + 0.2` prints `0.3`, because both read as 19661/65536), integers with no
+  fraction; `string.format`'s `%f`, `%e`, `%g`, `%E` and `%G` follow C's flags, width and precision on the exact decimal
+  expansion, rounding half to even, with no libc. `tonumber` and string coercion use the literal parser, with spaces
+  and one sign around it; out of range is not a number.
 - **Numeric `for` is exact** (`tla/NumericFor.tla`): `LOP_FORNPREP` computes the trip count once, in integer
   arithmetic on the raw values (`moo_numfortrips`), and keeps the iterations left in the limit's register; the index
   never steps past the limit and never saturates. `for i = 0, 1, 0.1` runs 10 times (0.1 is 6554/65536). A zero step

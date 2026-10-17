@@ -44,6 +44,7 @@ test in `tests/Moo.test.cpp`. This table is the state of `main`:
 | 2 | number keys hash by IEEE bits | **fixed**: numbers hash by their raw Q48.16 value |
 | 7 | platform libm | **partly**: `+ - * / // %` are fixed's integer arithmetic, and the compiler folds with the same functions; the libm functions and `^` still cross a double bridge until the math library is rebuilt on fixed |
 | 11 | out-of-range float-to-int casts | **fixed**: every number-to-integer conversion is toward zero and saturating (`moo_number.h`) |
+| 8 | number formatting and parsing through libc | **fixed**: one exact formatter (`moo_format.h`) and one exact parser (`moo_parse.h`), no `printf`, `strtod` or locale |
 | 9 | `os` and time | **fixed**: the `os` library is deleted (`VM/src/loslib.cpp`) |
 | 10 | `math.random` seeding | **fixed**: constant default seed, `moo_setrandomseed` in `VM/include/moo.h` |
 | 14 | FMA in native codegen | **fixed**: native code generation is excluded from the build (`MOO_CODEGEN` off, DESIGN.md "Native codegen"); `moo --codegen*` and `--jit-inliner` are refused |
@@ -86,6 +87,7 @@ the surface without transcendentals (`library`). Measured 2026-10-17, all identi
 and macOS arm64; CI runs it on Linux clang on every push. Floats are still the number type, so
 the suite avoids libm functions and `^`; layer 2 removes that limit.
 
+When tostring became the shortest exact round trip, `strconv.luau`'s cases that expect a double's digits were marked.
 When the `for` trip count became exact, `interrupt.luau` moved (its endless loops used a zero step, now an error) and
 `basic.luau` lost its zero-step cases. When literals became exact, `strings.luau` and `attrib.luau` moved too (literals beyond the range are compile errors),
 nine parser, linter, pretty-printer and frontend cases that assert double literals or precision lints are skipped with

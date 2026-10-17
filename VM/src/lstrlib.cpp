@@ -3,6 +3,7 @@
 #include "lualib.h"
 
 #include "lstring.h"
+#include "moo_format.h"
 
 #include <ctype.h>
 #include <string.h>
@@ -1037,8 +1038,9 @@ static int str_format(lua_State* L)
             case 'g':
             case 'G':
             {
-                // TEMPORARY until moo's exact formatter (docs/DESIGN.md, "string.format"): the double that holds the number exactly
-                snprintf(buff, sizeof(buff), form, moo_numbridgetodouble(luaL_checknumber(L, arg)));
+                // moo: exact, on the number's finite decimal expansion, half to even, no libc (moo_format.h)
+                if (moo_numformat(buff, sizeof(buff), form + 1, formatIndicator, luaL_checknumber(L, arg)) < 0)
+                    luaL_error(L, "invalid format (width or precision too long)");
                 break;
             }
             case 'q':
