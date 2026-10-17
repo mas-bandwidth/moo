@@ -253,6 +253,7 @@ lua_State* lua_newstate(lua_Alloc allocator, void* ud)
         g->gcstats = GCStats();
 
         g->lastprotoid = 1;
+        g->randomseed = MOO_DEFAULT_RANDOM_SEED;
 
 #ifdef LUAI_GCMETRICS
         g->gcmetrics = GCMetrics();
