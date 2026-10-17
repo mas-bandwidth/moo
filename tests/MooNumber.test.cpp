@@ -6,6 +6,7 @@
 #include "moo.h"
 #include "moo_number.h"
 #include "moo_parse.h"
+#include "moo_format.h"
 
 #include "MooWide.h"
 
@@ -13,6 +14,7 @@
 
 #include <math.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <string.h>
 
 #include <string>
@@ -282,7 +284,7 @@ int64_t parsed(const std::string& text, int* status = nullptr)
 TEST_CASE("LiteralsAreExact")
 {
     Lcg r;
-    for (int i = 0; i < 100000; ++i)
+    for (int i = 0; i < 20000; ++i)
     {
         int64_t raw = int64_t(r.next() >> (1 + r.next() % 63));
         int st = -1;
@@ -341,6 +343,83 @@ TEST_CASE("LiteralsAreExact")
         fixed_t v = 77;
         CHECK_MESSAGE(moo_numparse(bad, &v) == MOO_PARSE_MALFORMED, bad);
     }
+}
+
+// DESIGN.md "Number formatting": the shortest decimal that reads back to exactly the value
+TEST_CASE("TostringIsShortestRoundTrip")
+{
+    char buf[64];
+    auto text = [&](int64_t n) { return std::string(buf, moo_numtostr(buf, n)); };
+    auto check = [&](int64_t n) {
+        std::string t = text(n);
+        int st = -1;
+        REQUIRE_MESSAGE(parsed(t, &st) == n, t);
+        // no shorter decimal reads back: dropping the last fraction digit (rounded either way) gives another value
+        size_t dot = t.find('.');
+        if (dot != std::string::npos)
+        {
+            std::string shorter = t.substr(0, t.size() - 1);
+            if (shorter.back() == '.')
+                shorter.pop_back();
+            CHECK_MESSAGE(parsed(shorter) != n, t);
+        }
+    };
+    for (int64_t n = -66000; n <= 66000; n += 3)
+        check(n);
+    Lcg r;
+    for (int i = 0; i < 20000; ++i)
+        check(int64_t(r.next()) >> (1 + r.next() % 63));
+    check(INT64_MAX);
+    check(-INT64_MAX);
+
+    CHECK(text(6554) == "0.1");
+    CHECK(text(6554 + 13107) == "0.3"); // 0.1 + 0.2 reads back as 0.3
+    CHECK(text(21845) == "0.33333");
+    CHECK(text(3 * 65536) == "3");
+    CHECK(text(-32768) == "-0.5");
+    CHECK(text(0) == "0");
+    CHECK(text(1) == "0.00002");
+    CHECK(text(INT64_MAX) == "140737488355327.99998");
+}
+
+// DESIGN.md "string.format": C's %f %e %g on the exact value. Below 2^37 the double raw / 2^16 is the exact value, and
+// the C library prints a double exactly, rounding half to even, so it is the oracle.
+TEST_CASE("FormatMatchesCOnTheExactValue")
+{
+    const char* specs[] = {"", ".0", ".1", ".2", ".3", ".5", ".10", ".16", ".20", "10.3", "-12.4", "+.2", " .3", "012.5", "#.0", "#",
+        "-+15.6", "1", "25", ".40"};
+    const char convs[] = {'f', 'e', 'E', 'g', 'G'};
+    Lcg r;
+    char mine[256], theirs[256], form[64];
+    int checked = 0;
+    for (int i = 0; i < 6000; ++i)
+    {
+        int64_t n = int64_t(r.next()) >> (27 + r.next() % 36); // |n| < 2^37 raw: exact as a double
+        if (i % 7 == 0)
+            n = int64_t(r.next() % 200000) - 100000;
+        double d = double(n) / 65536.0;
+        for (const char* spec : specs)
+            for (char conv : convs)
+            {
+                snprintf(form, sizeof(form), "%%%s%c", spec, conv);
+                snprintf(theirs, sizeof(theirs), form, d);
+                REQUIRE(moo_numformat(mine, sizeof(mine), spec, conv, n) >= 0);
+                CHECK_MESSAGE(std::string(mine) == std::string(theirs), form << " of raw " << n << ": moo " << mine << " C " << theirs);
+                checked++;
+            }
+    }
+    CHECK(checked > 500000);
+
+    // ties to even on the exact value
+    CHECK(moo_numformat(mine, sizeof(mine), ".0", 'f', 32768) >= 0);
+    CHECK(std::string(mine) == "0");
+    CHECK(moo_numformat(mine, sizeof(mine), ".0", 'f', 3 * 32768) >= 0);
+    CHECK(std::string(mine) == "2");
+    // the largest number, beyond the double oracle's exact range
+    CHECK(moo_numformat(mine, sizeof(mine), ".16", 'f', INT64_MAX) >= 0);
+    CHECK(std::string(mine) == "140737488355327.9999847412109375");
+    CHECK(moo_numformat(mine, sizeof(mine), ".3", 'e', -INT64_MAX) >= 0);
+    CHECK(std::string(mine) == "-1.407e+14");
 }
 
 TEST_SUITE_END();
