@@ -38,7 +38,8 @@ ANALYSIS_SOURCES=$(wildcard Analysis/src/*.cpp)
 ANALYSIS_OBJECTS=$(ANALYSIS_SOURCES:%=$(BUILD)/%.o)
 ANALYSIS_TARGET=$(BUILD)/libluauanalysis.a
 
-CODEGEN_SOURCES=$(wildcard CodeGen/src/*.cpp)
+# moo: native code generation is excluded until it is rebuilt on fixed point (docs/DESIGN.md, "Native codegen")
+CODEGEN_SOURCES=CodeGen/src/moo_codegen_off.cpp
 CODEGEN_OBJECTS=$(CODEGEN_SOURCES:%=$(BUILD)/%.o)
 CODEGEN_TARGET=$(BUILD)/libluaucodegen.a
 
@@ -56,7 +57,8 @@ ISOCLINE_SOURCES=extern/isocline/src/isocline.c
 ISOCLINE_OBJECTS=$(ISOCLINE_SOURCES:%=$(BUILD)/%.o)
 ISOCLINE_TARGET=$(BUILD)/libisocline.a
 
-TESTS_SOURCES=$(filter-out tests/moo_main.cpp,$(wildcard tests/*.cpp)) CLI/src/FileUtils.cpp CLI/src/Flags.cpp CLI/src/Profiler.cpp CLI/src/Coverage.cpp CLI/src/Counters.cpp CLI/src/Repl.cpp CLI/src/ReplRequirer.cpp CLI/src/VfsNavigator.cpp
+MOO_CODEGEN_TESTS=tests/AssemblyBuilderA64.test.cpp tests/AssemblyBuilderX64.test.cpp tests/CodeAllocator.test.cpp tests/IrAssembly.test.cpp tests/IrBuilder.test.cpp tests/IrCallWrapperX64.test.cpp tests/IrRegAllocX64.test.cpp tests/IrLowering.test.cpp tests/SharedCodeAllocator.test.cpp
+TESTS_SOURCES=$(filter-out tests/moo_main.cpp $(MOO_CODEGEN_TESTS),$(wildcard tests/*.cpp)) CLI/src/FileUtils.cpp CLI/src/Flags.cpp CLI/src/Profiler.cpp CLI/src/Coverage.cpp CLI/src/Counters.cpp CLI/src/Repl.cpp CLI/src/ReplRequirer.cpp CLI/src/VfsNavigator.cpp
 TESTS_OBJECTS=$(TESTS_SOURCES:%=$(BUILD)/%.o)
 TESTS_TARGET=$(BUILD)/luau-tests
 

@@ -43,7 +43,7 @@ test in `tests/Moo.test.cpp`. This table is the state of `main`:
 | 13 | weak tables and destructors | **fixed**: the sweep queues a dead userdata that has a destructor; the queue runs at the end of the same GC step in creation-number order (and at `lua_close`, after everything else is freed). Modelled in `tla/DestructorQueue.tla`; weak entries clear deterministically once 1 and 4 are fixed |
 | 9 | `os` and time | **fixed**: the `os` library is deleted (`VM/src/loslib.cpp`) |
 | 10 | `math.random` seeding | **fixed**: constant default seed, `moo_setrandomseed` in `VM/include/moo.h` |
-| 14 | FMA in native codegen | **fixed for moo's binaries**: `moo --codegen*` and `--jit-inliner` are refused |
+| 14 | FMA in native codegen | **fixed**: native code generation is excluded from the build (`MOO_CODEGEN` off, DESIGN.md "Native codegen"); `moo --codegen*` and `--jit-inliner` are refused |
 
 The creation number costs 8 bytes in every object (16 in a userdata, whose data stays 16-byte
 aligned at offset 32): a table header is 56 bytes (was 48), a string header 32 (24), a closure

@@ -108,6 +108,10 @@ target_sources(Luau.Config PRIVATE
 )
 
 # Luau.CodeGen Sources
+# moo: native code generation is excluded from the build until it is rebuilt on fixed point
+# (MOO_CODEGEN, docs/DESIGN.md "Native codegen"). Its public headers stay, because the CLI and the
+# tests name its types; moo_codegen_off.cpp answers every entry point with "not supported".
+if(MOO_CODEGEN)
 target_sources(Luau.CodeGen PRIVATE
     CodeGen/include/Luau/AddressA64.h
     CodeGen/include/Luau/AssemblyBuilderA64.h
@@ -203,6 +207,13 @@ target_sources(Luau.CodeGen PRIVATE
     CodeGen/src/IrValueLocationTracking.h
     CodeGen/src/NativeState.h
 )
+else()
+target_sources(Luau.CodeGen PRIVATE
+    CodeGen/include/Luau/CodeGen.h
+    CodeGen/include/luacodegen.h
+    CodeGen/src/moo_codegen_off.cpp
+)
+endif()
 
 # Luau.Analysis Sources
 target_sources(Luau.Analysis PRIVATE
@@ -496,8 +507,6 @@ endif()
 if(TARGET Luau.UnitTest)
     # Luau.UnitTest Sources
     target_sources(Luau.UnitTest PRIVATE
-        tests/AssemblyBuilderA64.test.cpp
-        tests/AssemblyBuilderX64.test.cpp
         tests/AstJsonEncoder.test.cpp
         tests/AstQuery.test.cpp
         tests/AstQueryDsl.cpp
@@ -509,7 +518,6 @@ if(TARGET Luau.UnitTest)
         tests/BytecodeCompiler.test.cpp
         tests/ExternTypeFixture.cpp
         tests/ExternTypeFixture.h
-        tests/CodeAllocator.test.cpp
         tests/Compiler.test.cpp
         tests/Config.test.cpp
         tests/ConstraintSolver.test.cpp
@@ -525,10 +533,6 @@ if(TARGET Luau.UnitTest)
         tests/Generalization.test.cpp
         tests/InsertionOrderedMap.test.cpp
         tests/IostreamOptional.h
-        tests/IrAssembly.test.cpp
-        tests/IrBuilder.test.cpp
-        tests/IrCallWrapperX64.test.cpp
-        tests/IrRegAllocX64.test.cpp
         tests/JsonEmitter.test.cpp
         tests/Lexer.test.cpp
         tests/Linter.test.cpp
@@ -606,9 +610,22 @@ if(TARGET Luau.Conformance)
         tests/Conformance.test.cpp
         tests/DirectFieldAccess.test.cpp
         tests/FeedbackVector.test.cpp
-        tests/IrLowering.test.cpp
-        tests/SharedCodeAllocator.test.cpp
         tests/main.cpp)
+endif()
+
+# moo: the tests of native code generation run only when it is built (MOO_CODEGEN)
+if(MOO_CODEGEN AND TARGET Luau.UnitTest)
+    target_sources(Luau.UnitTest PRIVATE
+        tests/AssemblyBuilderA64.test.cpp
+        tests/AssemblyBuilderX64.test.cpp
+        tests/CodeAllocator.test.cpp
+        tests/IrAssembly.test.cpp
+        tests/IrBuilder.test.cpp
+        tests/IrCallWrapperX64.test.cpp
+        tests/IrRegAllocX64.test.cpp)
+    target_sources(Luau.Conformance PRIVATE
+        tests/IrLowering.test.cpp
+        tests/SharedCodeAllocator.test.cpp)
 endif()
 
 if(TARGET Luau.CLI.Test)
