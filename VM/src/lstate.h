@@ -90,13 +90,11 @@ struct GCStats
     uint32_t triggertermpos = 0;
     int32_t triggerintegral = 0;
 
+    // moo: pacing reads no clock (docs/DETERMINISM.md, 4); every input below is an allocation count
+    size_t starttotalsizebytes = 0; // at the start of the cycle (moo: replaces starttimestamp)
     size_t atomicstarttotalsizebytes = 0;
     size_t endtotalsizebytes = 0;
     size_t heapgoalsizebytes = 0;
-
-    double starttimestamp = 0;
-    double atomicstarttimestamp = 0;
-    double endtimestamp = 0;
 };
 
 #ifdef LUAI_GCMETRICS

@@ -107,6 +107,35 @@ const char* const kObjectKeyOrder = R"(
     return table.concat(order, ",")
 )";
 
+// Weak values under allocation churn, with no explicit collection: which entries survive at each
+// round depends only on when the GC steps run.
+const char* const kWeakChurn = R"(
+    local cache = setmetatable({}, {__mode = "v"})
+    local trace = {}
+    local live = {}
+    for round = 1, 300 do
+        for i = 1, 400 do
+            local v = {round, i, string.rep("x", (i % 7) * 10)}
+            cache[round * 1000 + i] = v
+            if i % 50 == 0 then live[#live + 1] = v end
+        end
+        local n = 0
+        for _ in pairs(cache) do n += 1 end
+        trace[#trace + 1] = n .. ":" .. gcinfo()
+        if #live > 100 then live = {} end
+    end
+    return table.concat(trace, ",")
+)";
+
+// FNV-1a, to pin a long result in one line
+uint64_t mooHash(const std::string& text)
+{
+    uint64_t h = 0xcbf29ce484222325ull;
+    for (unsigned char c : text)
+        h = (h ^ c) * 0x100000001b3ull;
+    return h;
+}
+
 } // namespace
 
 TEST_SUITE_BEGIN("moo");
@@ -225,6 +254,33 @@ TEST_CASE("TostringPrintsCreationNumber")
 
     MooState other;
     CHECK(mooRun(other.L, "local a, b = {}, {} return tostring(a) .. ' ' .. tostring(b)") == pair);
+}
+
+// DETERMINISM.md 4: GC pacing reads no clock. Luau's pacing measured an allocation rate in bytes per
+// second; the same program run five times under the 0.741 CLI on hulk cleared different weak entries.
+TEST_CASE("GcPacingIsAFunctionOfTheProgram")
+{
+    MooState a;
+    std::string trace = mooRun(a.L, kWeakChurn);
+    REQUIRE(trace.find("error") == std::string::npos);
+
+    MooState b;
+    CHECK(trace == mooRun(b.L, kWeakChurn));
+
+    // Pinned: a change here changes when the GC runs for every program.
+    CHECK(mooHash(trace) == 10374631352344400660ull);
+}
+
+// Replaces upstream ApiAllocationRateAfterFullGC, which checked that lua_allocationrate measures bytes
+// per second. moo has no clock (DETERMINISM.md 4), so the rate can never be measured and the API says so.
+TEST_CASE("AllocationRateIsNeverMeasured")
+{
+    MooState s;
+    CHECK(lua_allocationrate(s.L) == -1);
+    mooRun(s.L, "local t = {} for i = 1, 100000 do t[i] = {} end");
+    CHECK(lua_allocationrate(s.L) == -1);
+    lua_gc(s.L, LUA_GCCOLLECT, 0);
+    CHECK(lua_allocationrate(s.L) == -1);
 }
 
 TEST_SUITE_END();

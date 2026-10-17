@@ -62,6 +62,9 @@ jobs:
           build/moo-analyze tests/conformance/assert.luau
           build/moo-compile tests/conformance/assert.luau > /dev/null
 
+      - name: the VM reads no clock
+        run: tools/moo-check-no-clock.sh build/libLuau.VM.a
+
       - name: native codegen is refused
         run: |
           ! build/moo --codegen tests/conformance/assert.luau

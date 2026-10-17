@@ -37,6 +37,8 @@ Each fix lands with a test in `tests/Moo.test.cpp`. This table is the state of `
 | # | Source | State |
 |---|---|---|
 | 1 | object keys hash by address | **fixed**: every object header starts with its 8-byte creation number (`gcseq`); object keys hash by it |
+| 4 | GC pacing by clock | **fixed**: no clock in the VM; the heap trigger's growth estimate is the bytes allocated during the last mark phase, and the PI controller is integer arithmetic. `tools/moo-check-no-clock.sh` refuses, at the link level, any VM object but `lperf.cpp` that references a clock, `getenv` or the C random generator; `LUAI_GCMETRICS` does not build |
+| 5 | GC accounting by `sizeof` | **fixed, by pinning**: see below |
 | 6 | `tostring` shows an address | **fixed**: `table: #123`; light userdata prints `userdata: light`; `moo_objectseq` gives the number to the host |
 | 9 | `os` and time | **fixed**: the `os` library is deleted (`VM/src/loslib.cpp`) |
 | 10 | `math.random` seeding | **fixed**: constant default seed, `moo_setrandomseed` in `VM/include/moo.h` |
@@ -47,12 +49,25 @@ aligned at offset 32): a table header is 56 bytes (was 48), a string header 32 (
 72 (64), an upvalue 48 (40), a buffer header 16 (8). The static asserts in `VM/src/lmem.cpp` pin
 these sizes, and moo now refuses to build for a 32-bit target.
 
+**Allocation units (5), as built.** The proposal below was a separate unit counter with its own
+per-kind formula. What is built keeps one counter, `totalbytes`, because it already is a fixed
+formula: lmem.cpp adds the size the VM requested (never the size class or the host allocator's
+overhead), and every request is a struct size plus a payload length the program chose. The struct
+sizes are what C does not guarantee, so `VM/src/moo_layout.cpp` pins every one of them with a
+`static_assert`; a compiler that lays any of them out differently does not build moo. One counter
+means no second set of conversions in the GC's work accounting (which is also in these bytes), and
+no change to the hot allocation path. `lua_gc` and `gcinfo` report it, so both are deterministic.
+`lua_allocationrate` returns -1 (cannot be measured), always.
+
 Upstream tests moo changed, and why:
 
 - `tests/conformance/datetime.luau` tested `os`. It is replaced by the moo-specific expected
   file `tests/conformance/moo/datetime.luau`, which checks that `os` is gone.
 - `tests/conformance/sort.luau` timed each sort with `os.clock` and printed the time. The
   timing is removed; the sorts and their checks are unchanged.
+- `ApiAllocationRateAfterFullGC` (tests/Conformance.test.cpp) checked that the allocation rate is
+  measured in bytes per second. It is replaced by `AllocationRateIsNeverMeasured` in
+  tests/Moo.test.cpp, because moo has no clock.
 - `tests/conformance/types.luau` checks that the VM's globals match the analyzer's builtin
   definitions. It ignores `_G.os` until the analyzer's definitions drop `os` (owed, with
   `vector` and `integer`, see DESIGN.md "Analyzer").

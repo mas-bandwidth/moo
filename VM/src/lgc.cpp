@@ -16,6 +16,11 @@
 
 #include <string.h>
 
+// moo: the GC metrics time every step with lua_clock; moo's VM reads no clock (docs/DETERMINISM.md, 4)
+#ifdef LUAI_GCMETRICS
+#error "moo: LUAI_GCMETRICS reads the clock inside the VM"
+#endif
+
 #include <cstddef>
 
 LUAU_FASTFLAGVARIABLE(LuauGcTraceUdata)
@@ -1198,7 +1203,6 @@ static size_t gcstep(lua_State* L, size_t limit)
         g->gcmetrics.currcycle.atomicstarttotalsizebytes = g->totalbytes;
 #endif
 
-        g->gcstats.atomicstarttimestamp = lua_clock();
         g->gcstats.atomicstarttotalsizebytes = g->totalbytes;
 
         cost = atomic(L); // finish mark phase
@@ -1251,6 +1255,7 @@ static int64_t getheaptriggererroroffset(global_State* g)
 {
     // adjust for error using Proportional-Integral controller
     // https://en.wikipedia.org/wiki/PID_controller
+    // moo: in integer arithmetic, so the offset is the same bits on every platform and compiler
     int32_t errorKb = int32_t((g->gcstats.atomicstarttotalsizebytes - g->gcstats.heapgoalsizebytes) / 1024);
 
     // we use sliding window for the error integral to avoid error sum 'windup' when the desired target cannot be reached
@@ -1264,19 +1269,15 @@ static int64_t getheaptriggererroroffset(global_State* g)
 
     // controller tuning
     // https://en.wikipedia.org/wiki/Ziegler%E2%80%93Nichols_method
-    const double Ku = 0.9; // ultimate gain (measured)
-    const double Tu = 2.5; // oscillation period (measured)
+    // Ku = 0.9 (ultimate gain, measured), Tu = 2.5 (oscillation period, measured)
+    // Kp = 0.45 * Ku = 0.405 (proportional gain); Ti = 0.8 * Tu; Ki = 0.54 * Ku / Ti = 0.243 (integral gain)
+    const int64_t KpMilli = 405;
+    const int64_t KiMilli = 243;
 
-    const double Kp = 0.45 * Ku; // proportional gain
-    const double Ti = 0.8 * Tu;
-    const double Ki = 0.54 * Ku / Ti; // integral gain
+    int64_t totalTermMilli = KpMilli * errorKb + KiMilli * int64_t(g->gcstats.triggerintegral);
 
-    double proportionalTerm = Kp * errorKb;
-    double integralTerm = Ki * g->gcstats.triggerintegral;
-
-    double totalTerm = proportionalTerm + integralTerm;
-
-    return int64_t(totalTerm * 1024);
+    // truncates toward zero, as the double version's conversion did
+    return totalTermMilli * 1024 / 1000;
 }
 
 // the heap can shrink between measurements (after a full collection, or when thread stacks are shrunk during marking), which counts as no growth
@@ -1289,21 +1290,11 @@ static size_t getheaptrigger(global_State* g, size_t heapgoal)
 {
     // adjust threshold based on a guess of how many bytes will be allocated between the cycle start and sweep phase
     // our goal is to begin the sweep when used memory has reached the heap goal
-    const double durationthreshold = 1e-3;
-    double allocationduration = g->gcstats.atomicstarttimestamp - g->gcstats.endtimestamp;
-
-    // avoid measuring intervals smaller than 1ms
-    if (allocationduration < durationthreshold)
-        return heapgoal;
-
-    double allocationrate;
-    if (DFFlag::LuauGcHeapShrinkFix)
-        allocationrate = getheapgrowth(g->gcstats.atomicstarttotalsizebytes, g->gcstats.endtotalsizebytes) / allocationduration;
-    else
-        allocationrate = (g->gcstats.atomicstarttotalsizebytes - g->gcstats.endtotalsizebytes) / allocationduration;
-    double markduration = g->gcstats.atomicstarttimestamp - g->gcstats.starttimestamp;
-
-    int64_t expectedgrowth = int64_t(markduration * allocationrate);
+    //
+    // moo: Luau guessed (mark duration) x (allocation rate in bytes per second), from the clock, so when the next cycle
+    // started followed the machine's speed (docs/DETERMINISM.md, 4). moo's guess is the bytes the program allocated
+    // during the mark phase that just ended: a function of the program alone, with no clock and no 1 ms rule.
+    int64_t expectedgrowth = int64_t(getheapgrowth(g->gcstats.atomicstarttotalsizebytes, g->gcstats.starttotalsizebytes));
     int64_t offset = getheaptriggererroroffset(g);
     int64_t heaptrigger = heapgoal - (expectedgrowth + offset);
 
@@ -1323,7 +1314,7 @@ size_t luaC_step(lua_State* L, bool assist)
 
     // at the start of the new cycle
     if (g->gcstate == GCSpause)
-        g->gcstats.starttimestamp = lua_clock();
+        g->gcstats.starttotalsizebytes = g->totalbytes;
 
 #ifdef LUAI_GCMETRICS
     if (g->gcstate == GCSpause)
@@ -1361,7 +1352,6 @@ size_t luaC_step(lua_State* L, bool assist)
         g->GCthreshold = heaptrigger;
 
         g->gcstats.heapgoalsizebytes = heapgoal;
-        g->gcstats.endtimestamp = lua_clock();
         g->gcstats.endtotalsizebytes = g->totalbytes;
 
 #ifdef LUAI_GCMETRICS
@@ -1449,7 +1439,6 @@ void luaC_fullgc(lua_State* L)
     if (DFFlag::LuauGcHeapShrinkFix)
     {
         // full collection ends a cycle, so the heap growth is measured from this point
-        g->gcstats.endtimestamp = lua_clock();
         g->gcstats.endtotalsizebytes = g->totalbytes;
     }
 
@@ -1525,34 +1514,11 @@ void luaC_upvalclosed(lua_State* L, UpVal* uv)
 
 // measure the allocation rate in bytes/sec
 // returns -1 if allocation rate cannot be measured
+// moo: it never can, because moo has no clock (docs/DETERMINISM.md, 4)
 int64_t luaC_allocationrate(lua_State* L)
 {
-    global_State* g = L->global;
-    const double durationthreshold = 1e-3; // avoid measuring intervals smaller than 1ms
-
-    if (g->gcstate <= GCSatomic)
-    {
-        double duration = lua_clock() - g->gcstats.endtimestamp;
-
-        if (duration < durationthreshold)
-            return -1;
-
-        if (DFFlag::LuauGcHeapShrinkFix)
-            return int64_t(getheapgrowth(g->totalbytes, g->gcstats.endtotalsizebytes) / duration);
-
-        return int64_t((g->totalbytes - g->gcstats.endtotalsizebytes) / duration);
-    }
-
-    // totalbytes is unstable during the sweep, use the rate measured at the end of mark phase
-    double duration = g->gcstats.atomicstarttimestamp - g->gcstats.endtimestamp;
-
-    if (duration < durationthreshold)
-        return -1;
-
-    if (DFFlag::LuauGcHeapShrinkFix)
-        return int64_t(getheapgrowth(g->gcstats.atomicstarttotalsizebytes, g->gcstats.endtotalsizebytes) / duration);
-
-    return int64_t((g->gcstats.atomicstarttotalsizebytes - g->gcstats.endtotalsizebytes) / duration);
+    (void)L;
+    return -1;
 }
 
 const char* luaC_statename(int state)
