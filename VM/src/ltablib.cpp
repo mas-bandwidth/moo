@@ -52,7 +52,7 @@ static int foreach (lua_State* L)
 
 static int maxn(lua_State* L)
 {
-    double max = 0;
+    lua_Number max = 0;
     luaL_checktype(L, 1, LUA_TTABLE);
 
     LuaTable* t = hvalue(L->base);
@@ -60,7 +60,7 @@ static int maxn(lua_State* L)
     for (int i = 0; i < t->sizearray; i++)
     {
         if (!ttisnil(&t->array[i]))
-            max = i + 1;
+            max = cast_num(i + 1);
     }
 
     for (int i = 0; i < sizenode(t); i++)
@@ -69,7 +69,7 @@ static int maxn(lua_State* L)
 
         if (!ttisnil(gval(n)) && ttisnumber(gkey(n)))
         {
-            double v = nvalue(gkey(n));
+            lua_Number v = nvalue(gkey(n));
 
             if (v > max)
                 max = v;
@@ -101,9 +101,9 @@ static bool tovalidintkey(lua_State* L, int idx, int f, int e, int* result)
 {
     if (lua_type(L, idx) == LUA_TNUMBER)
     {
-        double nkey = lua_tonumber(L, idx);
+        lua_Number nkey = lua_tonumber(L, idx);
 
-        if (nkey >= f && nkey <= e)
+        if (nkey >= cast_num(f) && nkey <= cast_num(e))
         {
             luai_num2int(*result, nkey);
             return luai_numeq(cast_num(*result), nkey);
@@ -357,7 +357,7 @@ static int tpack(lua_State* L)
 
     // t.n = number of elements
     TValue* nv = luaH_setstr(L, t, luaS_newliteral(L, "n"));
-    setnvalue(nv, n);
+    setnvalue(nv, cast_num(n));
 
     return 1; // return table
 }

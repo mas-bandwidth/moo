@@ -824,7 +824,7 @@ static void enumtable(EnumContext* ctx, LuaTable* h)
                     else if (ttisnumber(&n.key))
                     {
                         char buf[32];
-                        snprintf(buf, sizeof(buf), "%.14g", nvalue(&n.key));
+                        snprintf(buf, sizeof(buf), "%.14g", moo_numbridgetodouble(nvalue(&n.key))); // moo: host debug output
                         enumedge(ctx, obj2gco(h), gcvalue(&n.val), buf);
                     }
                     else

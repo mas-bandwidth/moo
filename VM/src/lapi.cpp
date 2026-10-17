@@ -411,7 +411,7 @@ int lua_lessthan(lua_State* L, int index1, int index2)
     return i;
 }
 
-double lua_tonumberx(lua_State* L, int idx, int* isnum)
+lua_Number lua_tonumberx(lua_State* L, int idx, int* isnum)
 {
     TValue n;
     const TValue* o = index2addr(L, idx);
@@ -436,7 +436,7 @@ int lua_tointegerx(lua_State* L, int idx, int* isnum)
     if (tonumber(o, &n))
     {
         int res;
-        double num = nvalue(o);
+        lua_Number num = nvalue(o);
         luai_num2int(res, num);
         if (isnum)
             *isnum = 1;
@@ -457,7 +457,7 @@ unsigned lua_tounsignedx(lua_State* L, int idx, int* isnum)
     if (tonumber(o, &n))
     {
         unsigned res;
-        double num = nvalue(o);
+        lua_Number num = nvalue(o);
         luai_num2unsigned(res, num);
         if (isnum)
             *isnum = 1;
@@ -687,7 +687,7 @@ void lua_pushnil(lua_State* L)
     api_incr_top(L);
 }
 
-void lua_pushnumber(lua_State* L, double n)
+void lua_pushnumber(lua_State* L, lua_Number n)
 {
     ensure_stack(L, 1);
     setnvalue(L->top, n);
@@ -1586,7 +1586,7 @@ int lua_rawiter(lua_State* L, int idx, int iter)
         if (!ttisnil(e))
         {
             StkId top = L->top;
-            setnvalue(top + 0, double(iter + 1));
+            setnvalue(top + 0, cast_num(iter + 1));
             setobj2s(L, top + 1, e);
             api_update_top(L, top + 2);
             return iter + 1;
@@ -1886,7 +1886,7 @@ int lua_ref(lua_State* L, int idx)
 
         TValue* slot = luaH_setnum(L, reg, ref);
         if (g->registryfree != 0)
-            g->registryfree = int(nvalue(slot));
+            g->registryfree = int(moo_numtrunc(nvalue(slot)));
         setobj2t(L, slot, p);
         luaC_barriert(L, reg, p);
     }
@@ -1908,7 +1908,7 @@ int lua_unref(lua_State* L, int ref)
     TValue* mutableSlot = (TValue*)slot;
 
     // NB: no barrier needed because value isn't collectable
-    setnvalue(mutableSlot, g->registryfree);
+    setnvalue(mutableSlot, cast_num(g->registryfree));
 
     g->registryfree = ref;
     return LUA_NOREF;
@@ -1964,7 +1964,7 @@ int lua_weakref(lua_State* L, int idx)
         { // reuse existing slot
             ref = weakregistryfree;
             slot = luaH_setnum(L, weakregistry, ref);
-            weakregistryfree = int(nvalue(slot));
+            weakregistryfree = int(moo_numtrunc(nvalue(slot)));
         }
         else
         { // no free elements
@@ -1993,7 +1993,7 @@ int lua_weakunref(lua_State* L, int ref)
     TValue* slot = luaH_setnum(L, weakregistry, ref);
 
     // NB: no barrier needed because value isn't collectable
-    setnvalue(slot, g->weakregistryfree);
+    setnvalue(slot, cast_num(g->weakregistryfree));
 
     g->weakregistryfree = ref;
     return LUA_NOREF;
@@ -2208,7 +2208,7 @@ void lua_registeruserdatadirectfieldget(lua_State* L, int tag, const char* field
     setpvalue(slot, reinterpret_cast<void*>(fn), 0);
 }
 
-void lua_userdatadirectfield_setnumber(void* result, double n)
+void lua_userdatadirectfield_setnumber(void* result, lua_Number n)
 {
     TValue* slot = LUA_VECTOR_DOUBLE ? static_cast<DirectFieldResult*>(result)->slot : static_cast<TValue*>(result);
     setnvalue(slot, n);

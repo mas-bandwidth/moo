@@ -118,8 +118,16 @@ enum lua_Type
 };
 // clang-format on
 
-// type of numbers in Luau
-typedef double lua_Number;
+// type of numbers in moo: the raw Q48.16 fixed-point value (fixed's fixed_t, docs/DESIGN.md "Boundary").
+// Host floating point converts through moo_fromdouble and moo_todouble (moo.h).
+#if defined(MOO_NUMBER_PROBE) && defined(__cplusplus)
+struct lua_Number // a build-only probe that turns every implicit use of a number into a compile error
+{
+    int64_t raw;
+};
+#else
+typedef int64_t lua_Number;
+#endif
 
 // type for integer functions
 typedef int lua_Integer;
@@ -170,7 +178,7 @@ LUA_API int lua_equal(lua_State* L, int idx1, int idx2);
 LUA_API int lua_rawequal(lua_State* L, int idx1, int idx2);
 LUA_API int lua_lessthan(lua_State* L, int idx1, int idx2);
 
-LUA_API double lua_tonumberx(lua_State* L, int idx, int* isnum);
+LUA_API lua_Number lua_tonumberx(lua_State* L, int idx, int* isnum);
 LUA_API int lua_tointegerx(lua_State* L, int idx, int* isnum);
 LUA_API unsigned lua_tounsignedx(lua_State* L, int idx, int* isnum);
 LUA_API const LUA_VECTOR_TYPE* lua_tovector(lua_State* L, int idx);
@@ -196,7 +204,13 @@ LUA_API const void* lua_topointer(lua_State* L, int idx);
 ** push functions (C -> stack)
 */
 LUA_API void lua_pushnil(lua_State* L);
-LUA_API void lua_pushnumber(lua_State* L, double n);
+LUA_API void lua_pushnumber(lua_State* L, lua_Number n);
+#if defined(__cplusplus) && !defined(MOO_NUMBER_PROBE)
+// moo: a host float crosses into the VM only through moo_fromdouble (moo.h); passing one here is a compile error
+void lua_pushnumber(lua_State* L, double n) = delete;
+void lua_pushnumber(lua_State* L, float n) = delete;
+void lua_pushnumber(lua_State* L, int n) = delete;
+#endif
 LUA_API void lua_pushinteger(lua_State* L, int n);
 LUA_API void lua_pushinteger64(lua_State* L, int64_t n);
 LUA_API void lua_pushunsigned(lua_State* L, unsigned n);
@@ -461,7 +475,7 @@ typedef void (*lua_UserdataDirectFieldGet)(void* ud, void* result);
 LUA_API void lua_registeruserdatadirectfieldget(lua_State* L, int tag, const char* field, lua_UserdataDirectFieldGet fn);
 
 // Helpers for writing result values from a direct field handler.
-LUA_API void lua_userdatadirectfield_setnumber(void* result, double n);
+LUA_API void lua_userdatadirectfield_setnumber(void* result, lua_Number n);
 #if LUA_VECTOR_SIZE == 4
 LUA_API void lua_userdatadirectfield_setvector(void* result, LUA_VECTOR_TYPE x, LUA_VECTOR_TYPE y, LUA_VECTOR_TYPE z, LUA_VECTOR_TYPE w);
 #else

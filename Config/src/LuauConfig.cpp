@@ -6,6 +6,7 @@
 
 #include "lua.h"
 #include "lualib.h"
+#include "moo.h"
 
 #include <functional>
 #include <memory>
@@ -59,7 +60,7 @@ static std::optional<ConfigTable> serializeTable(lua_State* L, std::string* erro
         switch (lua_type(L, -2))
         {
         case LUA_TNUMBER:
-            key = lua_tonumber(L, -2);
+            key = moo_todouble(lua_tonumber(L, -2)); // moo: the host side of the boundary is double
             break;
         case LUA_TSTRING:
             key = std::string{lua_tostring(L, -2)};
@@ -72,7 +73,7 @@ static std::optional<ConfigTable> serializeTable(lua_State* L, std::string* erro
         switch (lua_type(L, -1))
         {
         case LUA_TNUMBER:
-            table[key] = lua_tonumber(L, -1);
+            table[key] = moo_todouble(lua_tonumber(L, -1));
             break;
         case LUA_TSTRING:
             table[key] = std::string{lua_tostring(L, -1)};

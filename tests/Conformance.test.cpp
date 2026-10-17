@@ -20,6 +20,7 @@
 #include "Luau/Parser.h"
 
 #include "doctest.h"
+#include "MooHost.h" // moo: host floats cross the boundary
 #include "ScopedFlags.h"
 #include "BufferCage.h"
 #include "ConformanceIrHooks.h"
@@ -150,10 +151,22 @@ static int lua_collectgarbage(lua_State* L)
     }
     default:
     {
-        lua_pushnumber(L, res);
+        lua_pushnumber(L, mooHostNumber(res));
         return 1;
     }
     }
+}
+
+// moo: MOO_CONFORMANCE_SCAN=1 makes assert report and continue, so one run lists every failing line of a script
+static int mooScanAssert(lua_State* L)
+{
+    if (!lua_toboolean(L, 1))
+    {
+        lua_Debug ar = {};
+        if (lua_getinfo(L, 1, "sl", &ar))
+            printf("MOO-SCAN-FAIL %s:%d %s\n", ar.short_src, ar.currentline, lua_isstring(L, 2) ? lua_tostring(L, 2) : "");
+    }
+    return lua_gettop(L);
 }
 
 static int lua_loadstring(lua_State* L)
@@ -182,7 +195,7 @@ static int lua_vector_dot(lua_State* L)
     const LUA_VECTOR_TYPE* a = luaL_checkvector(L, 1);
     const LUA_VECTOR_TYPE* b = luaL_checkvector(L, 2);
 
-    lua_pushnumber(L, a[0] * b[0] + a[1] * b[1] + a[2] * b[2]);
+    lua_pushnumber(L, mooHostNumber(a[0] * b[0] + a[1] * b[1] + a[2] * b[2]));
     return 1;
 }
 
@@ -208,9 +221,9 @@ static int lua_vector_index(lua_State* L)
     if (strcmp(name, "Magnitude") == 0)
     {
 #if LUA_VECTOR_SIZE == 4
-        lua_pushnumber(L, sqrtf(v[0] * v[0] + v[1] * v[1] + v[2] * v[2] + v[3] * v[3]));
+        lua_pushnumber(L, mooHostNumber(sqrtf(v[0] * v[0] + v[1] * v[1] + v[2] * v[2] + v[3] * v[3])));
 #else
-        lua_pushnumber(L, sqrtf(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]));
+        lua_pushnumber(L, mooHostNumber(sqrtf(v[0] * v[0] + v[1] * v[1] + v[2] * v[2])));
 #endif
         return 1;
     }
@@ -358,6 +371,12 @@ static StateRef runConformance(
     luaL_register(L, nullptr, funcs.data());
     lua_pop(L, 1);
 
+    if (getenv("MOO_CONFORMANCE_SCAN"))
+    {
+        lua_pushcfunction(L, mooScanAssert, "assert");
+        lua_setglobal(L, "assert");
+    }
+
     // In some configurations we have a larger C stack consumption which trips some conformance tests.
     // On Android, process memory limits are tight enough that deep-recursion stress tests cause OOM kills.
 #if defined(LUAU_ENABLE_ASAN) || defined(_NOOPT) || defined(_DEBUG) || defined(__ANDROID__)
@@ -379,7 +398,8 @@ static StateRef runConformance(
     lua_pushvalue(L, LUA_GLOBALSINDEX);
     lua_setfield(L, -1, "_G");
 
-    std::string chunkname = "=" + std::string(name);
+    // moo: a test moved to tests/conformance/moo keeps its upstream chunk name, so its error messages read the same
+    std::string chunkname = "=" + std::string(strncmp(name, "moo/", 4) == 0 ? name + 4 : name);
 
     // note: luau_compile supports nullptr options, but we need to customize our defaults to improve test coverage
     lua_CompileOptions opts = options ? *options : defaultOptions();
@@ -578,8 +598,8 @@ Vec2* lua_vec2_get(lua_State* L, int idx)
 
 static int lua_vec2(lua_State* L)
 {
-    double x = luaL_checknumber(L, 1);
-    double y = luaL_checknumber(L, 2);
+    double x = moo_todouble(luaL_checknumber(L, 1));
+    double y = moo_todouble(luaL_checknumber(L, 2));
 
     Vec2* data = lua_vec2_push(L);
 
@@ -593,7 +613,7 @@ static int lua_vec2_dot(lua_State* L, Vec2* self)
 {
     Vec2* b = lua_vec2_get(L, 2);
 
-    lua_pushnumber(L, self->x * b->x + self->y * b->y);
+    lua_pushnumber(L, mooHostNumber(self->x * b->x + self->y * b->y));
     return 1;
 }
 
@@ -623,7 +643,7 @@ static int lua_vec2_reenter(lua_State* L, Vec2* self)
     REQUIRE(lua_isfunction(L, -1));
     lua_pcall(L, 0, 0, 0);
 
-    lua_pushnumber(L, self->x + self->y);
+    lua_pushnumber(L, mooHostNumber(self->x + self->y));
     return 1;
 }
 
@@ -634,19 +654,19 @@ static int lua_vec2_index(lua_State* L)
 
     if (strcmp(name, "X") == 0)
     {
-        lua_pushnumber(L, v->x);
+        lua_pushnumber(L, mooHostNumber(v->x));
         return 1;
     }
 
     if (strcmp(name, "Y") == 0)
     {
-        lua_pushnumber(L, v->y);
+        lua_pushnumber(L, mooHostNumber(v->y));
         return 1;
     }
 
     if (strcmp(name, "Magnitude") == 0)
     {
-        lua_pushnumber(L, sqrtf(v->x * v->x + v->y * v->y));
+        lua_pushnumber(L, mooHostNumber(sqrtf(v->x * v->x + v->y * v->y)));
         return 1;
     }
 
@@ -663,7 +683,7 @@ static int lua_vec2_index(lua_State* L)
 
     if (strcmp(name, "sizeof") == 0)
     {
-        lua_pushnumber(L, sizeof(Vec2));
+        lua_pushnumber(L, mooHostNumber(sizeof(Vec2)));
         return 1;
     }
 
@@ -674,7 +694,7 @@ static int lua_vec2_newindex(lua_State* L)
 {
     Vec2* v = lua_vec2_get(L, 1);
     const char* name = luaL_checkstring(L, 2);
-    double value = luaL_checknumber(L, 3);
+    double value = moo_todouble(luaL_checknumber(L, 3));
 
     if (strcmp(name, "X") == 0)
         v->x = float(value);
@@ -783,7 +803,7 @@ static int lua_vertex_index(lua_State* L)
 
     if (strcmp(name, "sizeof") == 0)
     {
-        lua_pushnumber(L, sizeof(Vertex));
+        lua_pushnumber(L, mooHostNumber(sizeof(Vertex)));
         return 1;
     }
 
@@ -1053,13 +1073,13 @@ static void vec2DirectIndex(lua_State* L, void* data, int atom, uint16_t* cached
     switch (DirectSlot(*cachedslot))
     {
     case DirectSlot::X:
-        lua_pushnumber(L, self->x);
+        lua_pushnumber(L, mooHostNumber(self->x));
         break;
     case DirectSlot::Y:
-        lua_pushnumber(L, self->y);
+        lua_pushnumber(L, mooHostNumber(self->y));
         break;
     case DirectSlot::Magnitude:
-        lua_pushnumber(L, sqrtf(self->x * self->x + self->y * self->y));
+        lua_pushnumber(L, mooHostNumber(sqrtf(self->x * self->x + self->y * self->y)));
         break;
     case DirectSlot::Unit:
     {
@@ -1070,7 +1090,7 @@ static void vec2DirectIndex(lua_State* L, void* data, int atom, uint16_t* cached
         break;
     }
     case DirectSlot::Sizeof:
-        lua_pushnumber(L, sizeof(Vec2));
+        lua_pushnumber(L, mooHostNumber(sizeof(Vec2)));
         break;
     default:
         luaL_error(L, "%s is not a valid member of vec2", luaL_checkstring(L, 2));
@@ -1087,10 +1107,10 @@ static void vec2DirectNewindex(lua_State* L, void* data, int atom, uint16_t* cac
     switch (DirectSlot(*cachedslot))
     {
     case DirectSlot::X:
-        self->x = float(luaL_checknumber(L, 3));
+        self->x = float(moo_todouble(luaL_checknumber(L, 3)));
         break;
     case DirectSlot::Y:
-        self->y = float(luaL_checknumber(L, 3));
+        self->y = float(moo_todouble(luaL_checknumber(L, 3)));
         break;
     default:
         luaL_error(L, "%s is not a writable member of vec2", luaL_checkstring(L, 2));
@@ -1142,7 +1162,7 @@ static void vertexDirectIndex(lua_State* L, void* data, int atom, uint16_t* cach
         break;
     }
     case DirectSlot::Sizeof:
-        lua_pushnumber(L, sizeof(Vertex));
+        lua_pushnumber(L, mooHostNumber(sizeof(Vertex)));
         break;
     default:
         luaL_error(L, "%s is not a valid member of vertex", luaL_checkstring(L, 2));
@@ -1274,13 +1294,13 @@ TEST_CASE("Assert")
 
 TEST_CASE("Basic")
 {
-    runConformance("basic.luau");
+    runConformance("moo/basic.luau");
 }
 
 TEST_CASE("Buffers")
 {
     runConformance(
-        "buffers.luau",
+        "moo/buffers.luau",
         [](lua_State* L)
         {
             setupNativeHelpers(L);
@@ -1303,7 +1323,7 @@ TEST_CASE("BuffersWithCage")
 
     BufferCage cage;
     bufferCage = &cage;
-    StateRef state = runConformance("buffers.luau", setupBufferCage);
+    StateRef state = runConformance("moo/buffers.luau", setupBufferCage);
 
     CHECK(cage.lastAllocationType == LUA_TBUFFER);
 
@@ -1314,7 +1334,7 @@ TEST_CASE("BuffersWithCage")
 
 TEST_CASE("Math")
 {
-    runConformance("math.luau");
+    runConformance("moo/math.luau");
 }
 
 TEST_CASE("Integers")
@@ -1352,7 +1372,7 @@ TEST_CASE("Tables")
     reallocSizeLimit = 0;
 
     runConformance(
-        "tables.luau",
+        "moo/tables.luau",
         [](lua_State* L)
         {
             lua_pushcfunction(
@@ -1444,12 +1464,12 @@ TEST_CASE("Literals")
 
 TEST_CASE("Errors")
 {
-    runConformance("errors.luau");
+    runConformance("moo/errors.luau");
 }
 
 TEST_CASE("Events")
 {
-    runConformance("events.luau");
+    runConformance("moo/events.luau");
 }
 
 TEST_CASE("Constructs")
@@ -1562,7 +1582,7 @@ TEST_CASE("GC")
 
 TEST_CASE("Bitwise")
 {
-    runConformance("bitwise.luau");
+    runConformance("moo/bitwise.luau");
 }
 
 TEST_CASE("UTF8")
@@ -1659,7 +1679,7 @@ TEST_CASE("PCall")
 
 TEST_CASE("Pack")
 {
-    runConformance("tpack.luau");
+    runConformance("moo/tpack.luau");
 }
 
 TEST_CASE("ExplicitTypeInstantiations")
@@ -1669,14 +1689,14 @@ TEST_CASE("ExplicitTypeInstantiations")
 
 int singleYield(lua_State* L)
 {
-    lua_pushnumber(L, 2);
+    lua_pushnumber(L, mooHostNumber(2));
 
     return lua_yield(L, 1);
 }
 
 int singleYieldContinuation(lua_State* L, int status)
 {
-    lua_pushnumber(L, 4);
+    lua_pushnumber(L, mooHostNumber(4));
     return 1;
 }
 
@@ -1745,7 +1765,7 @@ int multipleYieldsWithNestedCall(lua_State* L)
 
     lua_pushinteger(L, 0); // state
 
-    lua_pushnumber(L, 5);
+    lua_pushnumber(L, mooHostNumber(5));
     if (nestedShouldYield)
         lua_pushcclosurek(L, nestedMultipleYieldHelper, nullptr, 1, nestedMultipleYieldHelperContinuation);
     else
@@ -1766,12 +1786,12 @@ int multipleYieldsWithNestedCallContinuation(lua_State* L, int status)
     }
     else if (state == 1)
     {
-        lua_pushnumber(L, luaL_checkinteger(L, 1) + 200);
+        lua_pushnumber(L, mooHostNumber(luaL_checkinteger(L, 1) + 200));
         return lua_yield(L, 1);
     }
     else
     {
-        lua_pushnumber(L, luaL_checkinteger(L, 1) + 210);
+        lua_pushnumber(L, mooHostNumber(luaL_checkinteger(L, 1) + 210));
         return 1;
     }
 }
@@ -1787,7 +1807,7 @@ int passthroughCall(lua_State* L)
 int passthroughCallContinuation(lua_State* L, int status)
 {
     LUAU_ASSERT(lua_gettop(L) == 4); // 3 original arguments and the return value
-    LUAU_ASSERT(lua_tonumber(L, -1) == 0.5);
+    LUAU_ASSERT(moo_todouble(lua_tonumber(L, -1)) == 0.5);
     return 1;
 }
 
@@ -1809,7 +1829,7 @@ int passthroughCallMoreResultsContinuation(lua_State* L, int status)
         lua_pop(L, 1);
     }
 
-    LUAU_ASSERT(lua_tonumber(L, -1) == 0.5);
+    LUAU_ASSERT(moo_todouble(lua_tonumber(L, -1)) == 0.5);
     return 1;
 }
 
@@ -1821,7 +1841,7 @@ int passthroughCallArgReuse(lua_State* L)
 int passthroughCallArgReuseContinuation(lua_State* L, int status)
 {
     LUAU_ASSERT(lua_gettop(L) == 1); // Original arguments were consumed, only return remains
-    LUAU_ASSERT(lua_tonumber(L, -1) == 0.5);
+    LUAU_ASSERT(moo_todouble(lua_tonumber(L, -1)) == 0.5);
     return 1;
 }
 
@@ -1841,7 +1861,7 @@ int passthroughCallWithState(lua_State* L)
     luaL_checkany(L, 1);
     int args = lua_gettop(L) - 1;
 
-    lua_pushnumber(L, 42);
+    lua_pushnumber(L, mooHostNumber(42));
     lua_insert(L, 1);
 
     return lua_callyieldable(L, args, LUA_MULTRET);
@@ -1993,7 +2013,7 @@ TEST_CASE("Vector")
     }
 
     runConformance(
-        "vector.luau",
+        "moo/vector.luau",
         [](lua_State* L)
         {
             setupVectorHelpers(L);
@@ -2027,7 +2047,7 @@ TEST_CASE("VectorLibrary")
     }
 
     runConformance(
-        "vector_library.luau",
+        "moo/vector_library.luau",
         [](lua_State* L)
         {
             setupNativeHelpers(L);
@@ -2147,7 +2167,7 @@ TEST_CASE("Types")
 
 TEST_CASE("Debug")
 {
-    runConformance("debug.luau");
+    runConformance("moo/debug.luau");
 }
 
 bool findLocal(lua_State* L, int level, const char* name)
@@ -2368,7 +2388,7 @@ TEST_CASE("InterruptInspection")
     static bool skipbreak = false;
 
     runConformance(
-        "basic.luau",
+        "moo/basic.luau",
         [](lua_State* L)
         {
             lua_Callbacks* cb = lua_callbacks(L);
@@ -2615,9 +2635,9 @@ TEST_CASE("ApiTables")
     int lu2 = 2;
 
     lua_newtable(L);
-    lua_pushnumber(L, 123.0);
+    lua_pushnumber(L, mooHostNumber(123.0));
     lua_setfield(L, -2, "key");
-    lua_pushnumber(L, 456.0);
+    lua_pushnumber(L, mooHostNumber(456.0));
     lua_rawsetfield(L, -2, "key2");
     lua_pushstring(L, "key3");
     lua_rawseti(L, -2, 5);
@@ -2631,23 +2651,23 @@ TEST_CASE("ApiTables")
     // lua_gettable
     lua_pushstring(L, "key");
     CHECK(lua_gettable(L, -2) == LUA_TNUMBER);
-    CHECK(lua_tonumber(L, -1) == 123.0);
+    CHECK(moo_todouble(lua_tonumber(L, -1)) == 123.0);
     lua_pop(L, 1);
 
     // lua_getfield
     CHECK(lua_getfield(L, -1, "key") == LUA_TNUMBER);
-    CHECK(lua_tonumber(L, -1) == 123.0);
+    CHECK(moo_todouble(lua_tonumber(L, -1)) == 123.0);
     lua_pop(L, 1);
 
     // lua_rawgetfield
     CHECK(lua_rawgetfield(L, -1, "key2") == LUA_TNUMBER);
-    CHECK(lua_tonumber(L, -1) == 456.0);
+    CHECK(moo_todouble(lua_tonumber(L, -1)) == 456.0);
     lua_pop(L, 1);
 
     // lua_rawget
     lua_pushstring(L, "key");
     CHECK(lua_rawget(L, -2) == LUA_TNUMBER);
-    CHECK(lua_tonumber(L, -1) == 123.0);
+    CHECK(moo_todouble(lua_tonumber(L, -1)) == 123.0);
     lua_pop(L, 1);
 
     // lua_rawgeti
@@ -2676,11 +2696,11 @@ TEST_CASE("ApiTables")
     lua_clonetable(L, -1);
 
     CHECK(lua_getfield(L, -1, "key") == LUA_TNUMBER);
-    CHECK(lua_tonumber(L, -1) == 123.0);
+    CHECK(moo_todouble(lua_tonumber(L, -1)) == 123.0);
     lua_pop(L, 1);
 
     // modify clone
-    lua_pushnumber(L, 456.0);
+    lua_pushnumber(L, mooHostNumber(456.0));
     lua_rawsetfield(L, -2, "key");
 
     // remove clone
@@ -2688,7 +2708,7 @@ TEST_CASE("ApiTables")
 
     // check original
     CHECK(lua_getfield(L, -1, "key") == LUA_TNUMBER);
-    CHECK(lua_tonumber(L, -1) == 123.0);
+    CHECK(moo_todouble(lua_tonumber(L, -1)) == 123.0);
     lua_pop(L, 1);
 
     // lua_cleartable
@@ -2705,9 +2725,9 @@ TEST_CASE("ApiIter")
     lua_State* L = globalState.get();
 
     lua_newtable(L);
-    lua_pushnumber(L, 123.0);
+    lua_pushnumber(L, mooHostNumber(123.0));
     lua_setfield(L, -2, "key");
-    lua_pushnumber(L, 456.0);
+    lua_pushnumber(L, mooHostNumber(456.0));
     lua_rawsetfield(L, -2, "key2");
     lua_pushstring(L, "test");
     lua_rawseti(L, -2, 1);
@@ -2717,8 +2737,8 @@ TEST_CASE("ApiIter")
     lua_pushnil(L);
     while (lua_next(L, -2))
     {
-        sum1 += lua_tonumber(L, -2); // key
-        sum1 += lua_tonumber(L, -1); // value
+        sum1 += moo_todouble(lua_tonumber(L, -2)); // key
+        sum1 += moo_todouble(lua_tonumber(L, -1)); // value
         lua_pop(L, 1);               // pop value, key is used by lua_next
     }
     CHECK(sum1 == 580);
@@ -2727,8 +2747,8 @@ TEST_CASE("ApiIter")
     double sum2 = 0;
     for (int index = 0; index = lua_rawiter(L, -1, index), index >= 0;)
     {
-        sum2 += lua_tonumber(L, -2); // key
-        sum2 += lua_tonumber(L, -1); // value
+        sum2 += moo_todouble(lua_tonumber(L, -2)); // key
+        sum2 += moo_todouble(lua_tonumber(L, -1)); // value
         lua_pop(L, 2);               // pop both key and value
     }
     CHECK(sum2 == 580);
@@ -2743,8 +2763,8 @@ TEST_CASE("ApiIter")
     double sum3 = 0;
     for (int index = 0; index = lua_rawiter(L, -1, index), index >= 0;)
     {
-        sum3 += lua_tonumber(L, -2); // key
-        sum3 += lua_tonumber(L, -1); // value
+        sum3 += moo_todouble(lua_tonumber(L, -2)); // key
+        sum3 += moo_todouble(lua_tonumber(L, -1)); // value
         lua_pop(L, 2);               // pop both key and value
     }
     CHECK(sum3 == 580);
@@ -2778,11 +2798,11 @@ TEST_CASE("ApiCalls")
     // lua_call
     {
         lua_getfield(L, LUA_GLOBALSINDEX, "add");
-        lua_pushnumber(L, 40);
-        lua_pushnumber(L, 2);
+        lua_pushnumber(L, mooHostNumber(40));
+        lua_pushnumber(L, mooHostNumber(2));
         lua_call(L, 2, 1);
         CHECK(lua_isnumber(L, -1));
-        CHECK(lua_tonumber(L, -1) == 42);
+        CHECK(moo_todouble(lua_tonumber(L, -1)) == 42);
         lua_pop(L, 1);
     }
 
@@ -2798,12 +2818,12 @@ TEST_CASE("ApiCalls")
     // lua_pcall
     {
         lua_getfield(L, LUA_GLOBALSINDEX, "add");
-        lua_pushnumber(L, 40);
-        lua_pushnumber(L, 2);
+        lua_pushnumber(L, mooHostNumber(40));
+        lua_pushnumber(L, mooHostNumber(2));
         int status = lua_pcall(L, 2, 1, 0);
         CHECK(status == LUA_OK);
         CHECK(lua_isnumber(L, -1));
-        CHECK(lua_tonumber(L, -1) == 42);
+        CHECK(moo_todouble(lua_tonumber(L, -1)) == 42);
         lua_pop(L, 1);
     }
 
@@ -2860,7 +2880,7 @@ TEST_CASE("ApiCalls")
         luaL_checkstack(L, LUAI_MAXCSTACK - 1, "must succeed");
 
         for (int i = 0; i < LUAI_MAXCSTACK - 1; i++)
-            lua_pushnumber(L, 1.0);
+            lua_pushnumber(L, mooHostNumber(1.0));
 
         CHECK(lua_cpcall(L, cpcallTest, &shouldFail) == LUA_ERRRUN);
         REQUIRE(lua_isstring(L, -1));
@@ -2917,11 +2937,11 @@ TEST_CASE("ApiCalls")
         lua_State* L2 = lua_newthread(L);
 
         lua_getfield(L2, LUA_GLOBALSINDEX, "create_with_tm");
-        lua_pushnumber(L2, 42);
+        lua_pushnumber(L2, mooHostNumber(42));
         lua_pcall(L2, 1, 1, 0);
 
         lua_getfield(L2, LUA_GLOBALSINDEX, "create_with_tm");
-        lua_pushnumber(L2, 42);
+        lua_pushnumber(L2, mooHostNumber(42));
         lua_pcall(L2, 1, 1, 0);
 
         // Reset GC
@@ -2941,7 +2961,7 @@ TEST_CASE("ApiCalls")
     {
         lua_getfield(L, LUA_GLOBALSINDEX, "getpi");
         lua_call(L, 0, 1);
-        CHECK(lua_tonumber(L, -1) == 3.1415926);
+        CHECK(lua_tonumber(L, -1) == mooHostNumber(3.1415926) /* moo: the host value is rounded to 2^-16 when pushed */);
         lua_pop(L, 1);
 
         lua_getfield(L, LUA_GLOBALSINDEX, "getpi");
@@ -2949,17 +2969,17 @@ TEST_CASE("ApiCalls")
         // clone & override env
         lua_clonefunction(L, -1);
         lua_newtable(L);
-        lua_pushnumber(L, 42);
+        lua_pushnumber(L, mooHostNumber(42));
         lua_setfield(L, -2, "pi");
         lua_setfenv(L, -2);
 
         lua_call(L, 0, 1);
-        CHECK(lua_tonumber(L, -1) == 42);
+        CHECK(moo_todouble(lua_tonumber(L, -1)) == 42);
         lua_pop(L, 1);
 
         // this one calls original function again
         lua_call(L, 0, 1);
-        CHECK(lua_tonumber(L, -1) == 3.1415926);
+        CHECK(lua_tonumber(L, -1) == mooHostNumber(3.1415926) /* moo: the host value is rounded to 2^-16 when pushed */);
         lua_pop(L, 1);
     }
 
@@ -2967,7 +2987,7 @@ TEST_CASE("ApiCalls")
     {
         lua_getfield(L, LUA_GLOBALSINDEX, "incuv");
         lua_call(L, 0, 1);
-        CHECK(lua_tonumber(L, -1) == 1);
+        CHECK(moo_todouble(lua_tonumber(L, -1)) == 1);
         lua_pop(L, 1);
 
         lua_getfield(L, LUA_GLOBALSINDEX, "incuv");
@@ -2976,16 +2996,16 @@ TEST_CASE("ApiCalls")
         lua_clonefunction(L, -2);
 
         lua_call(L, 0, 1);
-        CHECK(lua_tonumber(L, -1) == 2);
+        CHECK(moo_todouble(lua_tonumber(L, -1)) == 2);
         lua_pop(L, 1);
 
         lua_call(L, 0, 1);
-        CHECK(lua_tonumber(L, -1) == 3);
+        CHECK(moo_todouble(lua_tonumber(L, -1)) == 3);
         lua_pop(L, 1);
 
         // this one calls original function again
         lua_call(L, 0, 1);
-        CHECK(lua_tonumber(L, -1) == 4);
+        CHECK(moo_todouble(lua_tonumber(L, -1)) == 4);
         lua_pop(L, 1);
     }
 
@@ -3089,7 +3109,7 @@ TEST_CASE("ApiType")
     StateRef globalState(luaL_newstate(), lua_close);
     lua_State* L = globalState.get();
 
-    lua_pushnumber(L, 2);
+    lua_pushnumber(L, mooHostNumber(2));
     CHECK(strcmp(luaL_typename(L, -1), "number") == 0);
     CHECK(strcmp(luaL_typename(L, 1), "number") == 0);
     CHECK(lua_type(L, -1) == LUA_TNUMBER);
@@ -3162,7 +3182,7 @@ int slowlyOverflowStack(lua_State* L)
     for (int i = 0; i < LUAI_MAXCSTACK * 2; i++)
     {
         luaL_checkstack(L, 1, "test");
-        lua_pushnumber(L, 1.0);
+        lua_pushnumber(L, mooHostNumber(1.0));
     }
 
     return 0;
@@ -3495,7 +3515,7 @@ TEST_CASE("Coverage")
 
 TEST_CASE("StringConversion")
 {
-    runConformance("strconv.luau");
+    runConformance("moo/strconv.luau");
 }
 
 struct HeapEdge;
@@ -4286,7 +4306,7 @@ TEST_CASE("DebugApi")
     StateRef globalState(luaL_newstate(), lua_close);
     lua_State* L = globalState.get();
 
-    lua_pushnumber(L, 10);
+    lua_pushnumber(L, mooHostNumber(10));
 
     lua_Debug ar;
     CHECK(lua_getinfo(L, -1, "f", &ar) == 0);  // number is not a function
@@ -4316,7 +4336,7 @@ static int cYieldingIterator(lua_State* L)
 TEST_CASE("Iter")
 {
     runConformance(
-        "iter.luau",
+        "moo/iter.luau",
         [](lua_State* L)
         {
             setupNativeHelpers(L);
@@ -4377,7 +4397,7 @@ TEST_CASE("Userdata")
 
                     if (strcmp(name, "value") == 0)
                     {
-                        lua_pushnumber(L, double(*static_cast<int64_t*>(p)));
+                        lua_pushnumber(L, mooHostNumber(double(*static_cast<int64_t*>(p))));
                         return 1;
                     }
 
@@ -4397,7 +4417,7 @@ TEST_CASE("Userdata")
 
                     if (strcmp(name, "value") == 0)
                     {
-                        double value = luaL_checknumber(L, 3);
+                        double value = moo_todouble(luaL_checknumber(L, 3));
                         *static_cast<int64_t*>(p) = int64_t(value);
                         return 0;
                     }
@@ -4564,7 +4584,7 @@ TEST_CASE("Userdata")
                 L,
                 [](lua_State* L)
                 {
-                    double v = luaL_checknumber(L, 1);
+                    double v = moo_todouble(luaL_checknumber(L, 1));
                     pushInt64(L, int64_t(v));
                     return 1;
                 },
@@ -4877,7 +4897,7 @@ TEST_CASE("HugeFunction")
     int status = lua_resume(L, nullptr, 0);
     REQUIRE(status == 0);
 
-    CHECK(lua_tonumber(L, -1) == 42);
+    CHECK(moo_todouble(lua_tonumber(L, -1)) == 42);
 }
 
 TEST_CASE("HugeFunctionLoadFailure")
@@ -4996,7 +5016,7 @@ TEST_CASE("HugeConstantTable")
     int status = lua_resume(L, nullptr, 0);
     REQUIRE(status == 0);
 
-    CHECK(lua_tonumber(L, -1) == 3);
+    CHECK(moo_todouble(lua_tonumber(L, -1)) == 3);
 }
 
 TEST_CASE("LargeNestedClosure")
@@ -5043,7 +5063,7 @@ TEST_CASE("LargeNestedClosure")
     int status = lua_resume(L, nullptr, 0);
     REQUIRE(status == 0);
 
-    CHECK(lua_tonumber(L, -1) == kCount);
+    CHECK(moo_todouble(lua_tonumber(L, -1)) == kCount);
 }
 
 TEST_CASE("ExportEdgeCase")
@@ -5155,7 +5175,7 @@ TEST_CASE("LargeModuleA64")
     int status = lua_resume(L, nullptr, 0);
     REQUIRE(status == 0);
 
-    CHECK(lua_tonumber(L, -1) == 140000);
+    CHECK(moo_todouble(lua_tonumber(L, -1)) == 140000);
 }
 
 TEST_CASE("IrInstructionLimit")
@@ -5461,7 +5481,7 @@ TEST_CASE("CodegenRandomizeFunctionalCorrectness")
     int callResult = lua_pcall(L, 0, 1, 0);
     REQUIRE_MESSAGE(callResult == 0, lua_tostring(L, -1));
 
-    CHECK(lua_tonumber(L, -1) == 42.0);
+    CHECK(moo_todouble(lua_tonumber(L, -1)) == 42.0);
 }
 
 // Ensure that we have bytecode output module linked in

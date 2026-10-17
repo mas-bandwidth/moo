@@ -1,3 +1,6 @@
+// moo: TEMPORARY BRIDGE until the math library is rebuilt on fixed (docs/DESIGN.md, "math library"): the functions
+// that call libm convert through doubles (moo_numbridgetodouble, moo_numbridgefromdouble). abs, ceil, floor, min, max,
+// clamp, sign, round and random are exact on the number already.
 // This file is part of the Luau programming language and is licensed under MIT License; see LICENSE.txt for details
 // This code is based on Lua 5.x implementation licensed under MIT License; see lua_LICENSE.txt for details
 #include "lualib.h"
@@ -40,118 +43,119 @@ static void pcg32_seed(uint64_t* state, uint64_t seed)
 
 static int math_abs(lua_State* L)
 {
-    lua_pushnumber(L, fabs(luaL_checknumber(L, 1)));
+    lua_Number v = luaL_checknumber(L, 1);
+    lua_pushnumber(L, v < 0 ? moo_numunm(v) : v);
     return 1;
 }
 
 static int math_sin(lua_State* L)
 {
-    lua_pushnumber(L, sin(luaL_checknumber(L, 1)));
+    lua_pushnumber(L, moo_numbridgefromdouble(sin(moo_numbridgetodouble(luaL_checknumber(L, 1)))));
     return 1;
 }
 
 static int math_sinh(lua_State* L)
 {
-    lua_pushnumber(L, sinh(luaL_checknumber(L, 1)));
+    lua_pushnumber(L, moo_numbridgefromdouble(sinh(moo_numbridgetodouble(luaL_checknumber(L, 1)))));
     return 1;
 }
 
 static int math_cos(lua_State* L)
 {
-    lua_pushnumber(L, cos(luaL_checknumber(L, 1)));
+    lua_pushnumber(L, moo_numbridgefromdouble(cos(moo_numbridgetodouble(luaL_checknumber(L, 1)))));
     return 1;
 }
 
 static int math_cosh(lua_State* L)
 {
-    lua_pushnumber(L, cosh(luaL_checknumber(L, 1)));
+    lua_pushnumber(L, moo_numbridgefromdouble(cosh(moo_numbridgetodouble(luaL_checknumber(L, 1)))));
     return 1;
 }
 
 static int math_tan(lua_State* L)
 {
-    lua_pushnumber(L, tan(luaL_checknumber(L, 1)));
+    lua_pushnumber(L, moo_numbridgefromdouble(tan(moo_numbridgetodouble(luaL_checknumber(L, 1)))));
     return 1;
 }
 
 static int math_tanh(lua_State* L)
 {
-    lua_pushnumber(L, tanh(luaL_checknumber(L, 1)));
+    lua_pushnumber(L, moo_numbridgefromdouble(tanh(moo_numbridgetodouble(luaL_checknumber(L, 1)))));
     return 1;
 }
 
 static int math_asin(lua_State* L)
 {
-    lua_pushnumber(L, asin(luaL_checknumber(L, 1)));
+    lua_pushnumber(L, moo_numbridgefromdouble(asin(moo_numbridgetodouble(luaL_checknumber(L, 1)))));
     return 1;
 }
 
 static int math_acos(lua_State* L)
 {
-    lua_pushnumber(L, acos(luaL_checknumber(L, 1)));
+    lua_pushnumber(L, moo_numbridgefromdouble(acos(moo_numbridgetodouble(luaL_checknumber(L, 1)))));
     return 1;
 }
 
 static int math_atan(lua_State* L)
 {
-    lua_pushnumber(L, atan(luaL_checknumber(L, 1)));
+    lua_pushnumber(L, moo_numbridgefromdouble(atan(moo_numbridgetodouble(luaL_checknumber(L, 1)))));
     return 1;
 }
 
 static int math_atan2(lua_State* L)
 {
-    lua_pushnumber(L, atan2(luaL_checknumber(L, 1), luaL_checknumber(L, 2)));
+    lua_pushnumber(L, moo_numbridgefromdouble(atan2(moo_numbridgetodouble(luaL_checknumber(L, 1)), moo_numbridgetodouble(luaL_checknumber(L, 2)))));
     return 1;
 }
 
 static int math_ceil(lua_State* L)
 {
-    lua_pushnumber(L, ceil(luaL_checknumber(L, 1)));
+    lua_pushnumber(L, moo_numfromint(moo_numceil(luaL_checknumber(L, 1))));
     return 1;
 }
 
 static int math_floor(lua_State* L)
 {
-    lua_pushnumber(L, floor(luaL_checknumber(L, 1)));
+    lua_pushnumber(L, moo_numfromint(moo_numfloor(luaL_checknumber(L, 1))));
     return 1;
 }
 
 static int math_fmod(lua_State* L)
 {
-    lua_pushnumber(L, fmod(luaL_checknumber(L, 1), luaL_checknumber(L, 2)));
+    lua_pushnumber(L, moo_numbridgefromdouble(fmod(moo_numbridgetodouble(luaL_checknumber(L, 1)), moo_numbridgetodouble(luaL_checknumber(L, 2)))));
     return 1;
 }
 
 static int math_modf(lua_State* L)
 {
     double ip;
-    double fp = modf(luaL_checknumber(L, 1), &ip);
-    lua_pushnumber(L, ip);
-    lua_pushnumber(L, fp);
+    double fp = modf(moo_numbridgetodouble(luaL_checknumber(L, 1)), &ip);
+    lua_pushnumber(L, moo_numbridgefromdouble(ip));
+    lua_pushnumber(L, moo_numbridgefromdouble(fp));
     return 2;
 }
 
 static int math_sqrt(lua_State* L)
 {
-    lua_pushnumber(L, sqrt(luaL_checknumber(L, 1)));
+    lua_pushnumber(L, moo_numbridgefromdouble(sqrt(moo_numbridgetodouble(luaL_checknumber(L, 1)))));
     return 1;
 }
 
 static int math_pow(lua_State* L)
 {
-    lua_pushnumber(L, pow(luaL_checknumber(L, 1), luaL_checknumber(L, 2)));
+    lua_pushnumber(L, moo_numbridgefromdouble(pow(moo_numbridgetodouble(luaL_checknumber(L, 1)), moo_numbridgetodouble(luaL_checknumber(L, 2)))));
     return 1;
 }
 
 static int math_log(lua_State* L)
 {
-    double x = luaL_checknumber(L, 1);
+    double x = moo_numbridgetodouble(luaL_checknumber(L, 1));
     double res;
     if (lua_isnoneornil(L, 2))
         res = log(x);
     else
     {
-        double base = luaL_checknumber(L, 2);
+        double base = moo_numbridgetodouble(luaL_checknumber(L, 2));
         if (base == 2.0)
             res = log2(x);
         else if (base == 10.0)
@@ -159,56 +163,56 @@ static int math_log(lua_State* L)
         else
             res = log(x) / log(base);
     }
-    lua_pushnumber(L, res);
+    lua_pushnumber(L, moo_numbridgefromdouble(res));
     return 1;
 }
 
 static int math_log10(lua_State* L)
 {
-    lua_pushnumber(L, log10(luaL_checknumber(L, 1)));
+    lua_pushnumber(L, moo_numbridgefromdouble(log10(moo_numbridgetodouble(luaL_checknumber(L, 1)))));
     return 1;
 }
 
 static int math_exp(lua_State* L)
 {
-    lua_pushnumber(L, exp(luaL_checknumber(L, 1)));
+    lua_pushnumber(L, moo_numbridgefromdouble(exp(moo_numbridgetodouble(luaL_checknumber(L, 1)))));
     return 1;
 }
 
 static int math_deg(lua_State* L)
 {
-    lua_pushnumber(L, luaL_checknumber(L, 1) / RADIANS_PER_DEGREE);
+    lua_pushnumber(L, moo_numbridgefromdouble(moo_numbridgetodouble(luaL_checknumber(L, 1)) / RADIANS_PER_DEGREE));
     return 1;
 }
 
 static int math_rad(lua_State* L)
 {
-    lua_pushnumber(L, luaL_checknumber(L, 1) * RADIANS_PER_DEGREE);
+    lua_pushnumber(L, moo_numbridgefromdouble(moo_numbridgetodouble(luaL_checknumber(L, 1)) * RADIANS_PER_DEGREE));
     return 1;
 }
 
 static int math_frexp(lua_State* L)
 {
     int e;
-    lua_pushnumber(L, frexp(luaL_checknumber(L, 1), &e));
+    lua_pushnumber(L, moo_numbridgefromdouble(frexp(moo_numbridgetodouble(luaL_checknumber(L, 1)), &e)));
     lua_pushinteger(L, e);
     return 2;
 }
 
 static int math_ldexp(lua_State* L)
 {
-    lua_pushnumber(L, ldexp(luaL_checknumber(L, 1), luaL_checkinteger(L, 2)));
+    lua_pushnumber(L, moo_numbridgefromdouble(ldexp(moo_numbridgetodouble(luaL_checknumber(L, 1)), luaL_checkinteger(L, 2))));
     return 1;
 }
 
 static int math_min(lua_State* L)
 {
     int n = lua_gettop(L); // number of arguments
-    double dmin = luaL_checknumber(L, 1);
+    lua_Number dmin = luaL_checknumber(L, 1);
     int i;
     for (i = 2; i <= n; i++)
     {
-        double d = luaL_checknumber(L, i);
+        lua_Number d = luaL_checknumber(L, i);
         if (d < dmin)
             dmin = d;
     }
@@ -219,11 +223,11 @@ static int math_min(lua_State* L)
 static int math_max(lua_State* L)
 {
     int n = lua_gettop(L); // number of arguments
-    double dmax = luaL_checknumber(L, 1);
+    lua_Number dmax = luaL_checknumber(L, 1);
     int i;
     for (i = 2; i <= n; i++)
     {
-        double d = luaL_checknumber(L, i);
+        lua_Number d = luaL_checknumber(L, i);
         if (d > dmax)
             dmax = d;
     }
@@ -240,10 +244,8 @@ static int math_random(lua_State* L)
     { // no arguments
         // Using ldexp instead of division for speed & clarity.
         // See http://mumble.net/~campbell/tmp/random_real.c for details on generating doubles from integer ranges.
-        uint32_t rl = pcg32_random(&g->rngstate);
-        uint32_t rh = pcg32_random(&g->rngstate);
-        double rd = ldexp(double(rl | (uint64_t(rh) << 32)), -64);
-        lua_pushnumber(L, rd); // number between 0 and 1
+        // moo: the 16 fraction bits from the top of one draw: every number in [0, 1) equally likely, exact
+        lua_pushnumber(L, lua_Number(pcg32_random(&g->rngstate) >> 16)); // number between 0 and 1
         break;
     }
     case 1:
@@ -369,9 +371,9 @@ static float perlin(float x, float y, float z)
 static int math_noise(lua_State* L)
 {
     int nx, ny, nz;
-    double x = lua_tonumberx(L, 1, &nx);
-    double y = lua_tonumberx(L, 2, &ny);
-    double z = lua_tonumberx(L, 3, &nz);
+    double x = moo_numbridgetodouble(lua_tonumberx(L, 1, &nx));
+    double y = moo_numbridgetodouble(lua_tonumberx(L, 2, &ny));
+    double z = moo_numbridgetodouble(lua_tonumberx(L, 3, &nz));
 
     luaL_argexpected(L, nx, 1, "number");
     luaL_argexpected(L, ny || lua_isnoneornil(L, 2), 2, "number");
@@ -390,19 +392,19 @@ static int math_noise(lua_State* L)
 
     double r = perlin((float)x, (float)y, (float)z);
 
-    lua_pushnumber(L, r);
+    lua_pushnumber(L, moo_numbridgefromdouble(r));
     return 1;
 }
 
 static int math_clamp(lua_State* L)
 {
-    double v = luaL_checknumber(L, 1);
-    double min = luaL_checknumber(L, 2);
-    double max = luaL_checknumber(L, 3);
+    lua_Number v = luaL_checknumber(L, 1);
+    lua_Number min = luaL_checknumber(L, 2);
+    lua_Number max = luaL_checknumber(L, 3);
 
     luaL_argcheck(L, min <= max, 3, "max must be greater than or equal to min");
 
-    double r = v < min ? min : v;
+    lua_Number r = v < min ? min : v;
     r = r > max ? max : r;
 
     lua_pushnumber(L, r);
@@ -411,44 +413,44 @@ static int math_clamp(lua_State* L)
 
 static int math_sign(lua_State* L)
 {
-    double v = luaL_checknumber(L, 1);
-    lua_pushnumber(L, v > 0.0 ? 1.0 : v < 0.0 ? -1.0 : 0.0);
+    lua_Number v = luaL_checknumber(L, 1);
+    lua_pushnumber(L, v > 0 ? MOO_NUMBER_ONE : v < 0 ? -MOO_NUMBER_ONE : 0);
     return 1;
 }
 
 static int math_round(lua_State* L)
 {
-    lua_pushnumber(L, round(luaL_checknumber(L, 1)));
+    lua_pushnumber(L, moo_numround(luaL_checknumber(L, 1)));
     return 1;
 }
 
 static int math_map(lua_State* L)
 {
-    double x = luaL_checknumber(L, 1);
-    double inmin = luaL_checknumber(L, 2);
-    double inmax = luaL_checknumber(L, 3);
-    double outmin = luaL_checknumber(L, 4);
-    double outmax = luaL_checknumber(L, 5);
+    double x = moo_numbridgetodouble(luaL_checknumber(L, 1));
+    double inmin = moo_numbridgetodouble(luaL_checknumber(L, 2));
+    double inmax = moo_numbridgetodouble(luaL_checknumber(L, 3));
+    double outmin = moo_numbridgetodouble(luaL_checknumber(L, 4));
+    double outmax = moo_numbridgetodouble(luaL_checknumber(L, 5));
 
     double result = outmin + (x - inmin) * (outmax - outmin) / (inmax - inmin);
-    lua_pushnumber(L, result);
+    lua_pushnumber(L, moo_numbridgefromdouble(result));
     return 1;
 }
 
 static int math_lerp(lua_State* L)
 {
-    double a = luaL_checknumber(L, 1);
-    double b = luaL_checknumber(L, 2);
-    double t = luaL_checknumber(L, 3);
+    double a = moo_numbridgetodouble(luaL_checknumber(L, 1));
+    double b = moo_numbridgetodouble(luaL_checknumber(L, 2));
+    double t = moo_numbridgetodouble(luaL_checknumber(L, 3));
 
     double r = (t == 1.0) ? b : a + (b - a) * t;
-    lua_pushnumber(L, r);
+    lua_pushnumber(L, moo_numbridgefromdouble(r));
     return 1;
 }
 
 static int math_isnan(lua_State* L)
 {
-    double x = luaL_checknumber(L, 1);
+    double x = moo_numbridgetodouble(luaL_checknumber(L, 1));
 
     lua_pushboolean(L, isnan(x));
     return 1;
@@ -456,7 +458,7 @@ static int math_isnan(lua_State* L)
 
 static int math_isinf(lua_State* L)
 {
-    double x = luaL_checknumber(L, 1);
+    double x = moo_numbridgetodouble(luaL_checknumber(L, 1));
 
     lua_pushboolean(L, isinf(x));
     return 1;
@@ -464,7 +466,7 @@ static int math_isinf(lua_State* L)
 
 static int math_isfinite(lua_State* L)
 {
-    double x = luaL_checknumber(L, 1);
+    double x = moo_numbridgetodouble(luaL_checknumber(L, 1));
 
     lua_pushboolean(L, isfinite(x));
     return 1;
@@ -521,19 +523,19 @@ int luaopen_math(lua_State* L)
 
     luaL_register(L, LUA_MATHLIBNAME, mathlib);
 
-    lua_pushnumber(L, LUAU_PI);
+    lua_pushnumber(L, moo_numbridgefromdouble(LUAU_PI));
     lua_setfield(L, -2, "pi");
-    lua_pushnumber(L, HUGE_VAL);
+    lua_pushnumber(L, moo_numbridgefromdouble(HUGE_VAL));
     lua_setfield(L, -2, "huge");
-    lua_pushnumber(L, LUAU_NAN);
+    lua_pushnumber(L, moo_numbridgefromdouble(LUAU_NAN));
     lua_setfield(L, -2, "nan");
-    lua_pushnumber(L, LUAU_E);
+    lua_pushnumber(L, moo_numbridgefromdouble(LUAU_E));
     lua_setfield(L, -2, "e");
-    lua_pushnumber(L, LUAU_PHI);
+    lua_pushnumber(L, moo_numbridgefromdouble(LUAU_PHI));
     lua_setfield(L, -2, "phi");
-    lua_pushnumber(L, LUAU_SQRT2);
+    lua_pushnumber(L, moo_numbridgefromdouble(LUAU_SQRT2));
     lua_setfield(L, -2, "sqrt2");
-    lua_pushnumber(L, LUAU_TAU);
+    lua_pushnumber(L, moo_numbridgefromdouble(LUAU_TAU));
     lua_setfield(L, -2, "tau");
 
     return 1;

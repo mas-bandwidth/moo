@@ -4,12 +4,39 @@ moo is Luau with two changes: everything in the language is deterministic, and `
 Q48.16 fixed point. Floats and doubles are outlawed inside the VM. Everything else (syntax,
 tools, the C API) stays as close to Luau as possible.
 
-**Status: design only.** Nothing in this document is built. The tree is layer 1 (the fork).
-The layer list at the end goes to Glenn for correction before anything beyond the fork is
-built. Where this document makes a choice ("moo does X"), it is a proposal until that review.
+**Status.** Layers 1 and 2 are built. Layer 3 (number = Q48.16) is being built in small PRs; the
+section "Layer 3 as built" below is the state of `main`. Everything else here is design.
 
 The determinism guarantee, and every source of non-determinism found in Luau 0.741 with its
 file and line, is in [DETERMINISM.md](DETERMINISM.md). This document says what replaces them.
+
+## Layer 3 as built
+
+- **The number is fixed.** `lua_Number` is `int64_t`, the raw Q48.16 value; `TValue` stores it where Luau stored the
+  double. Every operator goes through `Common/include/moo_number.h` (add, sub, negate exact and saturating; `fixMul`;
+  `fixDiv`; exact floor division and remainder), behind Luau's `luai_num*` seams. `/`, `//` and `%` by zero raise
+  `division by zero`. The domain is [-INT64_MAX, INT64_MAX] raw.
+- **The C API boundary.** `lua_pushnumber`, `lua_tonumber`, `luaL_checknumber` and the rest take and return the raw value.
+  In C++ a `double`, `float` or `int` passed to `lua_pushnumber` is a compile error; hosts convert with
+  `moo_fromdouble` / `moo_todouble` (moo.h). Building with `-DMOO_NUMBER_PROBE` makes `lua_Number` a struct, so every
+  implicit use of a number is a compile error: that is how each site was found.
+- **The compiler** folds number arithmetic with the same `moo_number.h` operations (a constant still travels as the
+  double that holds it exactly); it does not fold division by zero, `^`, or any builtin call or `math` constant.
+- **Native code generation** is excluded (below).
+- **TEMPORARY bridges**, each marked in the code and each removed by a later layer 3 PR:
+  - number literals and `tonumber` go through `strtod` and the boundary rule (the literals PR);
+  - bytecode carries a double per number constant, rounded by the boundary rule at load, saturating (the bytecode
+    version PR);
+  - `tostring` and `string.format("%f", ...)` print through the double that holds the number exactly (the formatting PR);
+  - the libm functions of `math`, `^`, `math.noise`, and the float `vector` type convert through doubles
+    (`moo_numbridgetodouble`, `moo_numbridgefromdouble`), until the math library is rebuilt on fixed and the vector
+    type is removed;
+  - `buffer.readf32`/`writef32`, `readf64`/`writef64` and `string.pack` floats round by the bridge (the boundary PR);
+  - numeric `for` adds the step saturating and stops when the index cannot advance (the trip count PR).
+- **Exact already:** `math.abs`, `floor`, `ceil`, `min`, `max`, `clamp`, `sign`, `round` and `random` (16 bits per draw),
+  table keys (integer-valued numbers use the array part; numbers hash by their raw value), and every integer
+  conversion (toward zero, saturating at the int range, so no undefined float-to-int cast). The SSE4.1 fastcalls of
+  `floor`, `ceil` and `round`, chosen by CPUID, are gone: one code path everywhere.
 
 ## Representation
 

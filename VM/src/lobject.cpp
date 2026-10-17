@@ -1,6 +1,7 @@
 // This file is part of the Luau programming language and is licensed under MIT License; see LICENSE.txt for details
 // This code is based on Lua 5.x implementation licensed under MIT License; see lua_LICENSE.txt for details
 #include "lobject.h"
+#include "moo.h"
 
 #include "lstate.h"
 #include "lstring.h"
@@ -83,12 +84,18 @@ int luaO_rawequalKey(const TKey* t1, const TValue* t2)
         }
 }
 
-int luaO_str2d(const char* s, double* result)
+// moo: TEMPORARY until moo's own parser (docs/DESIGN.md, "Literals"): strtod, then the boundary rule;
+// a value outside the range is not a number
+int luaO_str2d(const char* s, lua_Number* result)
 {
     char* endptr;
-    *result = luai_str2num(s, &endptr);
+    double d = luai_str2num(s, &endptr);
     if (endptr == s)
         return 0;                         // conversion failed
+    int64_t n = 0;
+    if (moo_fromdouble(d, &n) != MOO_NUMBER_OK)
+        return 0;
+    *result = n;
     if (*endptr == 'x' || *endptr == 'X') // maybe an hexadecimal constant?
         *result = cast_num(strtoul(s, &endptr, 16));
     if (*endptr == '\0')

@@ -74,7 +74,7 @@ static void luaR_setupconstructor(lua_State* L, LuauClass* classobject, LuaTable
 
     TString* initKey = luaS_new(L, "__init");
     const TValue* initIndex = luaH_getstr(classobject->memberstooffset, initKey);
-    const double initDouble = nvalue(initIndex);
+    const int64_t initDouble = moo_numtrunc(nvalue(initIndex));
     LUAU_ASSERT(initDouble >= classobject->numberofinstancemembers && initDouble < classobject->numberofallmembers);
     const uint32_t initOffset = uint32_t(initDouble) - classobject->numberofinstancemembers;
 
@@ -166,7 +166,7 @@ void luaR_registerstaticmember(
     classObject->offsettomember[offset] = memberName;
 
     TValue* offsetVal = luaH_setstr(L, classObject->memberstooffset, memberName);
-    setnvalue(offsetVal, offset);
+    setnvalue(offsetVal, cast_num(offset));
     luaC_barrier(L, classObject->memberstooffset, offsetVal);
 }
 
@@ -235,14 +235,14 @@ void luaR_inheritclass(lua_State* L, LuauClass* child, LuauClass* parent)
         {
             TString* memberName = childOffsetToMember[idx];
             TValue* offsetInChild = luaH_setstr(L, child->memberstooffset, memberName);
-            setnvalue(offsetInChild, nvalue(offsetInChild) + parent->numberofinstancemembers);
+            setnvalue(offsetInChild, moo_numadd(nvalue(offsetInChild), cast_num(parent->numberofinstancemembers)));
         }
 
         for (uint32_t idx = 0; idx < parent->numberofinstancemembers; idx++)
         {
             TString* memberName = parent->offsettomember[idx];
             TValue* offsetInChild = luaH_setstr(L, child->memberstooffset, memberName);
-            setnvalue(offsetInChild, idx);
+            setnvalue(offsetInChild, cast_num(idx));
             luaC_barrier(L, child->memberstooffset, offsetInChild);
         }
     }
@@ -318,7 +318,7 @@ void luaR_inheritclass(lua_State* L, LuauClass* child, LuauClass* parent)
             // We also need to add an entry to the memberstooffset table for this member
             uint32_t offsetInChildInt = child->numberofinstancemembers + staticMemberOffsetInChild;
             TValue* offsetInChild = luaH_setstr(L, child->memberstooffset, memberName);
-            setnvalue(offsetInChild, static_cast<int>(offsetInChildInt));
+            setnvalue(offsetInChild, cast_num(static_cast<int>(offsetInChildInt)));
             luaC_barrier(L, child->memberstooffset, offsetInChild);
 
             // And add it to offsettomember
@@ -343,7 +343,7 @@ void luaR_addclassmember(lua_State* L, LuauClass* classobject, TString* name, TV
 {
     LUAU_ASSERT(classobject->staticmembers != nullptr);
     const TValue* offset = luaH_getstr(classobject->memberstooffset, name);
-    const uint32_t offsetint = uint32_t(nvalue(offset));
+    const uint32_t offsetint = uint32_t(moo_numtrunc(nvalue(offset)));
     LUAU_ASSERT(offsetint >= classobject->numberofinstancemembers && offsetint < classobject->numberofallmembers);
     LUAU_ASSERT(ttisfunction(value) && value->value.gc->gch.tt == LUA_TFUNCTION);
     setobj2class(L, &classobject->staticmembers[offsetint - classobject->numberofinstancemembers], value);
@@ -402,7 +402,7 @@ int luaR_constructobject(lua_State* L)
 
     TString* initKey = luaS_new(L, "__init");
     const TValue* initIndex = luaH_getstr(classobject->memberstooffset, initKey);
-    const uint32_t initOffset = uint32_t(nvalue(initIndex)) - classobject->numberofinstancemembers;
+    const uint32_t initOffset = uint32_t(moo_numtrunc(nvalue(initIndex))) - classobject->numberofinstancemembers;
 
     const TValue* initFunction = &classobject->staticmembers[initOffset];
 

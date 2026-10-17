@@ -2,16 +2,22 @@
 // This code is based on Lua 5.x implementation licensed under MIT License; see lua_LICENSE.txt for details
 #pragma once
 
+#include "moo_number.h"
+
 #include <math.h>
 #include <cstdint>
 
-#define luai_numadd(a, b) ((a) + (b))
-#define luai_numsub(a, b) ((a) - (b))
-#define luai_nummul(a, b) ((a) * (b))
-#define luai_numdiv(a, b) ((a) / (b))
-#define luai_numpow(a, b) (pow(a, b))
-#define luai_numunm(a) (-(a))
-#define luai_numisnan(a) ((a) != (a))
+// moo: a number is Q48.16 fixed point (moo_number.h); these are the seams every number operation goes
+// through. Division, floor division and remainder by zero are refused by the caller with the named error
+// "division by zero" before these run.
+#define luai_numadd(a, b) moo_numadd(a, b)
+#define luai_numsub(a, b) moo_numsub(a, b)
+#define luai_nummul(a, b) moo_nummul(a, b)
+#define luai_numdiv(a, b) moo_numdiv(a, b)
+// TEMPORARY BRIDGE until pow is rebuilt on fixed (docs/DESIGN.md, "pow and ^"): libm pow on doubles
+#define luai_numpow(a, b) moo_numbridgefromdouble(pow(moo_numbridgetodouble(a), moo_numbridgetodouble(b)))
+#define luai_numunm(a) moo_numunm(a)
+#define luai_numisnan(a) (false)
 #define luai_numeq(a, b) ((a) == (b))
 #define luai_numlt(a, b) ((a) < (b))
 #define luai_numle(a, b) ((a) <= (b))
@@ -75,6 +81,16 @@ inline double luai_clampd(double v, double min, double max)
     return r > max ? max : r;
 }
 
+inline fixed_t luai_nummod(fixed_t a, fixed_t b)
+{
+    return moo_nummod(a, b);
+}
+
+inline fixed_t luai_numidiv(fixed_t a, fixed_t b)
+{
+    return moo_numidiv(a, b);
+}
+
 LUAU_FASTMATH_BEGIN
 inline double luai_nummod(double a, double b)
 {
@@ -99,9 +115,10 @@ inline double luai_lerpd(double a, double b, double t)
     return (t == 1.0) ? b : a + (b - a) * t;
 }
 
-#define luai_num2int(i, d) ((i) = (int)(d))
+// moo: toward zero, saturating at the int range (no undefined float-to-int cast)
+#define luai_num2int(i, d) ((i) = (int)moo_numclampint(moo_numtrunc(d)))
 
-#define luai_num2long(i, d) ((i) = (int64_t)(d))
+#define luai_num2long(i, d) ((i) = moo_numtrunc(d))
 
 #define luai_fabs condvectordouble(fabs, fabsf)
 #define luai_sqrt condvectordouble(sqrt, sqrtf)
@@ -121,13 +138,20 @@ inline double luai_lerpd(double a, double b, double t)
         i = (unsigned int)l; \
     }
 #else
-#define luai_num2unsigned(i, n) ((i) = (unsigned)(long long)(n))
+// moo: the integer part, toward zero, modulo 2^32: defined for every number
+#define luai_num2unsigned(i, n) ((i) = (unsigned)(uint64_t)moo_numtrunc(n))
 #endif
 
 #define LUAI_MAXNUM2STR 48
 #define LUAI_MAXINT2STR 30
 
 LUAI_FUNC char* luai_num2str(char* buf, double n);
+// TEMPORARY BRIDGE until moo's exact formatter (docs/DESIGN.md, "Number formatting"): a number printed
+// through the double that holds it exactly (every raw value below 2^53 is exact in a double)
+inline char* luai_fixed2str(char* buf, fixed_t n)
+{
+    return luai_num2str(buf, moo_numbridgetodouble(n));
+}
 LUAI_FUNC char* luai_int2str(char* buf, int64_t n);
 
 #define luai_str2num(s, p) strtod((s), (p))

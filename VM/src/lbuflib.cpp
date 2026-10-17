@@ -80,7 +80,7 @@ static int buffer_readinteger(lua_State* L)
     val = buffer_swapbe(val);
 #endif
 
-    lua_pushnumber(L, double(val));
+    lua_pushnumber(L, cast_num(val));
     return 1;
 }
 
@@ -166,7 +166,7 @@ static int buffer_readfp(lua_State* L)
     memcpy(&val, (char*)buf + offset, sizeof(T));
 #endif
 
-    lua_pushnumber(L, double(val));
+    lua_pushnumber(L, moo_numbridgefromdouble(double(val))); // TEMPORARY until the exact float boundary rule for buffers
     return 1;
 }
 
@@ -176,7 +176,7 @@ static int buffer_writefp(lua_State* L)
     size_t len = 0;
     void* buf = luaL_checkbuffer(L, 1, &len);
     int offset = luaL_checkinteger(L, 2);
-    double value = luaL_checknumber(L, 3);
+    double value = moo_numbridgetodouble(luaL_checknumber(L, 3)); // TEMPORARY until the exact float boundary rule
 
     if (isoutofbounds(offset, len, sizeof(T)))
         luaL_error(L, "buffer access out of bounds");
@@ -240,7 +240,7 @@ static int buffer_len(lua_State* L)
     size_t len = 0;
     luaL_checkbuffer(L, 1, &len);
 
-    lua_pushnumber(L, double(unsigned(len)));
+    lua_pushnumber(L, cast_num(unsigned(len)));
     return 1;
 }
 
@@ -291,7 +291,7 @@ static int buffer_readbits(lua_State* L)
 {
     size_t len = 0;
     void* buf = luaL_checkbuffer(L, 1, &len);
-    int64_t bitoffset = (int64_t)luaL_checknumber(L, 2);
+    int64_t bitoffset = moo_numtrunc(luaL_checknumber(L, 2));
     int bitcount = luaL_checkinteger(L, 3);
 
     if (bitoffset < 0)
@@ -326,7 +326,7 @@ static int buffer_writebits(lua_State* L)
 {
     size_t len = 0;
     void* buf = luaL_checkbuffer(L, 1, &len);
-    int64_t bitoffset = (int64_t)luaL_checknumber(L, 2);
+    int64_t bitoffset = moo_numtrunc(luaL_checknumber(L, 2));
     int bitcount = luaL_checkinteger(L, 3);
     unsigned value = luaL_checkunsigned(L, 4);
 

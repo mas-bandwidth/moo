@@ -194,16 +194,16 @@ const char* luaL_optlstring(lua_State* L, int narg, const char* def, size_t* len
         return luaL_checklstring(L, narg, len);
 }
 
-double luaL_checknumber(lua_State* L, int narg)
+lua_Number luaL_checknumber(lua_State* L, int narg)
 {
     int isnum;
-    double d = lua_tonumberx(L, narg, &isnum);
+    lua_Number d = lua_tonumberx(L, narg, &isnum);
     if (!isnum)
         tag_error(L, narg, LUA_TNUMBER);
     return d;
 }
 
-double luaL_optnumber(lua_State* L, int narg, double def)
+lua_Number luaL_optnumber(lua_State* L, int narg, lua_Number def)
 {
     return luaL_opt(L, luaL_checknumber, narg, def);
 }
@@ -545,9 +545,9 @@ void luaL_addvalueany(luaL_Strbuf* B, int idx)
         break;
     case LUA_TNUMBER:
     {
-        double n = lua_tonumber(L, idx);
+        lua_Number n = lua_tonumber(L, idx);
         char s[LUAI_MAXNUM2STR];
-        char* e = luai_num2str(s, n);
+        char* e = luai_fixed2str(s, n);
         luaL_addlstring(B, s, e - s);
         break;
     }
@@ -630,9 +630,9 @@ const char* luaL_tolstring(lua_State* L, int idx, size_t* len)
         break;
     case LUA_TNUMBER:
     {
-        double n = lua_tonumber(L, idx);
+        lua_Number n = lua_tonumber(L, idx);
         char s[LUAI_MAXNUM2STR];
-        char* e = luai_num2str(s, n);
+        char* e = luai_fixed2str(s, n);
         lua_pushlstring(L, s, e - s);
         break;
     }

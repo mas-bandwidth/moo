@@ -6,6 +6,8 @@
 #include "Luau/Bytecode.h"
 #include "Luau/Lexer.h"
 
+#include "moo_number.h"
+
 #include <vector>
 #include <math.h>
 
@@ -20,6 +22,75 @@ namespace Compile
 
 constexpr size_t kConstantFoldStringLimit = 4096;
 
+// moo: number constants fold with the VM's own operations (moo_number.h), so a folded constant and the same
+// computation at run time are the same bits. Until the moo bytecode version carries raw Q48.16 constants, a
+// constant travels as the double that holds its value exactly: each operand is rounded by the VM's boundary
+// rule (as the VM does when it loads it), and a result a double cannot hold exactly (2^37 and above) is not
+// folded. Division by zero is not folded: the VM raises the named error at run time.
+static bool mooOperands(const Constant& la, const Constant& ra, fixed_t* a, fixed_t* b)
+{
+    return moo_numfromdouble(la.valueNumber, a) == 0 && moo_numfromdouble(ra.valueNumber, b) == 0;
+}
+
+static bool mooResult(Constant& result, fixed_t r)
+{
+    if (r >= (int64_t(1) << 53) || r <= -(int64_t(1) << 53))
+        return false;
+    result.type = Constant::Type_Number;
+    result.valueNumber = double(r) * (1.0 / 65536.0);
+    return true;
+}
+
+static void mooFold(Constant& result, AstExprBinary::Op op, const Constant& la, const Constant& ra)
+{
+    fixed_t a, b;
+    if (!mooOperands(la, ra, &a, &b))
+        return;
+
+    switch (op)
+    {
+    case AstExprBinary::Add:
+        mooResult(result, moo_numadd(a, b));
+        break;
+    case AstExprBinary::Sub:
+        mooResult(result, moo_numsub(a, b));
+        break;
+    case AstExprBinary::Mul:
+        mooResult(result, moo_nummul(a, b));
+        break;
+    case AstExprBinary::Div:
+        if (b != 0)
+            mooResult(result, moo_numdiv(a, b));
+        break;
+    case AstExprBinary::FloorDiv:
+        if (b != 0)
+            mooResult(result, moo_numidiv(a, b));
+        break;
+    case AstExprBinary::Mod:
+        if (b != 0)
+            mooResult(result, moo_nummod(a, b));
+        break;
+    case AstExprBinary::CompareLt:
+        result.type = Constant::Type_Boolean;
+        result.valueBoolean = a < b;
+        break;
+    case AstExprBinary::CompareLe:
+        result.type = Constant::Type_Boolean;
+        result.valueBoolean = a <= b;
+        break;
+    case AstExprBinary::CompareGt:
+        result.type = Constant::Type_Boolean;
+        result.valueBoolean = a > b;
+        break;
+    case AstExprBinary::CompareGe:
+        result.type = Constant::Type_Boolean;
+        result.valueBoolean = a >= b;
+        break;
+    default:
+        break; // pow waits for the math library on fixed; the rest are not number operations
+    }
+}
+
 static bool constantsEqual(const Constant& la, const Constant& ra)
 {
     LUAU_ASSERT(la.type != Constant::Type_Unknown && ra.type != Constant::Type_Unknown);
@@ -33,7 +104,12 @@ static bool constantsEqual(const Constant& la, const Constant& ra)
         return ra.type == Constant::Type_Boolean && la.valueBoolean == ra.valueBoolean;
 
     case Constant::Type_Number:
-        return ra.type == Constant::Type_Number && la.valueNumber == ra.valueNumber;
+    {
+        // moo: equal as numbers, after the boundary rule
+        fixed_t a, b;
+        return ra.type == Constant::Type_Number && moo_numfromdouble(la.valueNumber, &a) == 0 && moo_numfromdouble(ra.valueNumber, &b) == 0 &&
+               a == b;
+    }
 
     case Constant::Type_Vectorf:
         return ra.type == Constant::Type_Vectorf && la.valueVectorf[0] == ra.valueVectorf[0] && la.valueVectorf[1] == ra.valueVectorf[1] &&
@@ -125,6 +201,13 @@ static void foldUnary(Constant& result, AstExprUnary::Op op, const Constant& arg
 
 static void foldBinary(Constant& result, AstExprBinary::Op op, const Constant& la, const Constant& ra, AstNameTable& stringTable)
 {
+    if (la.type == Constant::Type_Number && ra.type == Constant::Type_Number && op != AstExprBinary::Concat &&
+        op != AstExprBinary::CompareEq && op != AstExprBinary::CompareNe && op != AstExprBinary::And && op != AstExprBinary::Or)
+    {
+        mooFold(result, op, la, ra);
+        return;
+    }
+
     switch (op)
     {
     case AstExprBinary::Add:
