@@ -12,6 +12,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include <algorithm>
 #include <fstream>
 #include <sstream>
 #include <string>
@@ -134,6 +135,91 @@ uint64_t mooHash(const std::string& text)
     for (unsigned char c : text)
         h = (h ^ c) * 0x100000001b3ull;
     return h;
+}
+
+// The destructor log: the creation number of each userdata as its destructor runs, and 0 at each
+// GC step boundary (0 is the main thread's number, never a userdata's).
+std::vector<uint64_t> gDtorLog;
+int gUserdataMade = 0;
+const int kDtorTag = 7;
+
+void mooLogDtor(lua_State* L, void* data)
+{
+    (void)L;
+    uint64_t seq;
+    memcpy(&seq, data, sizeof(seq));
+    gDtorLog.push_back(seq);
+}
+
+void mooMarkGcStep(lua_State* L, int gc)
+{
+    (void)L;
+    if (gc >= 0 && (gDtorLog.empty() || gDtorLog.back() != 0))
+        gDtorLog.push_back(0);
+}
+
+// newud(size): a tagged userdata whose destructor comes from the tag; newudi(size): one with its own
+// destructor. Each holds its creation number in its first 8 bytes.
+int mooNewUserdata(lua_State* L)
+{
+    int size = luaL_checkinteger(L, 1);
+    void* data = lua_newuserdatatagged(L, size_t(size), kDtorTag);
+    uint64_t seq = moo_objectseq(L, -1);
+    memcpy(data, &seq, sizeof(seq));
+    gUserdataMade++;
+    return 1;
+}
+
+int mooNewUserdataInline(lua_State* L)
+{
+    int size = luaL_checkinteger(L, 1);
+    void* data = lua_newuserdatadtor(L, size_t(size), mooLogDtor);
+    uint64_t seq = moo_objectseq(L, -1);
+    memcpy(data, &seq, sizeof(seq));
+    gUserdataMade++;
+    return 1;
+}
+
+// Userdata of five sizes (so five GC page size classes), dropped in an order that is not the
+// creation order, under allocation churn, then the rest at lua_close.
+const char* const kDtorChurn = R"(
+    local keep = {}
+    local sizes = {8, 40, 200, 1000, 3000}
+    for round = 1, 60 do
+        for i = 1, 30 do
+            local u
+            if i % 2 == 0 then u = newud(sizes[i % 5 + 1]) else u = newudi(sizes[(i * 3) % 5 + 1]) end
+            keep[#keep + 1] = u
+        end
+        for i = #keep, 1, -1 do
+            if math.random(1, 2) == 1 then table.remove(keep, i) end
+        end
+        local junk = {}
+        for j = 1, 200 do junk[j] = {j} end
+    end
+    return #keep
+)";
+
+// Runs kDtorChurn in a fresh VM, closes it, and returns the destructor log.
+std::vector<uint64_t> mooDtorRun(int* made)
+{
+    gDtorLog.clear();
+    gUserdataMade = 0;
+    {
+        MooState s;
+        lua_setuserdatadtor(s.L, kDtorTag, mooLogDtor);
+        lua_callbacks(s.L)->interrupt = mooMarkGcStep;
+        lua_pushcfunction(s.L, mooNewUserdata, "newud");
+        lua_setglobal(s.L, "newud");
+        lua_pushcfunction(s.L, mooNewUserdataInline, "newudi");
+        lua_setglobal(s.L, "newudi");
+        std::string kept = mooRun(s.L, kDtorChurn);
+        CHECK(kept.find("error") == std::string::npos);
+        lua_callbacks(s.L)->interrupt = nullptr;
+        gDtorLog.push_back(0); // lua_close is the last batch
+    }
+    *made = gUserdataMade;
+    return gDtorLog;
 }
 
 } // namespace
@@ -281,6 +367,99 @@ TEST_CASE("AllocationRateIsNeverMeasured")
     CHECK(lua_allocationrate(s.L) == -1);
     lua_gc(s.L, LUA_GCCOLLECT, 0);
     CHECK(lua_allocationrate(s.L) == -1);
+}
+
+// DETERMINISM.md 13: destructors run at the end of the GC step that found the userdata dead, in
+// creation-number order, and once each; lua_close runs the rest the same way (tla/DestructorQueue.tla).
+TEST_CASE("DestructorsRunInCreationOrder")
+{
+    int made = 0;
+    std::vector<uint64_t> log = mooDtorRun(&made);
+
+    std::vector<uint64_t> seen;
+    int batches = 0;
+    size_t longest = 0;
+    size_t run = 0;
+    uint64_t last = 0;
+    for (uint64_t seq : log)
+    {
+        if (seq == 0)
+        {
+            batches += run > 0;
+            longest = run > longest ? run : longest;
+            run = 0;
+            last = 0;
+            continue;
+        }
+        CHECK_MESSAGE(seq > last, "destructor of #" << seq << " ran after #" << last << " in one GC step");
+        last = seq;
+        run++;
+        seen.push_back(seq);
+    }
+
+    // each once
+    CHECK(int(seen.size()) == made);
+    std::sort(seen.begin(), seen.end());
+    CHECK(std::adjacent_find(seen.begin(), seen.end()) == seen.end());
+
+    // not vacuous: the GC ran destructors in several steps before lua_close, several at a time
+    CHECK(batches > 3);
+    CHECK(longest > 10);
+
+    int madeAgain = 0;
+    CHECK(log == mooDtorRun(&madeAgain));
+
+    std::string text;
+    for (uint64_t seq : log)
+        text += std::to_string(seq) + ",";
+    // Pinned: a change here changes when and in what order every host's destructors run.
+    CHECK(mooHash(text) == 10154968597764881097ull);
+}
+
+// DETERMINISM.md 13: which weak entries clear, and the order of what is left, under churn with object keys,
+// weak keys, weak values and both. Deterministic once pacing (4) and object hashing (1) are.
+TEST_CASE("WeakTableOrderIsAFunctionOfTheProgram")
+{
+    const char* const weak = R"(
+        local id = setmetatable({}, {__mode = "k"})
+        local wk = setmetatable({}, {__mode = "k"})
+        local wv = setmetatable({}, {__mode = "v"})
+        local wkv = setmetatable({}, {__mode = "kv"})
+        local hold = {}
+        local trace = {}
+        local n = 0
+        for round = 1, 120 do
+            for i = 1, 60 do
+                n += 1
+                local k = (i % 3 == 0) and function() return n end or {n}
+                id[k] = n
+                wk[k] = {n}
+                wv[n] = k
+                wkv[k] = k
+                if i % 7 == 0 then hold[#hold + 1] = k end
+            end
+            if #hold > 40 then table.remove(hold, 1) end
+            if round % 10 == 0 then
+                local line = {}
+                for k in pairs(wk) do line[#line + 1] = id[k] end
+                local c = 0
+                for _ in pairs(wv) do c += 1 end
+                for _ in pairs(wkv) do c += 1 end
+                trace[#trace + 1] = table.concat(line, " ") .. "/" .. c
+            end
+        end
+        return table.concat(trace, ";")
+    )";
+
+    MooState a;
+    std::string trace = mooRun(a.L, weak);
+    REQUIRE(trace.find("error") == std::string::npos);
+
+    MooState b;
+    CHECK(trace == mooRun(b.L, weak));
+
+    // Pinned.
+    CHECK(mooHash(trace) == 4913729863109054677ull);
 }
 
 TEST_SUITE_END();

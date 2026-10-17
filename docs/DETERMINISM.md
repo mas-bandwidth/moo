@@ -40,6 +40,7 @@ Each fix lands with a test in `tests/Moo.test.cpp`. This table is the state of `
 | 4 | GC pacing by clock | **fixed**: no clock in the VM; the heap trigger's growth estimate is the bytes allocated during the last mark phase, and the PI controller is integer arithmetic. `tools/moo-check-no-clock.sh` refuses, at the link level, any VM object but `lperf.cpp` that references a clock, `getenv` or the C random generator; `LUAI_GCMETRICS` does not build |
 | 5 | GC accounting by `sizeof` | **fixed, by pinning**: see below |
 | 6 | `tostring` shows an address | **fixed**: `table: #123`; light userdata prints `userdata: light`; `moo_objectseq` gives the number to the host |
+| 13 | weak tables and destructors | **fixed**: the sweep queues a dead userdata that has a destructor; the queue runs at the end of the same GC step in creation-number order (and at `lua_close`, after everything else is freed). Modelled in `tla/DestructorQueue.tla`; weak entries clear deterministically once 1 and 4 are fixed |
 | 9 | `os` and time | **fixed**: the `os` library is deleted (`VM/src/loslib.cpp`) |
 | 10 | `math.random` seeding | **fixed**: constant default seed, `moo_setrandomseed` in `VM/include/moo.h` |
 | 14 | FMA in native codegen | **fixed for moo's binaries**: `moo --codegen*` and `--jit-inliner` are refused |

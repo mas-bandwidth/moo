@@ -36,3 +36,19 @@ void luaU_freeudata(lua_State* L, Udata* u, lua_Page* page)
 
     luaM_freegco(L, u, sizeudata(u->len), u->memcat, page);
 }
+
+// moo: true when freeing u runs a destructor, so the sweep queues it (lgc.cpp)
+bool luaU_hasdtor(lua_State* L, Udata* u)
+{
+    if (u->tag < LUA_UTAG_LIMIT)
+        return L->global->udatagc[u->tag] != nullptr;
+
+    if (u->tag == UTAG_IDTOR)
+    {
+        lua_Destructor dtor = nullptr;
+        memcpy(&dtor, &u->data + u->len - sizeof(dtor), sizeof(dtor));
+        return dtor != nullptr;
+    }
+
+    return false;
+}

@@ -317,10 +317,14 @@ typedef struct Udata
 
     int len;
 
-    struct LuaTable* metatable;
+    union
+    {
+        struct LuaTable* metatable;
+        struct lua_Page* dtorpage; // moo: once dead and queued for its destructor, the page that holds it (lgc.cpp)
+    };
 
-    // moo: keeps data at offset 32, 16-byte aligned, after the 8-byte creation number
-    void* moopadding;
+    // moo: the link in the destructor queue (lgc.cpp); it also keeps data at offset 32, 16-byte aligned
+    struct Udata* dtornext;
 
     // userdata is allocated right after the header
     // while the alignment is only 8 here, for sizes starting at 16 bytes, 16 byte alignment is provided
