@@ -107,6 +107,8 @@ LUAU_CONFORMANCE_SOURCE_DIR = "\"$(realpath .)/tests/conformance\""
 
 # common flags
 CXXFLAGS=-g -Wall -ffp-contract=off
+# moo: every target includes moo_number.h (Common/include) on the vendored fixed, built saturating
+CXXFLAGS+=-Iextern/fixed/include -DFIX_SATURATE
 LDFLAGS=
 
 # some gcc versions treat var in `if (type var = val)` as unused

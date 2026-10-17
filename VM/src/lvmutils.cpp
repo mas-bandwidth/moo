@@ -24,7 +24,7 @@ LUAU_FASTFLAGVARIABLE(LuauCallLuauTm)
 
 const TValue* luaV_tonumber(const TValue* obj, TValue* n)
 {
-    double num;
+    lua_Number num;
     if (ttisnumber(obj))
         return obj;
     if (ttisstring(obj) && luaO_str2d(svalue(obj), &num))
@@ -43,8 +43,8 @@ int luaV_tostring(lua_State* L, StkId obj)
     else
     {
         char s[LUAI_MAXNUM2STR];
-        double n = nvalue(obj);
-        char* e = luai_num2str(s, n);
+        lua_Number n = nvalue(obj);
+        char* e = luai_fixed2str(s, n);
         LUAU_ASSERT(e < s + sizeof(s));
         setsvalue(L, obj, luaS_newlstr(L, s, e - s));
         return 1;
@@ -244,7 +244,7 @@ void luaV_gettable(lua_State* L, const TValue* t, TValue* key, StkId val)
             if (ttisnil(offsettval))
                 luaG_missingmembererror(L, t, key);
 
-            const uint32_t offset = uint32_t(nvalue(offsettval));
+            const uint32_t offset = uint32_t(moo_numtrunc(nvalue(offsettval)));
             setobj2s(L, val, luaR_lookupmemberatoffset(inst, offset));
             return;
         }
@@ -258,7 +258,7 @@ void luaV_gettable(lua_State* L, const TValue* t, TValue* key, StkId val)
             if (ttisnil(res))
                 luaG_missingmembererror(L, t, key);
 
-            const uint32_t offset = uint32_t(nvalue(res));
+            const uint32_t offset = uint32_t(moo_numtrunc(nvalue(res)));
             LUAU_ASSERT(offset < lco->numberofallmembers);
 
             // This is the case where we try to access an instance member on a
@@ -326,7 +326,7 @@ void luaV_settable(lua_State* L, const TValue* t, TValue* key, StkId val)
             const TValue* offset = luaH_get(inst->lclass->memberstooffset, key);
             if (ttisnil(offset))
                 luaG_missingmembererror(L, t, key);
-            const uint32_t offsetnum = uint32_t(nvalue(offset));
+            const uint32_t offsetnum = uint32_t(moo_numtrunc(nvalue(offset)));
             LUAU_ASSERT(offsetnum < inst->lclass->numberofallmembers);
             if (offsetnum >= inst->lclass->numberofinstancemembers)
                 luaG_indexerror(L, t, key);
@@ -613,7 +613,7 @@ void luaV_doarithimpl(lua_State* L, StkId ra, const TValue* rb, const TValue* rc
 
         if (c)
         {
-            LUA_VECTOR_TYPE nc = cast_to(LUA_VECTOR_TYPE, nvalue(c));
+            LUA_VECTOR_TYPE nc = cast_to(LUA_VECTOR_TYPE, moo_numbridgetodouble(nvalue(c))); // TEMPORARY: the float vector goes in layer 3
 
             switch (op)
             {
@@ -644,7 +644,7 @@ void luaV_doarithimpl(lua_State* L, StkId ra, const TValue* rb, const TValue* rc
 
         if (b)
         {
-            LUA_VECTOR_TYPE nb = cast_to(LUA_VECTOR_TYPE, nvalue(b));
+            LUA_VECTOR_TYPE nb = cast_to(LUA_VECTOR_TYPE, moo_numbridgetodouble(nvalue(b))); // TEMPORARY: the float vector goes in layer 3
 
             switch (op)
             {
@@ -672,7 +672,11 @@ void luaV_doarithimpl(lua_State* L, StkId ra, const TValue* rb, const TValue* rc
 
     if ((b = luaV_tonumber(rb, &tempb)) != NULL && (c = luaV_tonumber(rc, &tempc)) != NULL)
     {
-        double nb = nvalue(b), nc = nvalue(c);
+        lua_Number nb = nvalue(b), nc = nvalue(c);
+
+        // moo: named, never infinity or NaN (docs/DESIGN.md, "Division by zero")
+        if ((op == TM_DIV || op == TM_IDIV || op == TM_MOD) && nc == 0)
+            luaG_runerror(L, "division by zero");
 
         switch (op)
         {

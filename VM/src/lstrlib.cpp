@@ -1001,14 +1001,14 @@ static int str_format(lua_State* L)
             {
             case 'c':
             {
-                int count = snprintf(buff, sizeof(buff), form, (int)luaL_checknumber(L, arg));
+                int count = snprintf(buff, sizeof(buff), form, (int)moo_numclampint(moo_numtrunc(luaL_checknumber(L, arg))));
                 luaL_addlstring(&b, buff, count);
                 continue; // skip the 'luaL_addlstring' at the end
             }
             case 'd':
             case 'i':
             {
-                long long value = lua_isinteger64(L, arg) ? luaL_checkinteger64(L, arg) : (int64_t)luaL_checknumber(L, arg);
+                long long value = lua_isinteger64(L, arg) ? luaL_checkinteger64(L, arg) : moo_numtrunc(luaL_checknumber(L, arg));
                 addInt64Format(form, formatIndicator, formatItemSize);
                 snprintf(buff, sizeof(buff), form, value);
                 break;
@@ -1025,8 +1025,7 @@ static int str_format(lua_State* L)
                 }
                 else
                 {
-                    double argValue = luaL_checknumber(L, arg);
-                    v = (argValue < 0) ? (unsigned long long)(long long)argValue : (unsigned long long)argValue;
+                    v = (uint64_t)moo_numtrunc(luaL_checknumber(L, arg)); // moo: toward zero, modulo 2^64
                 }
                 addInt64Format(form, formatIndicator, formatItemSize);
                 snprintf(buff, sizeof(buff), form, v);
@@ -1038,7 +1037,8 @@ static int str_format(lua_State* L)
             case 'g':
             case 'G':
             {
-                snprintf(buff, sizeof(buff), form, (double)luaL_checknumber(L, arg));
+                // TEMPORARY until moo's exact formatter (docs/DESIGN.md, "string.format"): the double that holds the number exactly
+                snprintf(buff, sizeof(buff), form, moo_numbridgetodouble(luaL_checknumber(L, arg)));
                 break;
             }
             case 'q':
@@ -1505,7 +1505,7 @@ static int str_pack(lua_State* L)
         {
         case Kint:
         { // signed integers
-            long long n = (long long)luaL_checknumber(L, arg);
+            long long n = (long long)moo_numtrunc(luaL_checknumber(L, arg));
             if (size < SZINT)
             { // need overflow check?
                 long long lim = (long long)1 << ((size * NB) - 1);
@@ -1516,7 +1516,7 @@ static int str_pack(lua_State* L)
         }
         case Kuint:
         { // unsigned integers
-            long long n = (long long)luaL_checknumber(L, arg);
+            long long n = (long long)moo_numtrunc(luaL_checknumber(L, arg));
             if (size < SZINT) // need overflow check?
                 luaL_argcheck(L, (unsigned long long)n < ((unsigned long long)1 << (size * NB)), arg, "unsigned overflow");
             packint(&b, (unsigned long long)n, h.islittle, size, 0);
@@ -1526,7 +1526,7 @@ static int str_pack(lua_State* L)
         { // floating-point options
             volatile Ftypes u;
             char buff[MAXINTSIZE];
-            double n = luaL_checknumber(L, arg); // get argument
+            double n = moo_numbridgetodouble(luaL_checknumber(L, arg)); // get argument (TEMPORARY until the exact float boundary rule)
             if (size == sizeof(u.f))
                 u.f = (float)n; // copy it into 'u'
             else if (size == sizeof(u.d))
@@ -1664,13 +1664,13 @@ static int str_unpack(lua_State* L)
         case Kint:
         {
             long long res = unpackint(L, data + pos, h.islittle, size, true);
-            lua_pushnumber(L, (double)res);
+            lua_pushnumber(L, moo_numfromint(res));
             break;
         }
         case Kuint:
         {
             unsigned long long res = unpackint(L, data + pos, h.islittle, size, false);
-            lua_pushnumber(L, (double)res);
+            lua_pushnumber(L, moo_numfromint(res > (unsigned long long)INT64_MAX ? INT64_MAX : (long long)res));
             break;
         }
         case Kfloat:
@@ -1684,7 +1684,7 @@ static int str_unpack(lua_State* L)
                 num = (double)u.d;
             else
                 num = u.n;
-            lua_pushnumber(L, num);
+            lua_pushnumber(L, moo_numbridgefromdouble(num)); // TEMPORARY until the exact float boundary rule
             break;
         }
         case Kchar:

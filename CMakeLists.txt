@@ -115,6 +115,8 @@ add_library(Luau.VM.Internals INTERFACE)
 
 include(Sources.cmake)
 
+# moo: Common/include/moo_number.h is moo's number on fixed, shared by the VM and the compiler's constant folding
+target_link_libraries(Luau.Common INTERFACE Moo.Fixed)
 target_compile_features(Luau.Common PUBLIC cxx_std_17)
 target_include_directories(Luau.Common PUBLIC Common/include)
 
@@ -157,7 +159,7 @@ target_link_libraries(Luau.CodeGen PUBLIC Luau.Common)
 
 target_compile_features(Luau.VM PRIVATE cxx_std_11)
 target_include_directories(Luau.VM PUBLIC VM/include)
-target_link_libraries(Luau.VM PUBLIC Luau.Common Moo.Fixed)
+target_link_libraries(Luau.VM PUBLIC Luau.Common)
 
 target_compile_features(Luau.Require PUBLIC cxx_std_17)
 target_include_directories(Luau.Require PUBLIC Require/include)

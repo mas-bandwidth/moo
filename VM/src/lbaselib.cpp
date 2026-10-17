@@ -42,7 +42,7 @@ static int luaB_tonumber(lua_State* L)
     if (base == 10)
     { // standard conversion
         int isnum = 0;
-        double n = lua_tonumberx(L, 1, &isnum);
+        lua_Number n = lua_tonumberx(L, 1, &isnum);
         if (isnum)
         {
             lua_pushnumber(L, n);
@@ -63,7 +63,7 @@ static int luaB_tonumber(lua_State* L)
                 s2++; // skip trailing spaces
             if (*s2 == '\0')
             { // no invalid trailing characters?
-                lua_pushnumber(L, (double)n);
+                lua_pushnumber(L, moo_numfromint(n > uint64_t(INT64_MAX) ? INT64_MAX : int64_t(n))); // saturating
                 return 1;
             }
         }

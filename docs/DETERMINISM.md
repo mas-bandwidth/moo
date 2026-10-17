@@ -41,6 +41,9 @@ test in `tests/Moo.test.cpp`. This table is the state of `main`:
 | 5 | GC accounting by `sizeof` | **fixed, by pinning**: see below |
 | 6 | `tostring` shows an address | **fixed**: `table: #123`; light userdata prints `userdata: light`; `moo_objectseq` gives the number to the host |
 | 13 | weak tables and destructors | **fixed**: the sweep queues a dead userdata that has a destructor; the queue runs at the end of the same GC step in creation-number order (and at `lua_close`, after everything else is freed). Modelled in `tla/DestructorQueue.tla`; weak entries clear deterministically once 1 and 4 are fixed |
+| 2 | number keys hash by IEEE bits | **fixed**: numbers hash by their raw Q48.16 value |
+| 7 | platform libm | **partly**: `+ - * / // %` are fixed's integer arithmetic, and the compiler folds with the same functions; the libm functions and `^` still cross a double bridge until the math library is rebuilt on fixed |
+| 11 | out-of-range float-to-int casts | **fixed**: every number-to-integer conversion is toward zero and saturating (`moo_number.h`) |
 | 9 | `os` and time | **fixed**: the `os` library is deleted (`VM/src/loslib.cpp`) |
 | 10 | `math.random` seeding | **fixed**: constant default seed, `moo_setrandomseed` in `VM/include/moo.h` |
 | 14 | FMA in native codegen | **fixed**: native code generation is excluded from the build (`MOO_CODEGEN` off, DESIGN.md "Native codegen"); `moo --codegen*` and `--jit-inliner` are refused |
@@ -82,6 +85,16 @@ the surface without transcendentals (`library`). Measured 2026-10-17, all identi
 `MOO_DETERMINISM_PRINT=1` prints the table's lines. The nightly runs it on Linux gcc, Linux clang
 and macOS arm64; CI runs it on Linux clang on every push. Floats are still the number type, so
 the suite avoids libm functions and `^`; layer 2 removes that limit.
+
+Upstream tests moo changed when number became Q48.16, and why: each moved script is a moo-specific expected file in
+`tests/conformance/moo/` (basic, buffers, math, tables, errors, events, bitwise, tpack, debug, strconv, iter, vector,
+vector_library). Its upstream lines are kept, and every changed line is marked `-- moo:` with its reason (no
+infinity, NaN or negative zero; division by zero is an error; the range is about +-1.4e14; values round to 2^-16;
+tostring prints through a double until the exact formatter). The note at the end of each file states the reason for
+the whole file, and the harness keeps each file's upstream chunk name. Twenty compiler cases that asserted folding moo
+turned off are skipped in `tests/Compiler.test.cpp`, each pointing at `tests/MooCompiler.test.cpp`, which tests moo's
+folding. `MOO_CONFORMANCE_SCAN=1` makes the conformance harness's `assert` report and continue, to list every
+failing line of a script at once.
 
 Upstream tests moo changed, and why:
 

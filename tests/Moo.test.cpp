@@ -333,7 +333,7 @@ TEST_CASE("TostringPrintsCreationNumber")
 
     // creation numbers count up per VM; the main thread is 0; non-collectable values are 0
     CHECK(moo_objectseq(s.L, LUA_GLOBALSINDEX) > 0);
-    lua_pushnumber(s.L, 1);
+    lua_pushinteger(s.L, 1);
     CHECK(moo_objectseq(s.L, -1) == 0);
     lua_pop(s.L, 1);
     lua_pushthread(s.L);
@@ -356,7 +356,7 @@ TEST_CASE("GcPacingIsAFunctionOfTheProgram")
     CHECK(trace == mooRun(b.L, kWeakChurn));
 
     // Pinned: a change here changes when the GC runs for every program.
-    CHECK(mooHash(trace) == 10374631352344400660ull);
+    CHECK(mooHash(trace) == 13309793095727223383ull); // re-pinned when number became Q48.16 (number keys hash by their raw value)
 }
 
 // Replaces upstream ApiAllocationRateAfterFullGC, which checked that lua_allocationrate measures bytes

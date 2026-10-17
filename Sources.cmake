@@ -519,6 +519,7 @@ if(TARGET Luau.UnitTest)
         tests/ExternTypeFixture.cpp
         tests/ExternTypeFixture.h
         tests/Compiler.test.cpp
+        tests/MooCompiler.test.cpp
         tests/Config.test.cpp
         tests/ConstraintSolver.test.cpp
         tests/ControlFlowGraph.test.cpp

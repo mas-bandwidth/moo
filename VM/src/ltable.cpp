@@ -105,15 +105,12 @@ static LuaNode* hashgco(const LuaTable* t, const GCObject* o)
     return hashpow2(t, unsigned(k));
 }
 
-static LuaNode* hashnum(const LuaTable* t, double n)
+// moo: a number hashes by its raw Q48.16 value (docs/DETERMINISM.md, 2); there is no -0
+static LuaNode* hashnum(const LuaTable* t, lua_Number n)
 {
-    static_assert(sizeof(double) == sizeof(unsigned int) * 2, "expected a 8-byte double");
-    unsigned int i[2];
-    memcpy(i, &n, sizeof(i));
-
-    // mask out sign bit to make sure -0 and 0 hash to the same value
-    uint32_t h1 = i[0];
-    uint32_t h2 = i[1] & 0x7fffffff;
+    uint64_t raw = uint64_t(n);
+    uint32_t h1 = uint32_t(raw);
+    uint32_t h2 = uint32_t(raw >> 32);
 
     // finalizer from MurmurHash64B
     const uint32_t m = 0x5bd1e995;
@@ -266,7 +263,7 @@ LUAU_FORCEINLINE LuaNode* mainpositiontagged<LUA_TLIGHTUSERDATA>(const LuaTable*
 }
 
 template<>
-LUAU_FORCEINLINE LuaNode* mainpositiontagged<LUA_TNUMBER>(const LuaTable* t, double key)
+LUAU_FORCEINLINE LuaNode* mainpositiontagged<LUA_TNUMBER>(const LuaTable* t, lua_Number key)
 {
     return hashnum(t, key);
 }
@@ -306,7 +303,7 @@ LUAU_FORCEINLINE int rawequalkeyvalue<LUA_TBOOLEAN>(const TKey* t1, int key)
 }
 
 template<>
-LUAU_FORCEINLINE int rawequalkeyvalue<LUA_TNUMBER>(const TKey* t1, double key)
+LUAU_FORCEINLINE int rawequalkeyvalue<LUA_TNUMBER>(const TKey* t1, lua_Number key)
 {
     return luai_numeq(nvalue(t1), key);
 }
@@ -353,7 +350,7 @@ static LUAU_FORCEINLINE const TValue* chainsearchtagged(const LuaTable* t, T key
 ** returns the index for `key' if `key' is an appropriate key to live in
 ** the array part of the table, -1 otherwise.
 */
-static int arrayindex(double key)
+static int arrayindex(lua_Number key)
 {
     int i;
     luai_num2int(i, key);
@@ -458,7 +455,7 @@ static int computesizes(int nums[], int* narray)
     return na;
 }
 
-static int countint(double key, int* nums)
+static int countint(lua_Number key, int* nums)
 {
     int k = arrayindex(key);
     if (0 < k && k <= MAXSIZE)
@@ -579,7 +576,7 @@ static TValue* arrayornewkey_DEPRECATED(lua_State* L, LuaTable* t, const TValue*
     if (ttisnumber(key))
     {
         int k;
-        double n = nvalue(key);
+        lua_Number n = nvalue(key);
         luai_num2int(k, n);
         if (luai_numeq(cast_num(k), n) && unsigned(k) - 1 < unsigned(t->sizearray))
             return &t->array[k - 1];
@@ -1077,7 +1074,7 @@ static LuaNode* newcollidingkey(lua_State* L, LuaTable* t, LuaNode* mp, LuaNode*
 static TValue* newkey_DEPRECATED(lua_State* L, LuaTable* t, const TValue* key)
 {
     // enforce boundary invariant
-    if (ttisnumber(key) && nvalue(key) == t->sizearray + 1)
+    if (ttisnumber(key) && nvalue(key) == cast_num(t->sizearray + 1))
     {
         rehash_DEPRECATED(L, t, key); // grow table
 
@@ -1190,7 +1187,7 @@ static TValue* reinsertkey(lua_State* L, LuaTable* t, const TValue* key, bool ch
     if (checkarraypart && ttisnumber(key))
     {
         int k;
-        double n = nvalue(key);
+        lua_Number n = nvalue(key);
         luai_num2int(k, n);
         if (luai_numeq(cast_num(k), n) && unsigned(k) - 1 < unsigned(t->sizearray))
             return &t->array[k - 1];
@@ -1217,7 +1214,7 @@ const TValue* luaH_getnum(LuaTable* t, int key)
         return &t->array[key - 1];
     else if (t->node != dummynode)
     {
-        double nk = cast_num(key);
+        lua_Number nk = cast_num(key);
         LuaNode* n = hashnum(t, nk);
         for (;;)
         { // check whether `key' is somewhere in the chain
@@ -1286,7 +1283,7 @@ const TValue* luaH_get(LuaTable* t, const TValue* key)
         case LUA_TNUMBER:
         {
             int k;
-            double n = nvalue(key);
+            lua_Number n = nvalue(key);
             luai_num2int(k, n);
             if (luai_numeq(cast_num(k), nvalue(key))) // index is int?
                 return luaH_getnum(t, k);             // use specialized version
@@ -1314,7 +1311,7 @@ const TValue* luaH_get(LuaTable* t, const TValue* key)
         case LUA_TNUMBER:
         {
             int k;
-            double n = nvalue(key);
+            lua_Number n = nvalue(key);
             luai_num2int(k, n);
             if (luai_numeq(cast_num(k), nvalue(key))) // index is int?
                 return luaH_getnum(t, k);             // use specialized version
@@ -1362,7 +1359,7 @@ TValue* luaH_newkey(lua_State* L, LuaTable* t, const TValue* key)
             return newkeytagged<LUA_TLIGHTUSERDATA, false>(L, t, key, pvalue(key), -1);
         case LUA_TNUMBER:
         {
-            double n = nvalue(key);
+            lua_Number n = nvalue(key);
 
             if (luai_numisnan(n))
                 luaG_runerror(L, "table index is NaN");
@@ -1412,7 +1409,7 @@ TValue* luaH_setnum(lua_State* L, LuaTable* t, int key)
     {
         if (DFFlag::LuauSplitTableLookups)
         {
-            double n = cast_num(key);
+            lua_Number n = cast_num(key);
 
             TValue k;
             setnvalue(&k, n);

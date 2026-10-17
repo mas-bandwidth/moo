@@ -36,7 +36,7 @@ typedef union
 {
     GCObject* gc;
     void* p;
-    double n;
+    lua_Number n; // moo: Q48.16 raw
     int b;
     int64_t l;
     float v[2]; // v[0], v[1] live here; v[2] lives in TValue::extra
@@ -654,7 +654,7 @@ LUAI_DATA const TValue luaO_nilobject_;
 LUAI_FUNC int luaO_log2(unsigned int x);
 LUAI_FUNC int luaO_rawequalObj(const TValue* t1, const TValue* t2);
 LUAI_FUNC int luaO_rawequalKey(const TKey* t1, const TValue* t2);
-LUAI_FUNC int luaO_str2d(const char* s, double* result);
+LUAI_FUNC int luaO_str2d(const char* s, lua_Number* result);
 LUAI_FUNC int luaO_str2l(const char* s, int64_t* result, int base = 10);
 LUAI_FUNC const char* luaO_pushvfstring(lua_State* L, const char* fmt, va_list argp);
 LUAI_FUNC const char* luaO_pushfstring(lua_State* L, const char* fmt, ...);

@@ -18,15 +18,12 @@ LUAU_FASTFLAGVARIABLE(LuauIntegerLibrary)
 
 static int int64_create(lua_State* L)
 {
-    double x = luaL_checknumber(L, 1);
-    if (x >= -9223372036854775808.0 && x < 9223372036854775808.0)
+    // moo: an integer-valued number gives its integer
+    lua_Number x = luaL_checknumber(L, 1);
+    if (moo_numisinteger(x))
     {
-        int64_t l = (int64_t)x;
-        if (((double)l) == x)
-        {
-            lua_pushinteger64(L, l);
-            return 1;
-        }
+        lua_pushinteger64(L, moo_numtrunc(x));
+        return 1;
     }
 
     lua_pushnil(L);
@@ -53,7 +50,7 @@ static int int64_tonumber(lua_State* L)
 {
     int64_t x = luaL_checkinteger64(L, 1);
 
-    lua_pushnumber(L, (double)x);
+    lua_pushnumber(L, moo_numfromint(x)); // moo: saturating
 
     return 1;
 }

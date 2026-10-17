@@ -148,6 +148,11 @@ static uint32_t bit32(double v)
 
 Constant foldBuiltin(AstNameTable& stringTable, int bfid, const Constant* args, size_t count, bool vectorDoublePrecision)
 {
+    // moo: builtins do not fold until the math library is rebuilt on fixed (docs/DESIGN.md, "math library"); the
+    // build machine's libm and the run time's must not disagree
+    (void)stringTable, (void)bfid, (void)args, (void)count, (void)vectorDoublePrecision;
+    return Constant();
+
     switch (bfid)
     {
     case LBF_MATH_ABS:
@@ -664,6 +669,10 @@ Constant foldBuiltin(AstNameTable& stringTable, int bfid, const Constant* args, 
 
 Constant foldBuiltinMath(AstName index)
 {
+    // moo: math.pi and math.huge come from the VM at run time (huge is the largest number, not infinity)
+    (void)index;
+    return Constant();
+
     if (index == "pi")
         return cnum(kPi);
 

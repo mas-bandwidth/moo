@@ -520,7 +520,9 @@ static int loadsafe(
             case LBC_CONSTANT_NUMBER:
             {
                 double v = read<double>(data, size, offset);
-                setnvalue(&p->k[j], v);
+                // moo: TEMPORARY until the moo bytecode version carries the raw Q48.16 value: the compiler's
+                // double, rounded once to the nearest number, ties to even, saturating
+                setnvalue(&p->k[j], moo_numbridgefromdouble(v));
                 break;
             }
 
@@ -570,7 +572,7 @@ static int loadsafe(
                 {
                     int key = readVarInt(data, size, offset);
                     TValue* val = luaH_set(L, h, &p->k[key]);
-                    setnvalue(val, 0.0);
+                    setnvalue(val, 0);
                 }
                 sethvalue(L, &p->k[j], h);
                 break;
@@ -604,7 +606,7 @@ static int loadsafe(
                             continue;
                         }
                     }
-                    setnvalue(val, 0.0);
+                    setnvalue(val, 0);
                 }
 
                 for (size_t idx = 0; idx < nilKeysSize; idx++)
@@ -645,7 +647,7 @@ static int loadsafe(
                     LUAU_ASSERT(ttisstring(memberName));
                     offsetToMember[idx] = tsvalue(memberName);
                     TValue* val = luaH_setstr(L, membersToOffset, tsvalue(memberName));
-                    setnvalue(val, idx);
+                    setnvalue(val, cast_num(idx));
                 }
 
                 membersToOffset->readonly = true;

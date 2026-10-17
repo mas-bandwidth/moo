@@ -366,7 +366,7 @@ reentry:
                 VM_CASE_INSTRUCTION insn = *pc++;
                 VM_CASE_STKID ra = VM_REG(LUAU_INSN_A(insn));
 
-                setnvalue(ra, LUAU_INSN_D(insn));
+                setnvalue(ra, cast_num(LUAU_INSN_D(insn)));
                 VM_NEXT();
             }
 
@@ -628,7 +628,7 @@ reentry:
                         if (unsigned(ic) < LUA_VECTOR_SIZE && name[1] == '\0')
                         {
                             const LUA_VECTOR_TYPE* v = vvalue(rb); // silences ubsan when indexing v[]
-                            setnvalue(ra, v[ic]);
+                            setnvalue(ra, moo_numbridgefromdouble(v[ic])); // TEMPORARY: the float vector goes in layer 3
                             VM_NEXT();
                         }
 
@@ -670,7 +670,7 @@ reentry:
                             const TValue* offset = luaH_getstr(inst->lclass->memberstooffset, tsvalue(kv));
                             if (ttisnil(offset))
                                 luaG_missingmembererror(L, rb, kv);
-                            const uint32_t offsetnum = uint32_t(nvalue(offset));
+                            const uint32_t offsetnum = uint32_t(moo_numtrunc(nvalue(offset)));
                             setobj2s(L, ra, luaR_lookupmemberatoffset(inst, offsetnum));
                             VM_PATCH_C(pc - 2, offsetnum);
                             VM_NEXT();
@@ -773,11 +773,11 @@ reentry:
                 {
                     LuaTable* h = hvalue(rb);
 
-                    double indexd = nvalue(rc);
-                    int index = int(indexd);
+                    int index = 0;
+                    bool indexint = moo_numtoint(nvalue(rc), &index);
 
                     // index has to be an exact integer and in-bounds for the array portion
-                    if (LUAU_LIKELY(unsigned(index) - 1 < unsigned(h->sizearray) && !h->metatable && double(index) == indexd))
+                    if (LUAU_LIKELY(indexint && unsigned(index) - 1 < unsigned(h->sizearray) && !h->metatable))
                     {
                         setobj2s(L, ra, &h->array[unsigned(index - 1)]);
                         VM_NEXT();
@@ -803,11 +803,11 @@ reentry:
                 {
                     LuaTable* h = hvalue(rb);
 
-                    double indexd = nvalue(rc);
-                    int index = int(indexd);
+                    int index = 0;
+                    bool indexint = moo_numtoint(nvalue(rc), &index);
 
                     // index has to be an exact integer and in-bounds for the array portion
-                    if (LUAU_LIKELY(unsigned(index) - 1 < unsigned(h->sizearray) && !h->metatable && !h->readonly && double(index) == indexd))
+                    if (LUAU_LIKELY(indexint && unsigned(index) - 1 < unsigned(h->sizearray) && !h->metatable && !h->readonly))
                     {
                         setobj2t(L, &h->array[unsigned(index - 1)], ra);
                         luaC_barriert(L, h, ra);
@@ -845,7 +845,7 @@ reentry:
 
                 // slow-path: handles out of bounds array lookups
                 TValue n;
-                setnvalue(&n, c + 1);
+                setnvalue(&n, cast_num(c + 1));
                 VM_PROTECT(luaV_gettable(L, rb, &n, ra));
                 VM_NEXT();
             }
@@ -874,7 +874,7 @@ reentry:
 
                 // slow-path: handles out of bounds array lookups
                 TValue n;
-                setnvalue(&n, c + 1);
+                setnvalue(&n, cast_num(c + 1));
                 VM_PROTECT(luaV_settable(L, rb, &n, ra));
                 VM_NEXT();
             }
@@ -1028,7 +1028,7 @@ reentry:
                             const TValue* offset = luaH_getstr(inst->lclass->memberstooffset, tsvalue(kv));
                             if (ttisnil(offset))
                                 luaG_missingmembererror(L, rb, kv);
-                            const uint32_t offsetnum = uint32_t(nvalue(offset));
+                            const uint32_t offsetnum = uint32_t(moo_numtrunc(nvalue(offset)));
                             setobj2s(L, ra + 1, rb);
                             setobj2s(L, ra, luaR_lookupmemberatoffset(inst, offsetnum));
                             VM_PATCH_C(pc - 2, offsetnum);
@@ -1767,7 +1767,7 @@ reentry:
                 // fast-path
                 if (LUAU_LIKELY(ttisnumber(rb) && ttisnumber(rc)))
                 {
-                    setnvalue(ra, nvalue(rb) + nvalue(rc));
+                    setnvalue(ra, luai_numadd(nvalue(rb), nvalue(rc)));
                     VM_NEXT();
                 }
                 else if (ttisvector(rb) && ttisvector(rc))
@@ -1813,7 +1813,7 @@ reentry:
                 // fast-path
                 if (LUAU_LIKELY(ttisnumber(rb) && ttisnumber(rc)))
                 {
-                    setnvalue(ra, nvalue(rb) - nvalue(rc));
+                    setnvalue(ra, luai_numsub(nvalue(rb), nvalue(rc)));
                     VM_NEXT();
                 }
                 else if (ttisvector(rb) && ttisvector(rc))
@@ -1859,13 +1859,13 @@ reentry:
                 // fast-path
                 if (LUAU_LIKELY(ttisnumber(rb) && ttisnumber(rc)))
                 {
-                    setnvalue(ra, nvalue(rb) * nvalue(rc));
+                    setnvalue(ra, luai_nummul(nvalue(rb), nvalue(rc)));
                     VM_NEXT();
                 }
                 else if (ttisvector(rb) && ttisnumber(rc))
                 {
                     const LUA_VECTOR_TYPE* vb = vvalue(rb);
-                    LUA_VECTOR_TYPE vc = cast_to(LUA_VECTOR_TYPE, nvalue(rc));
+                    LUA_VECTOR_TYPE vc = cast_to(LUA_VECTOR_TYPE, moo_numbridgetodouble(nvalue(rc)));
                     setvvalue(L, ra, vb[0] * vc, vb[1] * vc, vb[2] * vc, vb[3] * vc);
                     VM_NEXT();
                 }
@@ -1878,7 +1878,7 @@ reentry:
                 }
                 else if (ttisnumber(rb) && ttisvector(rc))
                 {
-                    LUA_VECTOR_TYPE vb = cast_to(LUA_VECTOR_TYPE, nvalue(rb));
+                    LUA_VECTOR_TYPE vb = cast_to(LUA_VECTOR_TYPE, moo_numbridgetodouble(nvalue(rb)));
                     const LUA_VECTOR_TYPE* vc = vvalue(rc);
                     setvvalue(L, ra, vb * vc[0], vb * vc[1], vb * vc[2], vb * vc[3]);
                     VM_NEXT();
@@ -1918,15 +1918,15 @@ reentry:
                 VM_CASE_STKID rc = VM_REG(LUAU_INSN_C(insn));
 
                 // fast-path
-                if (LUAU_LIKELY(ttisnumber(rb) && ttisnumber(rc)))
+                if (LUAU_LIKELY(ttisnumber(rb) && ttisnumber(rc) && nvalue(rc) != 0))
                 {
-                    setnvalue(ra, nvalue(rb) / nvalue(rc));
+                    setnvalue(ra, luai_numdiv(nvalue(rb), nvalue(rc)));
                     VM_NEXT();
                 }
                 else if (ttisvector(rb) && ttisnumber(rc))
                 {
                     const LUA_VECTOR_TYPE* vb = vvalue(rb);
-                    LUA_VECTOR_TYPE vc = cast_to(LUA_VECTOR_TYPE, nvalue(rc));
+                    LUA_VECTOR_TYPE vc = cast_to(LUA_VECTOR_TYPE, moo_numbridgetodouble(nvalue(rc)));
                     setvvalue(L, ra, vb[0] / vc, vb[1] / vc, vb[2] / vc, vb[3] / vc);
                     VM_NEXT();
                 }
@@ -1939,7 +1939,7 @@ reentry:
                 }
                 else if (ttisnumber(rb) && ttisvector(rc))
                 {
-                    LUA_VECTOR_TYPE vb = cast_to(LUA_VECTOR_TYPE, nvalue(rb));
+                    LUA_VECTOR_TYPE vb = cast_to(LUA_VECTOR_TYPE, moo_numbridgetodouble(nvalue(rb)));
                     const LUA_VECTOR_TYPE* vc = vvalue(rc);
                     setvvalue(L, ra, vb / vc[0], vb / vc[1], vb / vc[2], vb / vc[3]);
                     VM_NEXT();
@@ -1979,7 +1979,7 @@ reentry:
                 VM_CASE_STKID rc = VM_REG(LUAU_INSN_C(insn));
 
                 // fast-path
-                if (LUAU_LIKELY(ttisnumber(rb) && ttisnumber(rc)))
+                if (LUAU_LIKELY(ttisnumber(rb) && ttisnumber(rc) && nvalue(rc) != 0))
                 {
                     setnvalue(ra, luai_numidiv(nvalue(rb), nvalue(rc)));
                     VM_NEXT();
@@ -1987,7 +1987,7 @@ reentry:
                 else if (ttisvector(rb) && ttisnumber(rc))
                 {
                     const LUA_VECTOR_TYPE* vb = vvalue(rb);
-                    LUA_VECTOR_TYPE vc = cast_to(LUA_VECTOR_TYPE, nvalue(rc));
+                    LUA_VECTOR_TYPE vc = cast_to(LUA_VECTOR_TYPE, moo_numbridgetodouble(nvalue(rc)));
                     setvvalue(
                         L,
                         ra,
@@ -2033,10 +2033,10 @@ reentry:
                 VM_CASE_STKID rc = VM_REG(LUAU_INSN_C(insn));
 
                 // fast-path
-                if (ttisnumber(rb) && ttisnumber(rc))
+                if (ttisnumber(rb) && ttisnumber(rc) && nvalue(rc) != 0)
                 {
-                    double nb = nvalue(rb);
-                    double nc = nvalue(rc);
+                    lua_Number nb = nvalue(rb);
+                    lua_Number nc = nvalue(rc);
                     setnvalue(ra, luai_nummod(nb, nc));
                     VM_NEXT();
                 }
@@ -2058,7 +2058,7 @@ reentry:
                 // fast-path
                 if (ttisnumber(rb) && ttisnumber(rc))
                 {
-                    setnvalue(ra, pow(nvalue(rb), nvalue(rc)));
+                    setnvalue(ra, luai_numpow(nvalue(rb), nvalue(rc)));
                     VM_NEXT();
                 }
                 else
@@ -2079,7 +2079,7 @@ reentry:
                 // fast-path
                 if (ttisnumber(rb))
                 {
-                    setnvalue(ra, nvalue(rb) + nvalue(kv));
+                    setnvalue(ra, luai_numadd(nvalue(rb), nvalue(kv)));
                     VM_NEXT();
                 }
                 else
@@ -2100,7 +2100,7 @@ reentry:
                 // fast-path
                 if (ttisnumber(rb))
                 {
-                    setnvalue(ra, nvalue(rb) - nvalue(kv));
+                    setnvalue(ra, luai_numsub(nvalue(rb), nvalue(kv)));
                     VM_NEXT();
                 }
                 else
@@ -2121,13 +2121,13 @@ reentry:
                 // fast-path
                 if (LUAU_LIKELY(ttisnumber(rb)))
                 {
-                    setnvalue(ra, nvalue(rb) * nvalue(kv));
+                    setnvalue(ra, luai_nummul(nvalue(rb), nvalue(kv)));
                     VM_NEXT();
                 }
                 else if (ttisvector(rb))
                 {
                     const LUA_VECTOR_TYPE* vb = vvalue(rb);
-                    LUA_VECTOR_TYPE vc = cast_to(LUA_VECTOR_TYPE, nvalue(kv));
+                    LUA_VECTOR_TYPE vc = cast_to(LUA_VECTOR_TYPE, moo_numbridgetodouble(nvalue(kv)));
                     setvvalue(L, ra, vb[0] * vc, vb[1] * vc, vb[2] * vc, vb[3] * vc);
                     VM_NEXT();
                 }
@@ -2165,15 +2165,15 @@ reentry:
                 TValue* kv = VM_KV(LUAU_INSN_C(insn));
 
                 // fast-path
-                if (LUAU_LIKELY(ttisnumber(rb)))
+                if (LUAU_LIKELY(ttisnumber(rb) && nvalue(kv) != 0))
                 {
-                    setnvalue(ra, nvalue(rb) / nvalue(kv));
+                    setnvalue(ra, luai_numdiv(nvalue(rb), nvalue(kv)));
                     VM_NEXT();
                 }
                 else if (ttisvector(rb))
                 {
                     const LUA_VECTOR_TYPE* vb = vvalue(rb);
-                    LUA_VECTOR_TYPE nc = cast_to(LUA_VECTOR_TYPE, nvalue(kv));
+                    LUA_VECTOR_TYPE nc = cast_to(LUA_VECTOR_TYPE, moo_numbridgetodouble(nvalue(kv)));
                     setvvalue(L, ra, vb[0] / nc, vb[1] / nc, vb[2] / nc, vb[3] / nc);
                     VM_NEXT();
                 }
@@ -2211,7 +2211,7 @@ reentry:
                 TValue* kv = VM_KV(LUAU_INSN_C(insn));
 
                 // fast-path
-                if (LUAU_LIKELY(ttisnumber(rb)))
+                if (LUAU_LIKELY(ttisnumber(rb) && nvalue(kv) != 0))
                 {
                     setnvalue(ra, luai_numidiv(nvalue(rb), nvalue(kv)));
                     VM_NEXT();
@@ -2219,7 +2219,7 @@ reentry:
                 else if (ttisvector(rb))
                 {
                     const LUA_VECTOR_TYPE* vb = vvalue(rb);
-                    LUA_VECTOR_TYPE vc = cast_to(LUA_VECTOR_TYPE, nvalue(kv));
+                    LUA_VECTOR_TYPE vc = cast_to(LUA_VECTOR_TYPE, moo_numbridgetodouble(nvalue(kv)));
                     setvvalue(
                         L,
                         ra,
@@ -2264,10 +2264,10 @@ reentry:
                 TValue* kv = VM_KV(LUAU_INSN_C(insn));
 
                 // fast-path
-                if (ttisnumber(rb))
+                if (ttisnumber(rb) && nvalue(kv) != 0)
                 {
-                    double nb = nvalue(rb);
-                    double nk = nvalue(kv);
+                    lua_Number nb = nvalue(rb);
+                    lua_Number nk = nvalue(kv);
                     setnvalue(ra, luai_nummod(nb, nk));
                     VM_NEXT();
                 }
@@ -2289,13 +2289,7 @@ reentry:
                 // fast-path
                 if (ttisnumber(rb))
                 {
-                    double nb = nvalue(rb);
-                    double nk = nvalue(kv);
-
-                    // pow is very slow so we specialize this for ^2, ^0.5 and ^3
-                    double r = (nk == 2.0) ? nb * nb : (nk == 0.5) ? sqrt(nb) : (nk == 3.0) ? nb * nb * nb : pow(nb, nk);
-
-                    setnvalue(ra, r);
+                    setnvalue(ra, luai_numpow(nvalue(rb), nvalue(kv)));
                     VM_NEXT();
                 }
                 else
@@ -2386,7 +2380,7 @@ reentry:
                 // fast-path
                 if (LUAU_LIKELY(ttisnumber(rb)))
                 {
-                    setnvalue(ra, -nvalue(rb));
+                    setnvalue(ra, luai_numunm(nvalue(rb)));
                     VM_NEXT();
                 }
                 else if (ttisvector(rb))
@@ -2536,9 +2530,9 @@ reentry:
                     luaV_prepareFORN(L, ra + 0, ra + 1, ra + 2);
                 }
 
-                double limit = nvalue(ra + 0);
-                double step = nvalue(ra + 1);
-                double idx = nvalue(ra + 2);
+                lua_Number limit = nvalue(ra + 0);
+                lua_Number step = nvalue(ra + 1);
+                lua_Number idx = nvalue(ra + 2);
 
                 // Note: make sure the loop condition is exactly the same between this and LOP_FORNLOOP so that we handle NaN/etc. consistently
                 pc += (step > 0 ? idx <= limit : limit <= idx) ? 0 : LUAU_INSN_D(insn);
@@ -2555,14 +2549,16 @@ reentry:
                 VM_CASE_STKID ra = VM_REG(LUAU_INSN_A(insn));
                 LUAU_ASSERT(ttisnumber(ra + 0) && ttisnumber(ra + 1) && ttisnumber(ra + 2));
 
-                double limit = nvalue(ra + 0);
-                double step = nvalue(ra + 1);
-                double idx = nvalue(ra + 2) + step;
+                lua_Number limit = nvalue(ra + 0);
+                lua_Number step = nvalue(ra + 1);
+                lua_Number prev = nvalue(ra + 2);
+                lua_Number idx = luai_numadd(prev, step);
 
                 setnvalue(ra + 2, idx);
 
                 // Note: make sure the loop condition is exactly the same between this and LOP_FORNPREP so that we handle NaN/etc. consistently
-                if (step > 0 ? idx <= limit : limit <= idx)
+                // moo: an index that saturated cannot advance, so the loop ends there (the exact trip count is a later layer 3 PR)
+                if ((step > 0 ? idx <= limit : limit <= idx) && (idx != prev || step == 0))
                 {
                     pc += LUAU_INSN_D(insn);
                     VM_ASSERT_PC(pc);
@@ -2737,7 +2733,7 @@ reentry:
                         if (!ttisnil(e))
                         {
                             setpvalue(ra + 2, reinterpret_cast<void*>(uintptr_t(index + 1)), LU_TAG_ITERATOR);
-                            setnvalue(ra + 3, double(index + 1));
+                            setnvalue(ra + 3, cast_num(index + 1));
                             setobj2s(L, ra + 4, e);
 
                             pc += LUAU_INSN_D(insn);
@@ -2810,7 +2806,7 @@ reentry:
                 VM_CASE_STKID ra = VM_REG(LUAU_INSN_A(insn));
 
                 // fast-path: ipairs/inext
-                if (cl->env->safeenv && ttistable(ra + 1) && ttisnumber(ra + 2) && nvalue(ra + 2) == 0.0)
+                if (cl->env->safeenv && ttistable(ra + 1) && ttisnumber(ra + 2) && nvalue(ra + 2) == 0)
                 {
                     setnilvalue(ra);
                     // ra+1 is already the table
@@ -3103,7 +3099,7 @@ reentry:
                 // fast-path
                 if (ttisnumber(rc))
                 {
-                    setnvalue(ra, nvalue(kv) - nvalue(rc));
+                    setnvalue(ra, luai_numsub(nvalue(kv), nvalue(rc)));
                     VM_NEXT();
                 }
                 else
@@ -3122,14 +3118,14 @@ reentry:
                 VM_CASE_STKID rc = VM_REG(LUAU_INSN_C(insn));
 
                 // fast-path
-                if (LUAU_LIKELY(ttisnumber(rc)))
+                if (LUAU_LIKELY(ttisnumber(rc) && nvalue(rc) != 0))
                 {
-                    setnvalue(ra, nvalue(kv) / nvalue(rc));
+                    setnvalue(ra, luai_numdiv(nvalue(kv), nvalue(rc)));
                     VM_NEXT();
                 }
                 else if (ttisvector(rc))
                 {
-                    LUA_VECTOR_TYPE nb = cast_to(LUA_VECTOR_TYPE, nvalue(kv));
+                    LUA_VECTOR_TYPE nb = cast_to(LUA_VECTOR_TYPE, moo_numbridgetodouble(nvalue(kv)));
                     const LUA_VECTOR_TYPE* vc = vvalue(rc);
                     setvvalue(L, ra, nb / vc[0], nb / vc[1], nb / vc[2], nb / vc[3]);
                     VM_NEXT();

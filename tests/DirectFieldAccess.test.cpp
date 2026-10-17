@@ -8,6 +8,7 @@
 #include "lualib.h"
 
 #include "doctest.h"
+#include "MooHost.h" // moo: host floats cross the boundary
 
 #include <memory>
 #include <string>
@@ -27,8 +28,8 @@ struct Vec2
 
 static int lua_createVec2(lua_State* L)
 {
-    double x = luaL_checknumber(L, 1);
-    double y = luaL_checknumber(L, 2);
+    double x = moo_todouble(luaL_checknumber(L, 1));
+    double y = moo_todouble(luaL_checknumber(L, 2));
     Vec2* p = static_cast<Vec2*>(lua_newuserdatatagged(L, sizeof(Vec2), kTagVec2));
     p->x = x;
     p->y = y;
@@ -69,7 +70,7 @@ TEST_CASE("handler_setnumber_result")
         "X",
         [](void* ud, void* res)
         {
-            lua_userdatadirectfield_setnumber(res, static_cast<Vec2*>(ud)->x);
+            lua_userdatadirectfield_setnumber(res, mooHostNumber(static_cast<Vec2*>(ud)->x));
         }
     );
 
@@ -83,7 +84,7 @@ TEST_CASE("handler_setnumber_result")
     REQUIRE(status == LUA_OK);
 
     REQUIRE(lua_isnumber(L, -1));
-    CHECK(lua_tonumber(L, -1) == 3.5);
+    CHECK(moo_todouble(lua_tonumber(L, -1)) == 3.5);
 }
 
 TEST_CASE("handler_setboolean_result")
@@ -137,7 +138,7 @@ TEST_CASE("repeated_access_handler_called_every_iteration")
         [](void* ud, void* r)
         {
             handlerHitCount++;
-            lua_userdatadirectfield_setnumber(r, static_cast<Vec2*>(ud)->x);
+            lua_userdatadirectfield_setnumber(r, mooHostNumber(static_cast<Vec2*>(ud)->x));
         }
     );
 
@@ -154,7 +155,7 @@ TEST_CASE("repeated_access_handler_called_every_iteration")
     )");
     REQUIRE(status == LUA_OK);
     REQUIRE(lua_isnumber(L, -1));
-    CHECK(lua_tonumber(L, -1) == 35);
+    CHECK(moo_todouble(lua_tonumber(L, -1)) == 35);
 
     CHECK(handlerHitCount == 5);
 }
@@ -173,7 +174,7 @@ TEST_CASE("unregistered_tag_falls_through_to_index_metamethod")
         [](void* ud, void* r)
         {
             handlerHitCount++;
-            lua_userdatadirectfield_setnumber(r, static_cast<Vec2*>(ud)->x);
+            lua_userdatadirectfield_setnumber(r, mooHostNumber(static_cast<Vec2*>(ud)->x));
         }
     );
 
@@ -183,7 +184,7 @@ TEST_CASE("unregistered_tag_falls_through_to_index_metamethod")
         L,
         [](lua_State* L) -> int
         {
-            lua_pushnumber(L, -1);
+            lua_pushnumber(L, mooHostNumber(-1));
             return 1;
         },
         "__index"
@@ -207,8 +208,8 @@ TEST_CASE("unregistered_tag_falls_through_to_index_metamethod")
     REQUIRE(status == LUA_OK);
     REQUIRE(lua_gettop(L) == 2);
 
-    CHECK(lua_tonumber(L, -2) == 1);  // direct dispatch worked
-    CHECK(lua_tonumber(L, -1) == -1); // kTagOther has no dispatch table, fell back to __index
+    CHECK(moo_todouble(lua_tonumber(L, -2)) == 1);  // direct dispatch worked
+    CHECK(moo_todouble(lua_tonumber(L, -1)) == -1); // kTagOther has no dispatch table, fell back to __index
 
     CHECK(handlerHitCount == 1); // handler was only hit for the Vec2
 }
@@ -224,7 +225,7 @@ TEST_CASE("multiple_fields_same_type_dispatch_independently")
         "X",
         [](void* ud, void* r)
         {
-            lua_userdatadirectfield_setnumber(r, static_cast<Vec2*>(ud)->x);
+            lua_userdatadirectfield_setnumber(r, mooHostNumber(static_cast<Vec2*>(ud)->x));
         }
     );
     lua_registeruserdatadirectfieldget(
@@ -233,7 +234,7 @@ TEST_CASE("multiple_fields_same_type_dispatch_independently")
         "Y",
         [](void* ud, void* r)
         {
-            lua_userdatadirectfield_setnumber(r, static_cast<Vec2*>(ud)->y);
+            lua_userdatadirectfield_setnumber(r, mooHostNumber(static_cast<Vec2*>(ud)->y));
         }
     );
 
@@ -247,8 +248,8 @@ TEST_CASE("multiple_fields_same_type_dispatch_independently")
     REQUIRE(status == LUA_OK);
     REQUIRE(lua_gettop(L) == 2);
 
-    CHECK(lua_tonumber(L, -2) == 1.5);
-    CHECK(lua_tonumber(L, -1) == 2.5);
+    CHECK(moo_todouble(lua_tonumber(L, -2)) == 1.5);
+    CHECK(moo_todouble(lua_tonumber(L, -1)) == 2.5);
 }
 
 TEST_CASE("same_field_name_different_tags_dispatch_independently")
@@ -264,7 +265,7 @@ TEST_CASE("same_field_name_different_tags_dispatch_independently")
         "X",
         [](void* ud, void* r)
         {
-            lua_userdatadirectfield_setnumber(r, static_cast<Vec2*>(ud)->x);
+            lua_userdatadirectfield_setnumber(r, mooHostNumber(static_cast<Vec2*>(ud)->x));
             handlerHitCount++;
         }
     );
@@ -274,7 +275,7 @@ TEST_CASE("same_field_name_different_tags_dispatch_independently")
         "X",
         [](void* ud, void* r)
         {
-            lua_userdatadirectfield_setnumber(r, 999);
+            lua_userdatadirectfield_setnumber(r, mooHostNumber(999));
             handlerHitCount++;
         }
     );
@@ -291,8 +292,8 @@ TEST_CASE("same_field_name_different_tags_dispatch_independently")
     REQUIRE(status == LUA_OK);
     REQUIRE(lua_gettop(L) == 2);
 
-    CHECK(lua_tonumber(L, -2) == 3);
-    CHECK(lua_tonumber(L, -1) == 999);
+    CHECK(moo_todouble(lua_tonumber(L, -2)) == 3);
+    CHECK(moo_todouble(lua_tonumber(L, -1)) == 999);
     CHECK(handlerHitCount == 2);
 }
 

@@ -9,6 +9,8 @@
 
 #include "Luau/Common.h"
 
+#include "moo_number.h"
+
 // internal assertions for in-house debugging
 #define check_exp(c, e) (LUAU_ASSERT(c), (e))
 #define api_check(l, e) LUAU_ASSERT(e)
@@ -18,7 +20,8 @@
 #endif
 
 #define cast_byte(i) cast_to(uint8_t, (i))
-#define cast_num(i) cast_to(double, (i))
+// moo: an integer as a number (Q48.16), saturating
+#define cast_num(i) moo_numfromint(int64_t(i))
 #define cast_int(i) cast_to(int, (i))
 
 /*

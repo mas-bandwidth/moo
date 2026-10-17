@@ -435,7 +435,7 @@ void luaD_preparefinalizestate(lua_State* L, lua_State* co, bool resulttrue)
 
     sethvalue(L, L->top, co->finalizers);
     L->top++;
-    setnvalue(L->top, double(luaH_getn(co->finalizers)));
+    setnvalue(L->top, cast_num(luaH_getn(co->finalizers)));
     L->top++;
     setbvalue(L->top, resulttrue ? 1 : 0);
     L->top++;
