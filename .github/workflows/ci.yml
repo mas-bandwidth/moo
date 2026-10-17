@@ -1,0 +1,67 @@
+# moo per-commit gate: Luau's unmodified suites on Linux clang.
+#
+# The one-minute rule: a cold build of Luau (the analyzer is most of it) takes several
+# minutes on a hosted runner, so this tier keeps a compiler cache. A warm run is about a
+# minute; a change that touches the analyzer or a widely included header rebuilds cold.
+# The full matrix (Linux gcc + clang, macOS arm64) runs in nightly.yml.
+name: ci
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  linux-clang:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      CCACHE_DIR: ${{ github.workspace }}/.ccache
+      CCACHE_MAXSIZE: 2G
+      CCACHE_COMPRESS: "true"
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: install ccache
+        run: sudo apt-get install -y --no-install-recommends ccache
+
+      - name: restore compiler cache
+        uses: actions/cache@v4
+        with:
+          path: .ccache
+          key: ccache-linux-clang-${{ github.sha }}
+          restore-keys: ccache-linux-clang-
+
+      - name: configure
+        run: >
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo -DLUAU_WERROR=ON
+          -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++
+          -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
+
+      - name: build
+        run: cmake --build build -j4 --target Luau.Conformance Luau.UnitTest Luau.CLI.Test Luau.Repl.CLI Luau.Analyze.CLI Luau.Compile.CLI
+
+      - name: conformance
+        run: build/Luau.Conformance
+
+      - name: unit tests
+        run: build/Luau.UnitTest
+
+      - name: cli tests
+        run: build/Luau.CLI.Test
+
+      - name: moo binaries
+        run: |
+          build/moo tests/conformance/assert.luau
+          build/moo-analyze tests/conformance/assert.luau
+          build/moo-compile tests/conformance/assert.luau > /dev/null
+
+      - name: ccache stats
+        if: always()
+        run: ccache -s

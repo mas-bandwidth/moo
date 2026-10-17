@@ -1,83 +1,105 @@
-Luau ![CI](https://github.com/luau-lang/luau/actions/workflows/build.yml/badge.svg) [![codecov](https://codecov.io/gh/luau-lang/luau/branch/master/graph/badge.svg)](https://codecov.io/gh/luau-lang/luau)
-====
+# moo
 
-Luau (lowercase u, /ˈlu.aʊ/) is a fast, small, safe, gradually typed embeddable scripting language derived from [Lua](https://lua.org).
+moo is a deterministic, fixed-point fork of [Luau](https://github.com/luau-lang/luau).
 
-It is designed to be backwards compatible with Lua 5.1, as well as incorporating [some features](https://luau.org/compatibility) from future Lua releases, but also expands the feature set (most notably with type annotations and a state-of-the-art type inference system). Luau is largely implemented from scratch, with the language runtime being a very heavily modified version of Lua 5.1 runtime, with completely rewritten interpreter and other [performance innovations](https://luau.org/performance). The runtime mostly preserves Lua 5.1 API, so existing bindings should be more or less compatible with a few caveats.
+- **Home:** https://github.com/mas-bandwidth/moo
+- **Forked from:** Luau **0.741** (upstream tag `0.741`, commit `2d88f9b5facaa9e4ec91247b39ae8251bd49a244`).
+  The upstream source archive for that tag was checked against
+  sha256 `deee653d0f5971b809ef67f50dbe8109ad369d7575e344cfe2013774fed2f4c6`, and the tree
+  this repository starts from is identical to it. Full upstream history is kept.
 
-Luau is used by Roblox game developers to write game code, and by Roblox engineers to implement large parts of the user-facing application code as well as portions of the editor (Roblox Studio) as plugins. Roblox chose to open-source Luau to foster collaboration within the Roblox community as well as to allow other companies and communities to benefit from the ongoing language and runtime innovation. More recently, Luau has seen adoption in games like Alan Wake 2, Farming Simulator 2025, Second Life, and Warframe.
+## What moo changes
 
-This repository hosts source code for the language implementation and associated tooling. Documentation for the language is available at https://luau.org/ and accepts contributions via [site repository](https://github.com/luau-lang/site); the language is evolved through RFCs that are located in [rfcs repository](https://github.com/luau-lang/rfcs).
+moo makes one promise Luau does not: **the same program with the same inputs gives
+bit-identical results, and the same sequence of observable effects, on every platform and
+compiler, for every construct.** To keep it, moo will:
 
-# Usage
+1. remove every non-deterministic source in the VM and standard library (object hashing by
+   address, GC pacing by clock, `os` and time, address-revealing `tostring`, platform libm);
+2. make `number` a Q48.16 fixed-point value, so floating point never enters the VM.
 
-Luau is an embeddable programming language, but it also comes with two command-line tools by default, `luau` and `luau-analyze`.
+Everything else stays as close to Luau as possible: syntax, tools and the C API.
 
-`luau` is a command-line REPL and can also run input files. Note that REPL runs in a sandboxed environment and as such doesn't have access to the underlying file system except for ability to `require` modules.
+None of that is built yet. This tree is **layer 1, the fork**: Luau 0.741, the rename, and CI
+on Luau's unmodified test suite. The plan is in [docs/DESIGN.md](docs/DESIGN.md), and every source of
+non-determinism found so far, with its proposed fix, is in
+[docs/DETERMINISM.md](docs/DETERMINISM.md).
 
-`luau-analyze` is a command-line type checker and linter; given a set of input files, it produces errors/warnings according to the file configuration, which can be customized by using `--!` comments in the files or [`.luaurc`](https://rfcs.luau.org/config-luaurc) files. For details, please refer to our [type checking](https://luau.org/typecheck) and [linting](https://luau.org/lint) documentation. Our community maintains a language server frontend for `luau-analyze` called [luau-lsp](https://github.com/JohnnyMorganz/luau-lsp) for use with text editors.
+## What the fork renames
 
-# Installation
+The rename is kept minimal so upstream merges stay clean.
 
-You can install and run Luau by downloading the compiled binaries from [a recent release](https://github.com/luau-lang/luau/releases); note that `luau` and `luau-analyze` binaries from the archives will need to be added to PATH or copied to a directory like `/usr/local/bin` on Linux/macOS.
+| Luau | moo |
+|---|---|
+| `luau` (REPL / runner) | `moo` |
+| `luau-analyze` | `moo-analyze` |
+| `luau-compile` | `moo-compile` |
+| `luau-ast`, `luau-reduce`, `luau-bytecode` | `moo-ast`, `moo-reduce`, `moo-bytecode` |
+| source extension `.luau` | `.moo` (`.luau` and `.lua` are still read) |
 
-Alternatively, you can use one of the packaged distributions (note that these are not maintained by Luau development team):
+`require` resolution, the CLI's file lookup and directory traversal try `.moo` first, then
+`.luau`, then `.lua` (and `init.moo` before `init.luau`). Two candidates for one module path
+are reported as ambiguous, as upstream already does for `.luau`/`.lua`.
 
-- macOS: [Install Homebrew](https://docs.brew.sh/Installation) and run `brew install luau`
-- Arch Linux: Luau has been added to the official Arch Linux packages repository under the extras repository (see [``luau``](https://archlinux.org/packages/extra/x86_64/luau/)), simply install using ``pacman``: ``pacman -Syu luau``
-- Alpine Linux: [Enable community repositories](https://wiki.alpinelinux.org/w/index.php?title=Enable_Community_Repository) and run `apk add luau`
-- Gentoo Linux: Luau is [officially packaged by Gentoo](https://packages.gentoo.org/packages/dev-lang/luau) and can be installed using `emerge dev-lang/luau`. You may have to unmask the package first before installing it (which can be done by including the `--autounmask=y` option in the `emerge` command).
-
-After installing, you will want to validate the installation was successful by running the test case [here](https://luau.org/getting-started).
+What is **not** renamed: the C API keeps Luau's `lua_`/`luaL_` names, the CMake targets keep
+their `Luau.*` names, the C++ namespace stays `Luau`, and the configuration file stays
+`.config.luau`. Source is not mass-renamed.
 
 ## Building
 
-On all platforms, you can use CMake to run the following commands to build Luau binaries from source:
+    cmake -S . -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo
+    cmake --build build -j
+    build/moo tests/conformance/assert.luau
 
-```sh
-mkdir cmake && cd cmake
-cmake .. -DCMAKE_BUILD_TYPE=RelWithDebInfo
-cmake --build . --target Luau.Repl.CLI --config RelWithDebInfo
-cmake --build . --target Luau.Analyze.CLI --config RelWithDebInfo
-```
+Supported for moo: Linux (gcc and clang) and macOS arm64 (Apple clang). moo compiles
+everything with `-ffp-contract=off`, so the C++ compiler never fuses a multiply and an add
+into one FMA (which rounds differently). The upstream `Makefile` is kept and builds the same
+`moo*` binaries with the same flag.
 
-Alternatively, on Linux and macOS, you can also use `make`:
+## Tests and CI
 
-```sh
-make config=release luau luau-analyze
-```
+Luau's own suites run unmodified:
 
-To integrate Luau into your CMake application projects as a library, at the minimum, you'll need to depend on `Luau.Compiler` and `Luau.VM` projects. From there you need to create a new Luau state (using Lua 5.x API such as `lua_newstate`), compile source to bytecode and load it into the VM like this:
+- `Luau.Conformance` (the `tests/conformance` scripts),
+- `Luau.UnitTest` (the compiler, analyzer and codegen unit tests),
+- `Luau.CLI.Test` (the REPL and `require` tests; run it from the repository root).
 
-```cpp
-// needs lua.h and luacode.h
-size_t bytecodeSize = 0;
-char* bytecode = luau_compile(source, strlen(source), NULL, &bytecodeSize);
-int result = luau_load(L, chunkname, bytecode, bytecodeSize, 0);
-free(bytecode);
+CI (`.github/workflows/`):
 
-if (result == 0)
-    return 1; /* return chunk main function */
-```
+- **`ci.yml`, on every push and pull request:** Linux clang, all three suites. A cold build
+  of Luau's analyzer alone takes several minutes, so this tier uses a compiler cache; a warm
+  run is about a minute, and only changes that touch the analyzer or a widely included header
+  pay for a cold rebuild.
+- **`nightly.yml`, nightly and on demand:** the full matrix (Linux gcc, Linux clang, macOS
+  arm64), all three suites, plus Conformance at `-O2` and a smoke run of each moo binary.
 
-For more details about the use of the host API, you currently need to consult [Lua 5.x API](https://www.lua.org/manual/5.1/manual.html#3). Luau closely tracks that API but has a few deviations, such as the need to compile source separately (which is important to be able to deploy VM without a compiler), and the lack of `__gc` support (use `lua_newuserdatadtor` instead).
+Upstream's own workflows (`build.yml`, `release.yml`, `new-release.yml`, `benchmark.yml`)
+are removed in moo; they target Luau's release process and runners.
 
-To gain advantage of many performance improvements, it's highly recommended to use the `safeenv` feature, which sandboxes individual scripts' global tables from each other, and protects builtin libraries from monkey-patching. For this to work, you must call `luaL_sandbox` on the global state and `luaL_sandboxthread` for each new script's execution thread.
+## Taking upstream changes
 
-# Testing
+The `upstream` remote is Luau:
 
-Luau has an internal test suite; in CMake builds, it is split into two targets, `Luau.UnitTest` (for the bytecode compiler and type checker/linter tests) and `Luau.Conformance` (for the VM tests). The unit tests are written in C++, whereas the conformance tests are largely written in Luau (see `tests/conformance`).
+    git remote add upstream https://github.com/luau-lang/luau.git
+    git fetch upstream --tags
 
-Makefile builds combine both into a single target that can be run via `make test`.
+Upstream is taken **once per upstream release**, never commit by commit:
 
-# Dependencies
+1. Merge the release tag (for example `git merge 0.742`) into a branch. Keep the merge
+   commit, so `git log --first-parent` shows exactly which Luau release moo is on.
+2. Rebase moo's patches on top as needed, resolving conflicts in moo's favour only where moo
+   deliberately differs (the rename, the removed workflows, and later the fixed-point VM).
+3. Rerun the full conformance suite (and, from layer 5, the determinism suite) on every
+   platform. The merge lands only when it is green.
+4. Update the "Forked from" line above.
 
-Luau uses C++ as its implementation language. The runtime requires C++11, while the compiler and analysis components require C++17. It should build without issues using Microsoft Visual Studio 2017 or later, or gcc-7 or clang-7 or later.
+moo keeps its patches small and in few files for exactly this reason; see
+[docs/DESIGN.md](docs/DESIGN.md), "Upstream merges".
 
-Other than the STL/CRT, Luau library components don't have external dependencies. The test suite depends on the [doctest](https://github.com/onqtam/doctest) testing framework, and the REPL command-line depends on [isocline](https://github.com/daanx/isocline).
+## License
 
-# License
+moo is MIT licensed, the same as Luau.
 
-Luau implementation is distributed under the terms of [MIT License](https://github.com/luau-lang/luau/blob/master/LICENSE.txt). It is based on the Lua 5.x implementation, also under the MIT License.
-
-When Luau is integrated into external projects, we ask that you honor the license agreement and include Luau attribution into the user-facing product documentation. Attribution making use of the [Luau logo](https://github.com/luau-lang/site/blob/master/logo.svg) is also encouraged when reasonable.
+- [LICENSE.txt](LICENSE.txt) is Luau's MIT license and copyright notice, kept intact.
+- [lua_LICENSE.txt](lua_LICENSE.txt) is Lua's, kept intact.
+- [LICENSE-moo.txt](LICENSE-moo.txt) covers moo's own changes, also MIT.

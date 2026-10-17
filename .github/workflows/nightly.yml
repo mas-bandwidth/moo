@@ -1,0 +1,63 @@
+# moo nightly: the full matrix on Luau's unmodified suites. Gates nothing; read each morning.
+name: nightly
+
+on:
+  schedule:
+    - cron: "17 7 * * *"
+  workflow_dispatch:
+
+jobs:
+  test:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: linux-gcc
+            os: ubuntu-latest
+            cc: gcc
+            cxx: g++
+            # gcc 13 raises -Wnonnull false positives in upstream CodeGen, so no -Werror here
+            werror: "OFF"
+          - name: linux-clang
+            os: ubuntu-latest
+            cc: clang
+            cxx: clang++
+            werror: "ON"
+          - name: macos-arm64
+            os: macos-latest
+            cc: clang
+            cxx: clang++
+            werror: "ON"
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: configure
+        run: >
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo -DLUAU_WERROR=${{ matrix.werror }}
+          -DCMAKE_C_COMPILER=${{ matrix.cc }} -DCMAKE_CXX_COMPILER=${{ matrix.cxx }}
+
+      - name: check -ffp-contract=off
+        run: grep -q -- "-ffp-contract=off" build/CMakeFiles/Luau.VM.dir/flags.make
+
+      - name: build
+        run: cmake --build build -j4 --target Luau.Conformance Luau.UnitTest Luau.CLI.Test Luau.Repl.CLI Luau.Analyze.CLI Luau.Compile.CLI
+
+      - name: conformance
+        run: |
+          build/Luau.Conformance
+          build/Luau.Conformance -O2
+
+      - name: unit tests
+        run: build/Luau.UnitTest
+
+      - name: cli tests
+        run: build/Luau.CLI.Test
+
+      - name: moo binaries
+        run: |
+          build/moo tests/conformance/assert.luau
+          build/moo-analyze tests/conformance/assert.luau
+          build/moo-compile tests/conformance/assert.luau > /dev/null
