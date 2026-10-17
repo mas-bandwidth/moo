@@ -23,25 +23,24 @@
 // the largest and smallest integer value a number holds (2^47 - 1 and its negation)
 #define MOO_NUMBER_INT_MAX (MOO_NUMBER_MAX >> MOO_NUMBER_FRACTION_BITS)
 
-inline fixed_t moo_numclamp128(fixInt128 v)
-{
-    if (fixInt128Gt(v, fixInt128FromI64(MOO_NUMBER_MAX)))
-        return MOO_NUMBER_MAX;
-    if (fixInt128Lt(v, fixInt128FromI64(MOO_NUMBER_MIN)))
-        return MOO_NUMBER_MIN;
-    return (fixed_t)fixInt128ToI64(v);
-}
-
-// a + b, exact, saturating
+// a + b, exact, saturating (a and b in the domain)
 inline fixed_t moo_numadd(fixed_t a, fixed_t b)
 {
-    return moo_numclamp128(fixInt128Add(fixInt128FromI64(a), fixInt128FromI64(b)));
+    if (b > 0 && a > MOO_NUMBER_MAX - b)
+        return MOO_NUMBER_MAX;
+    if (b < 0 && a < MOO_NUMBER_MIN - b)
+        return MOO_NUMBER_MIN;
+    return a + b;
 }
 
-// a - b, exact, saturating
+// a - b, exact, saturating (a and b in the domain)
 inline fixed_t moo_numsub(fixed_t a, fixed_t b)
 {
-    return moo_numclamp128(fixInt128Sub(fixInt128FromI64(a), fixInt128FromI64(b)));
+    if (b < 0 && a > MOO_NUMBER_MAX + b)
+        return MOO_NUMBER_MAX;
+    if (b > 0 && a < MOO_NUMBER_MIN + b)
+        return MOO_NUMBER_MIN;
+    return a - b;
 }
 
 // -a, exact (the domain is symmetric)
