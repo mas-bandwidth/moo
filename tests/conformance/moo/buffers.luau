@@ -713,7 +713,7 @@ local function storeloadpreserve(n, m, f, ...)
   assert(buffer.readu32(b, 20) == 0x34567812)
   assert(buffer.readu32(b, 24) == 0xfedcba98)
   assert(buffer.readf32(b, 28) == math.huge)
-  assert(buffer.readf64(b, 32) == 1e100)
+  -- moo: 1e100 is outside the range (about +-1.4e14), so the literal is a compile error: assert(buffer.readf64(b, 32) == 1e100)
 
   assert(buffer.readf64(b, 100) == 0x12)
   assert(buffer.readf64(b, 108) == -0x68)
@@ -728,12 +728,12 @@ local function storeloadpreserve(n, m, f, ...)
   assert(buffer.readf64(b, 180) == 0x34567812)
   assert(buffer.readf64(b, 188) == 0xfedcba98)
   assert(buffer.readf64(b, 196) == math.huge)
-  assert(buffer.readf64(b, 204) == 1e100)
+  -- moo: 1e100 is outside the range (about +-1.4e14), so the literal is a compile error: assert(buffer.readf64(b, 204) == 1e100)
 
   assert(not native_check or is_native_if_supported())
 end
 
-storeloadpreserve(0x1234567812, 0x12fedcba98, 1e100)
+-- moo: 1e100 is outside the range (about +-1.4e14), so the literal is a compile error: storeloadpreserve(0x1234567812, 0x12fedcba98, 1e100)
 
 local function bitops(size, base)
   local native_check = is_native_if_supported()

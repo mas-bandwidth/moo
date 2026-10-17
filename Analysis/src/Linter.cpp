@@ -3300,6 +3300,11 @@ private:
         case ConstantNumberParseResult::IntOverflow:
             emitWarning(*context, LintWarning::Code_IntegerParsing, node->location, "Integer number literal was clamped because it was out of range");
             break;
+        case ConstantNumberParseResult::OutOfRange:
+            break; // moo: the parser already reported the error
+        case ConstantNumberParseResult::BelowResolution:
+            emitWarning(*context, LintWarning::Code_IntegerParsing, node->location, "Number literal is below the resolution 2^-16 and rounds to zero");
+            break;
         }
 
         return true;

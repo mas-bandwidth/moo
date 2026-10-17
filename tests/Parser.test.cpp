@@ -792,7 +792,8 @@ TEST_CASE_FIXTURE(Fixture, "parse_error_type_name")
     );
 }
 
-TEST_CASE_FIXTURE(Fixture, "parse_numbers_decimal")
+// moo: skipped; it asserts double literal values and the Imprecise parse result; moo parses exactly to Q48.16 (tests/MooNumber.test.cpp LiteralsAreExact)
+TEST_CASE_FIXTURE(Fixture, "parse_numbers_decimal" * doctest::skip())
 {
     AstStat* stat = parse("return 1, .5, 1.5, 1e-5, 1.5e-5, 12_345.1_25");
     REQUIRE(stat != nullptr);
@@ -820,7 +821,8 @@ TEST_CASE_FIXTURE(Fixture, "parse_numbers_decimal")
     }
 }
 
-TEST_CASE_FIXTURE(Fixture, "parse_numbers_hexadecimal")
+// moo: skipped; it asserts hex literals beyond 2^47 parse as doubles; in moo they are out of range (tests/MooNumber.test.cpp LiteralsAreExact)
+TEST_CASE_FIXTURE(Fixture, "parse_numbers_hexadecimal" * doctest::skip())
 {
     AstStat* stat = parse("return 0xab, 0xAB05, 0xff_ff, 0xffffffffffffffff");
     REQUIRE(stat != nullptr);
@@ -848,7 +850,8 @@ TEST_CASE_FIXTURE(Fixture, "parse_numbers_hexadecimal")
     }
 }
 
-TEST_CASE_FIXTURE(Fixture, "parse_numbers_binary")
+// moo: skipped; it asserts binary literals beyond 2^47 parse as doubles; in moo they are out of range (tests/MooNumber.test.cpp LiteralsAreExact)
+TEST_CASE_FIXTURE(Fixture, "parse_numbers_binary" * doctest::skip())
 {
     AstStat* stat = parse("return 0b1, 0b0, 0b101010, 0b1111111111111111111111111111111111111111111111111111111111111111");
     REQUIRE(stat != nullptr);

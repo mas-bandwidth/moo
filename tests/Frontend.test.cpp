@@ -884,7 +884,8 @@ TEST_CASE_FIXTURE(FrontendFixture, "test_lint_uses_correct_config")
     CHECK_EQ(0, result4.warnings.size());
 }
 
-TEST_CASE_FIXTURE(FrontendFixture, "lint_results_are_only_for_checked_module")
+// moo: skipped; its modules lint literals beyond 2^64; in moo those are out of range, a parse error
+TEST_CASE_FIXTURE(FrontendFixture, "lint_results_are_only_for_checked_module" * doctest::skip())
 {
     fileResolver.source["Module/A"] = R"(
 local _ = 0b10000000000000000000000000000000000000000000000000000000000000000

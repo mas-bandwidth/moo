@@ -345,6 +345,8 @@ enum class ConstantNumberParseResult
     BinOverflow,
     HexOverflow,
     IntOverflow,
+    OutOfRange,      // moo: beyond the largest number; the parser reports an error
+    BelowResolution, // moo: not zero, but rounds to 0 at 2^-16; the linter warns
 };
 
 class AstExprConstantNumber : public AstExpr

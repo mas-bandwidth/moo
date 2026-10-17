@@ -24,7 +24,8 @@ file and line, is in [DETERMINISM.md](DETERMINISM.md). This document says what r
   double that holds it exactly); it does not fold division by zero, `^`, or any builtin call or `math` constant.
 - **Native code generation** is excluded (below).
 - **TEMPORARY bridges**, each marked in the code and each removed by a later layer 3 PR:
-  - number literals and `tonumber` go through `strtod` and the boundary rule (the literals PR);
+  - `tonumber` and string-to-number coercion still go through `strtod` and the boundary rule (the tostring and
+    tonumber PR);
   - bytecode carries a double per number constant, rounded by the boundary rule at load, saturating (the bytecode
     version PR);
   - `tostring` and `string.format("%f", ...)` print through the double that holds the number exactly (the formatting PR);
@@ -33,6 +34,11 @@ file and line, is in [DETERMINISM.md](DETERMINISM.md). This document says what r
     type is removed;
   - `buffer.readf32`/`writef32`, `readf64`/`writef64` and `string.pack` floats round by the bridge (the boundary PR);
   - numeric `for` adds the step saturating and stops when the index cannot advance (the trip count PR).
+- **Literals are exact** (`Common/include/moo_parse.h`): the parser reads a decimal literal as the exact rational it
+  denotes and rounds once to Q48.16, ties to even, with no libc and no locale; exponent notation stays; `0x` and `0b`
+  literals are integers. A literal beyond the range is the compile error `Number literal out of range`; a nonzero
+  literal that rounds to 0 is the lint warning "below the resolution". Until the bytecode version PR, the AST and
+  the bytecode carry the double that holds the value, which is exact below 2^37.
 - **Exact already:** `math.abs`, `floor`, `ceil`, `min`, `max`, `clamp`, `sign`, `round` and `random` (16 bits per draw),
   table keys (integer-valued numbers use the array part; numbers hash by their raw value), and every integer
   conversion (toward zero, saturating at the int range, so no undefined float-to-int cast). The SSE4.1 fastcalls of
