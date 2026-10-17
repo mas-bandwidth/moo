@@ -3,10 +3,10 @@
 #include "lualib.h"
 
 #include "lstate.h"
+#include "moo.h"
 
 #include <limits>
 #include <math.h>
-#include <time.h>
 
 #define LUAU_PI (3.14159265358979323846)
 #define RADIANS_PER_DEGREE (LUAU_PI / 180.0)
@@ -516,11 +516,8 @@ static const luaL_Reg mathlib[] = {
 */
 int luaopen_math(lua_State* L)
 {
-    uint64_t seed = lua_encodepointer(L, uintptr_t(L));
-    seed ^= time(NULL);
-    seed ^= clock();
-
-    pcg32_seed(&L->global->rngstate, seed);
+    // moo: the seed is a host input (moo_setrandomseed), never an address or a clock
+    pcg32_seed(&L->global->rngstate, L->global->randomseed);
 
     luaL_register(L, LUA_MATHLIBNAME, mathlib);
 
@@ -540,4 +537,10 @@ int luaopen_math(lua_State* L)
     lua_setfield(L, -2, "tau");
 
     return 1;
+}
+
+void moo_setrandomseed(lua_State* L, uint64_t seed)
+{
+    L->global->randomseed = seed;
+    pcg32_seed(&L->global->rngstate, seed);
 }

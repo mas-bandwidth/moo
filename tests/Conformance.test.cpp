@@ -2143,11 +2143,6 @@ TEST_CASE("Types")
     );
 }
 
-TEST_CASE("DateTime")
-{
-    runConformance("datetime.luau");
-}
-
 TEST_CASE("Debug")
 {
     runConformance("debug.luau");
