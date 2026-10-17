@@ -1,9 +1,10 @@
-# moo per-commit gate: Luau's unmodified suites on Linux clang.
+# moo per-commit gate.
 #
-# The one-minute rule: a cold build of Luau (the analyzer is most of it) takes several
-# minutes on a hosted runner, so this tier keeps a compiler cache. A warm run is about a
-# minute; a change that touches the analyzer or a widely included header rebuilds cold.
-# The full matrix (Linux gcc + clang, macOS arm64) runs in nightly.yml.
+# The one-minute rule: the required job, push-gate, builds only Moo.Test (moo's own tests and the
+# determinism suite, on the VM and the compiler alone) and the VM library, with sccache on the
+# GitHub Actions cache, so a commit that changes a VM header rebuilds the VM and nothing else.
+# Luau's unmodified suites (Conformance, UnitTest, CLI) run in the full job on pull requests, in
+# parallel and not required, and every night on Linux gcc and clang and macOS arm64 (nightly.yml).
 name: ci
 
 on:
@@ -17,35 +18,56 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
+env:
+  SCCACHE_GHA_ENABLED: "true"
+
 jobs:
-  linux-clang:
+  push-gate:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
-    env:
-      CCACHE_DIR: ${{ github.workspace }}/.ccache
-      CCACHE_MAXSIZE: 2G
-      CCACHE_COMPRESS: "true"
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
 
-      - name: install ccache
-        run: sudo apt-get install -y --no-install-recommends ccache
-
-      - name: restore compiler cache
-        uses: actions/cache@v4
-        with:
-          path: .ccache
-          key: ccache-linux-clang-${{ github.sha }}
-          restore-keys: ccache-linux-clang-
+      - name: sccache
+        uses: mozilla-actions/sccache-action@v0.0.9
 
       - name: configure
         run: >
-          cmake -S . -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo -DLUAU_WERROR=ON
+          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DLUAU_WERROR=ON
           -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++
-          -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
+          -DCMAKE_C_COMPILER_LAUNCHER=sccache -DCMAKE_CXX_COMPILER_LAUNCHER=sccache
 
       - name: build
-        run: cmake --build build -j4 --target Luau.Conformance Luau.UnitTest Luau.CLI.Test Luau.Repl.CLI Luau.Analyze.CLI Luau.Compile.CLI
+        run: cmake --build build --target Moo.Test Luau.VM
+
+      - name: moo tests and the determinism suite
+        run: build/Moo.Test
+
+      - name: the VM reads no clock
+        run: tools/moo-check-no-clock.sh build/libLuau.VM.a
+
+      - name: sccache stats
+        if: always()
+        run: sccache --show-stats
+
+  full:
+    if: github.event_name != 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: sccache
+        uses: mozilla-actions/sccache-action@v0.0.9
+
+      - name: configure
+        run: >
+          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DLUAU_WERROR=ON
+          -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++
+          -DCMAKE_C_COMPILER_LAUNCHER=sccache -DCMAKE_CXX_COMPILER_LAUNCHER=sccache
+
+      - name: build
+        run: cmake --build build --target Luau.Conformance Luau.UnitTest Luau.CLI.Test Luau.Repl.CLI Luau.Analyze.CLI Luau.Compile.CLI
 
       - name: conformance
         run: build/Luau.Conformance
@@ -62,14 +84,7 @@ jobs:
           build/moo-analyze tests/conformance/assert.luau
           build/moo-compile tests/conformance/assert.luau > /dev/null
 
-      - name: the VM reads no clock
-        run: tools/moo-check-no-clock.sh build/libLuau.VM.a
-
       - name: native codegen is refused
         run: |
           ! build/moo --codegen tests/conformance/assert.luau
           ! build/moo --jit-inliner tests/conformance/assert.luau
-
-      - name: ccache stats
-        if: always()
-        run: ccache -s

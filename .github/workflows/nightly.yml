@@ -43,7 +43,10 @@ jobs:
         run: grep -q -- "-ffp-contract=off" build/CMakeFiles/Luau.VM.dir/flags.make
 
       - name: build
-        run: cmake --build build -j4 --target Luau.Conformance Luau.UnitTest Luau.CLI.Test Luau.Repl.CLI Luau.Analyze.CLI Luau.Compile.CLI
+        run: cmake --build build -j4 --target Moo.Test Luau.Conformance Luau.UnitTest Luau.CLI.Test Luau.Repl.CLI Luau.Analyze.CLI Luau.Compile.CLI
+
+      - name: moo tests and the determinism suite
+        run: build/Moo.Test
 
       - name: conformance
         run: |

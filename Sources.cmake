@@ -604,8 +604,6 @@ if(TARGET Luau.Conformance)
         tests/RegisterCallbacks.cpp
         tests/ConformanceIrHooks.h
         tests/Conformance.test.cpp
-        tests/Moo.test.cpp
-        tests/Determinism.test.cpp
         tests/DirectFieldAccess.test.cpp
         tests/FeedbackVector.test.cpp
         tests/IrLowering.test.cpp
