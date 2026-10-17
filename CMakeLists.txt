@@ -22,6 +22,12 @@ if(MOO_CODEGEN)
     message(FATAL_ERROR "MOO_CODEGEN: native code generation is excluded from moo until it is rebuilt on fixed point (docs/DESIGN.md)")
 endif()
 
+# moo: the JIT bytecode inliner folds numbers as doubles at run time, so it is excluded the same way
+option(MOO_JIT_INLINER "Build the JIT bytecode inliner (not available in moo yet)" OFF)
+if(MOO_JIT_INLINER)
+    message(FATAL_ERROR "MOO_JIT_INLINER: the JIT inliner is excluded from moo until it is rebuilt on fixed point (docs/DESIGN.md)")
+endif()
+
 option(LUAU_VECTOR_DOUBLE "Use 64-bit doubles for vector components" OFF)
 option(LUAU_VECTOR_FOUR_WIDE "Enable 4-wide mode for vectors, adding a 'w' component" OFF)
 
