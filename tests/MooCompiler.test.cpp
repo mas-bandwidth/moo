@@ -65,4 +65,17 @@ TEST_CASE("MooBuiltinsDoNotFold")
     CHECK(has(mooCompile0("return vector.create(1, 2, 3)"), "FASTCALL"));
 }
 
+// DESIGN.md "Literals": a literal beyond the range is a compile error, and the constant is the exact rational
+// rounded once to 2^-16, ties to even, by moo's own parser
+TEST_CASE("MooLiteralsAreExactAndInRange")
+{
+    CHECK_THROWS_WITH(mooCompile0("return 1e15"), doctest::Contains("Number literal out of range"));
+    CHECK_THROWS_WITH(mooCompile0("return 0x800000000000"), doctest::Contains("Number literal out of range"));
+    CHECK_THROWS_WITH(mooCompile0("return 1e300"), doctest::Contains("Number literal out of range"));
+    CHECK(has(mooCompile0("return 140737488355327"), "140737488355327"));
+    CHECK(has(mooCompile0("return 0.1"), "0.100006103515625"));
+    // half a unit, 2^-17, is a tie: to even, which is 0
+    CHECK(has(mooCompile0("return 0.00000762939453125"), "LOADN R0 0"));
+}
+
 TEST_SUITE_END();

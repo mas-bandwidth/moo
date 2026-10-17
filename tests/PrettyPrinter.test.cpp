@@ -248,7 +248,8 @@ TEST_CASE("function_taking_ellipsis")
     CHECK_EQ(code, prettyPrint(code).code);
 }
 
-TEST_CASE("omit_decimal_place_for_integers")
+// moo: skipped; it pretty-prints 1.129e45; in moo a literal beyond the range is a parse error
+TEST_CASE("omit_decimal_place_for_integers" * doctest::skip())
 {
     const std::string code = R"( local a=5, 6, 7, 3.141, 1.1290000000000002e+45 )";
     CHECK_EQ(code, prettyPrint(code).code);
@@ -696,7 +697,8 @@ TEST_CASE("numbers")
     CHECK_EQ(code, prettyPrint(code).code);
 }
 
-TEST_CASE("infinity")
+// moo: skipped; it pretty-prints 1e500; in moo a literal beyond the range is a parse error
+TEST_CASE("infinity" * doctest::skip())
 {
     const std::string code = R"( local a = 1e500    local b = 1e400 )";
     CHECK_EQ(code, prettyPrint(code).code);

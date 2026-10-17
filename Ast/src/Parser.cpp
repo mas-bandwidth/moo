@@ -1,6 +1,8 @@
 // This file is part of the Luau programming language and is licensed under MIT License; see LICENSE.txt for details
 #include "Luau/Parser.h"
 
+#include "moo_parse.h"
+
 #include "Luau/Ast.h"
 #include "Luau/Common.h"
 #include "Luau/TimeTrace.h"
@@ -3946,40 +3948,6 @@ AstExpr* Parser::parseAssertionExpr()
         return expr;
 }
 
-static ConstantNumberParseResult parseInteger(double& result, const char* data, int base)
-{
-    LUAU_ASSERT(base == 2 || base == 16);
-
-    // Some libc implementations accept an optional 0b prefix for base-2 parsing.
-    // Binary literals have already had their leading 0b stripped by us.
-    if (base == 2 && data[0] == '0' && (data[1] == 'b' || data[1] == 'B'))
-        return ConstantNumberParseResult::Malformed;
-
-    char* end = nullptr;
-    unsigned long long value = strtoull(data, &end, base);
-
-    if (*end != 0)
-        return ConstantNumberParseResult::Malformed;
-
-    result = double(value);
-
-    if (value == ULLONG_MAX && errno == ERANGE)
-    {
-        // 'errno' might have been set before we called 'strtoull', but we don't want the overhead of resetting a TLS variable on each call
-        // so we only reset it when we get a result that might be an out-of-range error and parse again to make sure
-        errno = 0;
-        value = strtoull(data, &end, base);
-
-        if (errno == ERANGE)
-            return base == 2 ? ConstantNumberParseResult::BinOverflow : ConstantNumberParseResult::HexOverflow;
-    }
-
-    if (value >= (1ull << 53) && static_cast<unsigned long long>(result) != value)
-        return ConstantNumberParseResult::Imprecise;
-
-    return ConstantNumberParseResult::Ok;
-}
-
 static ConstantNumberParseResult parseInteger64(int64_t& result, const char* data, int base)
 {
     LUAU_ASSERT(base == 2 || base == 10 || base == 16);
@@ -4032,37 +4000,25 @@ static ConstantNumberParseResult parseInteger64(int64_t& result, const char* dat
     return ConstantNumberParseResult::Ok;
 }
 
+// moo: a number literal is the exact rational it denotes, rounded once to the nearest Q48.16 value, ties to even, with
+// no libc (moo_parse.h, docs/DESIGN.md "Literals"). Hexadecimal and binary literals are integers. Until the moo
+// bytecode version carries raw Q48.16 constants, the AST holds the double that holds the value, exactly below 2^37.
 static ConstantNumberParseResult parseDouble(double& result, const char* data)
 {
-    // binary literal
-    if (data[0] == '0' && (data[1] == 'b' || data[1] == 'B') && data[2])
-        return parseInteger(result, data + 2, 2);
-
-    // hexadecimal literal
-    if (data[0] == '0' && (data[1] == 'x' || data[1] == 'X') && data[2])
-        return parseInteger(result, data, 16); // pass in '0x' prefix, it's handled by 'strtoull'
-
-    char* end = nullptr;
-    double value = strtod(data, &end);
-
-    // trailing non-numeric characters
-    if (*end != 0)
-        return ConstantNumberParseResult::Malformed;
-
-    result = value;
-
-    // for linting, we detect integer constants that are parsed imprecisely
-    // since the check is expensive we only perform it when the number is larger than the precise integer range
-    if (value >= double(1ull << 53) && strspn(data, "0123456789") == strlen(data))
+    fixed_t raw = 0;
+    switch (moo_numparse(data, &raw))
     {
-        char repr[512];
-        snprintf(repr, sizeof(repr), "%.0f", value);
-
-        if (strcmp(repr, data) != 0)
-            return ConstantNumberParseResult::Imprecise;
+    case MOO_PARSE_MALFORMED:
+        return ConstantNumberParseResult::Malformed;
+    case MOO_PARSE_OUT_OF_RANGE:
+        return ConstantNumberParseResult::OutOfRange;
+    case MOO_PARSE_BELOW_RESOLUTION:
+        result = 0;
+        return ConstantNumberParseResult::BelowResolution;
+    default:
+        result = double(raw) * (1.0 / 65536.0);
+        return ConstantNumberParseResult::Ok;
     }
-
-    return ConstantNumberParseResult::Ok;
 }
 
 // LUAU_NOINLINE is used to limit the stack cost of parseSimpleExpr which is on the recursive expression-parsing path
@@ -5159,6 +5115,10 @@ AstExpr* Parser::parseNumber()
 
         if (result == ConstantNumberParseResult::Malformed)
             return reportExprError(start, {}, "Malformed number");
+
+        // moo: a literal beyond the largest number (about 1.4e14) is an error, never a saturated value
+        if (result == ConstantNumberParseResult::OutOfRange)
+            return reportExprError(start, {}, "Number literal out of range");
 
         AstExprConstantNumber* node = allocator.alloc<AstExprConstantNumber>(start, value, result);
         if (options.storeCstData)

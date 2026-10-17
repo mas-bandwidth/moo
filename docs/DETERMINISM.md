@@ -86,6 +86,11 @@ the surface without transcendentals (`library`). Measured 2026-10-17, all identi
 and macOS arm64; CI runs it on Linux clang on every push. Floats are still the number type, so
 the suite avoids libm functions and `^`; layer 2 removes that limit.
 
+When literals became exact, `strings.luau` and `attrib.luau` moved too (literals beyond the range are compile errors),
+nine parser, linter, pretty-printer and frontend cases that assert double literals or precision lints are skipped with
+the reason beside each, and four compiler cases had their expected decimal constants updated to the Q48.16 values,
+marked `// moo:`.
+
 Upstream tests moo changed when number became Q48.16, and why: each moved script is a moo-specific expected file in
 `tests/conformance/moo/` (basic, buffers, math, tables, errors, events, bitwise, tpack, debug, strconv, iter, vector,
 vector_library). Its upstream lines are kept, and every changed line is marked `-- moo:` with its reason (no

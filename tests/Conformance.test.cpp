@@ -1439,7 +1439,7 @@ TEST_CASE("Clear")
 
 TEST_CASE("Strings")
 {
-    runConformance("strings.luau");
+    runConformance("moo/strings.luau");
 }
 
 TEST_CASE("StringInterp")
@@ -1489,7 +1489,7 @@ TEST_CASE("Calls")
 
 TEST_CASE("Attrib")
 {
-    runConformance("attrib.luau");
+    runConformance("moo/attrib.luau");
 }
 
 // Exercises the runtime JIT inliner with constant folding

@@ -5,6 +5,7 @@
 // FPU itself (scaling by 2^16 is exact, and nearbyint rounds ties to even in the default mode).
 #include "moo.h"
 #include "moo_number.h"
+#include "moo_parse.h"
 
 #include "MooWide.h"
 
@@ -13,6 +14,8 @@
 #include <math.h>
 #include <stdint.h>
 #include <string.h>
+
+#include <string>
 
 namespace
 {
@@ -230,6 +233,114 @@ TEST_CASE("BoundaryRefusesByName")
     // the largest double below 2^47 is in range
     CHECK(moo_fromdouble(nextafter(140737488355328.0, 0.0), &v) == MOO_NUMBER_OK);
     CHECK(v == int64_t(nextafter(140737488355328.0, 0.0) * 65536.0));
+}
+
+namespace
+{
+
+// the exact decimal of raw / 2^16: at most 16 fraction digits, no trailing zeros
+std::string exactDecimal(int64_t raw, int extraHalf = 0)
+{
+    // extraHalf adds half a unit: then the denominator is 2^17
+    bool neg = raw < 0;
+    uint64_t m = neg ? uint64_t(0) - uint64_t(raw) : uint64_t(raw);
+    int bits = 16;
+    if (extraHalf)
+    {
+        m = m * 2 + 1;
+        bits = 17;
+    }
+    uint64_t ip = m >> bits;
+    uint64_t frac = m & ((uint64_t(1) << bits) - 1);
+    std::string out = (neg ? "-" : "") + std::to_string(ip);
+    if (frac)
+    {
+        out += ".";
+        while (frac)
+        {
+            frac *= 10;
+            out += char('0' + (frac >> bits));
+            frac &= (uint64_t(1) << bits) - 1;
+        }
+    }
+    return out;
+}
+
+int64_t parsed(const std::string& text, int* status = nullptr)
+{
+    fixed_t v = -12345;
+    bool neg = !text.empty() && text[0] == '-';
+    int st = moo_numparse(text.c_str() + (neg ? 1 : 0), &v);
+    if (status)
+        *status = st;
+    return neg ? -v : v;
+}
+
+} // namespace
+
+// DESIGN.md "Literals": the exact rational, rounded once, ties to even, no libc
+TEST_CASE("LiteralsAreExact")
+{
+    Lcg r;
+    for (int i = 0; i < 100000; ++i)
+    {
+        int64_t raw = int64_t(r.next() >> (1 + r.next() % 63));
+        int st = -1;
+        REQUIRE(parsed(exactDecimal(raw), &st) == raw);
+        CHECK((st == MOO_PARSE_OK || (raw == 0 && st == MOO_PARSE_OK)));
+
+        if (raw < INT64_MAX - 1)
+        {
+            // exactly half way between raw and raw + 1: to the even one
+            int64_t even = (raw & 1) ? raw + 1 : raw;
+            CHECK(parsed(exactDecimal(raw, 1)) == even);
+            // a hair above half rounds up, a hair below rounds down
+            CHECK(parsed(exactDecimal(raw, 1) + (exactDecimal(raw, 1).find('.') == std::string::npos ? ".000000000000000000000001" : "000000000000000000000001")) == raw + 1);
+        }
+    }
+
+    // the examples DESIGN.md gives, and the exponent forms
+    CHECK(parsed("0.1") == 6554);         // 6553.6 rounds up
+    CHECK(parsed("3.25") == 3 * 65536 + 16384);
+    CHECK(parsed("1e3") == 1000 * 65536);
+    CHECK(parsed("2.5e-3") == 164);       // 163.84
+    CHECK(parsed("1E+2") == 100 * 65536);
+    CHECK(parsed(".5") == 32768);
+    CHECK(parsed("5.") == 5 * 65536);
+    CHECK(parsed("0x10") == 16 * 65536);
+    CHECK(parsed("0XfF") == 255 * 65536);
+    CHECK(parsed("0b1010") == 10 * 65536);
+    CHECK(parsed("000000000000000000000000000000000000012") == 12 * 65536);
+    // 2^-17 exactly is half a unit: ties to even gives 0
+    int st = -1;
+    CHECK(parsed("0.00000762939453125", &st) == 0);
+    CHECK(st == MOO_PARSE_BELOW_RESOLUTION);
+    CHECK(parsed("0.0000076293945312500001") == 1);
+    CHECK(parsed("1e-40", &st) == 0);
+    CHECK(st == MOO_PARSE_BELOW_RESOLUTION);
+    CHECK(parsed("0e100", &st) == 0);
+    CHECK(st == MOO_PARSE_OK);
+
+    // the range: the largest number, and the first beyond it
+    CHECK(parsed(exactDecimal(INT64_MAX)) == INT64_MAX);
+    parsed("140737488355328", &st);
+    CHECK(st == MOO_PARSE_OUT_OF_RANGE);
+    parsed("1e15", &st);
+    CHECK(st == MOO_PARSE_OUT_OF_RANGE);
+    parsed("0x800000000000", &st); // 2^47
+    CHECK(st == MOO_PARSE_OUT_OF_RANGE);
+    CHECK(parsed("0x7fffffffffff") == (int64_t(0x7fffffffffff) << 16));
+    // half way between the two largest numbers is the even one; half way past the largest rounds out of range
+    CHECK(parsed(exactDecimal(INT64_MAX - 1, 1)) == INT64_MAX - 1);
+    parsed(exactDecimal(INT64_MAX, 1), &st);
+    CHECK(st == MOO_PARSE_OUT_OF_RANGE);
+
+    // malformed
+    for (const char* bad : {"", ".", "e5", "1e", "1e+", "0x", "0b2", "0xg", "1.2.3", "1 ", "+1", "1_0", "inf", "nan", "0x1.8"})
+    {
+        fixed_t v = 77;
+        CHECK_MESSAGE(moo_numparse(bad, &v) == MOO_PARSE_MALFORMED, bad);
+    }
 }
 
 TEST_SUITE_END();

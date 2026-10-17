@@ -1539,6 +1539,7 @@ RETURN R0 1
 )");
 }
 
+// moo: the expected decimal constants are their Q48.16 values (a literal rounds once to 2^-16, ties to even)
 TEST_CASE("AndOrChainCodegen")
 {
     const char* source = R"(
@@ -1552,7 +1553,7 @@ TEST_CASE("AndOrChainCodegen")
 GETIMPORT R2 2 [verticalGradientTurbulence]
 SUBRK R1 K0 [1] R2
 GETIMPORT R3 5 [waterLevel]
-ADDK R2 R3 K3 [0.014999999999999999]
+ADDK R2 R3 K3 [0.0149993896484375]
 JUMPIFNOTLT R1 R2 L0
 GETIMPORT R0 9 [Enum.Material.Sand]
 JUMPIF R0 L2
@@ -2486,6 +2487,7 @@ RETURN R0 0
 )");
 }
 
+// moo: the expected decimal constants are their Q48.16 values (a literal rounds once to 2^-16, ties to even)
 TEST_CASE("LoopContinueUntil")
 {
     ScopedFastFlag emitCallFb{FFlag::LuauEmitCallFeedback, true};
@@ -2496,7 +2498,7 @@ L0: GETIMPORT R0 2 [math.random]
 CALL R0 0 1
 LOADK R1 K3 [0.5]
 JUMPIFLT R1 R0 L1
-ADDK R0 R0 K4 [0.29999999999999999]
+ADDK R0 R0 K4 [0.3000030517578125]
 L1: LOADK R1 K3 [0.5]
 JUMPIFLT R0 R1 L2
 JUMPBACK L0
@@ -2537,8 +2539,8 @@ L0: GETIMPORT R0 2 [math.random]
 CALL R0 0 1
 LOADK R1 K3 [0.5]
 JUMPIFLT R1 R0 L1
-SUBK R0 R0 K4 [0.10000000000000001]
-L1: ADDK R0 R0 K5 [0.29999999999999999]
+SUBK R0 R0 K4 [0.100006103515625]
+L1: ADDK R0 R0 K5 [0.3000030517578125]
 LOADK R1 K3 [0.5]
 JUMPIFLT R0 R1 L2
 JUMPBACK L0
@@ -2556,7 +2558,7 @@ L0: GETIMPORT R0 2 [math.random]
 CALL R0 0 1
 LOADK R1 K3 [0.5]
 JUMPIFLT R1 R0 L1
-ADDK R0 R0 K4 [0.29999999999999999]
+ADDK R0 R0 K4 [0.3000030517578125]
 L1: NEWCLOSURE R1 P0
 CAPTURE REF R0
 CALL R1 0 1
@@ -2603,7 +2605,7 @@ L0: GETIMPORT R0 2 [math.random]
 CALLFB R0 0 1 [0]
 LOADK R1 K3 [0.5]
 JUMPIFLT R1 R0 L1
-ADDK R0 R0 K4 [0.29999999999999999]
+ADDK R0 R0 K4 [0.3000030517578125]
 L1: GETUPVAL R1 U0
 JUMPIF R1 L2
 LOADK R1 K3 [0.5]
@@ -2625,7 +2627,7 @@ L0: GETIMPORT R0 2 [math.random]
 CALLFB R0 0 1 [0]
 LOADK R1 K3 [0.5]
 JUMPIFLT R1 R0 L1
-ADDK R0 R0 K4 [0.29999999999999999]
+ADDK R0 R0 K4 [0.3000030517578125]
 L1: NEWCLOSURE R1 P0
 CAPTURE UPVAL U0
 CAPTURE REF R0
@@ -2993,6 +2995,7 @@ RETURN R0 0
     );
 }
 
+// moo: the expected decimal constants are their Q48.16 values (a literal rounds once to 2^-16, ties to even)
 TEST_CASE("AndOrOptimizations")
 {
     // the OR/ORK optimization triggers for cutoff since lhs is simple
@@ -3035,11 +3038,11 @@ end
                ),
         R"(
 LOADB R2 0
-MULK R4 R1 K1 [0.40000000000000002]
+MULK R4 R1 K1 [0.399993896484375]
 SUBRK R3 K0 [0.5] R4
 JUMPIFNOTLT R3 R0 L1
 LOADK R4 K0 [0.5]
-MULK R5 R1 K1 [0.40000000000000002]
+MULK R5 R1 K1 [0.399993896484375]
 ADD R3 R4 R5
 JUMPIFLT R0 R3 L0
 LOADB R2 0 +1
@@ -3060,11 +3063,11 @@ end
                ),
         R"(
 LOADB R2 1
-MULK R4 R1 K1 [0.40000000000000002]
+MULK R4 R1 K1 [0.399993896484375]
 SUBRK R3 K0 [0.5] R4
 JUMPIFLT R0 R3 L1
 LOADK R4 K0 [0.5]
-MULK R5 R1 K1 [0.40000000000000002]
+MULK R5 R1 K1 [0.399993896484375]
 ADD R3 R4 R5
 JUMPIFLT R3 R0 L0
 LOADB R2 0 +1
@@ -6458,6 +6461,7 @@ RETURN R0 0
     );
 }
 
+// moo: the expected decimal constants are their Q48.16 values (a literal rounds once to 2^-16, ties to even)
 TEST_CASE("LoopUnrollUnsupported")
 {
     // can't unroll loops with non-constant bounds
@@ -6513,7 +6517,7 @@ end
         R"(
 LOADN R2 1
 LOADN R0 2
-LOADK R1 K0 [0.10000000000000001]
+LOADK R1 K0 [0.100006103515625]
 FORNPREP R0 L1
 L0: FORNLOOP R0 L0
 L1: RETURN R0 0

@@ -2637,7 +2637,8 @@ TEST_CASE_FIXTURE(Fixture, "TestStringInterpolation")
     REQUIRE(1 == result.warnings.size());
 }
 
-TEST_CASE_FIXTURE(Fixture, "IntegerParsing")
+// moo: skipped; it asserts the precision lints on literals beyond 2^53; in moo those are out of range, a parse error
+TEST_CASE_FIXTURE(Fixture, "IntegerParsing" * doctest::skip())
 {
     LintResult result = lint(R"(
 local _ = 0b10000000000000000000000000000000000000000000000000000000000000000
@@ -2649,7 +2650,8 @@ local _ = 0x10000000000000000
     CHECK_EQ(result.warnings[1].text, "Hexadecimal number literal exceeded available precision and was truncated to 2^64");
 }
 
-TEST_CASE_FIXTURE(Fixture, "IntegerParsingDecimalImprecise")
+// moo: skipped; it asserts the precision lint on decimal literals beyond 2^53; in moo those are out of range, a parse error
+TEST_CASE_FIXTURE(Fixture, "IntegerParsingDecimalImprecise" * doctest::skip())
 {
     LintResult result = lint(R"(
 local _ = 10000000000000000000000000000000000000000000000000000000000000000
@@ -2685,7 +2687,8 @@ local _ = -9223372036854775808
     CHECK_EQ(result.warnings[4].location.begin.line, 11);
 }
 
-TEST_CASE_FIXTURE(Fixture, "IntegerParsingHexImprecise")
+// moo: skipped; it asserts the precision lint on hex literals beyond 2^53; in moo those are out of range, a parse error
+TEST_CASE_FIXTURE(Fixture, "IntegerParsingHexImprecise" * doctest::skip())
 {
     LintResult result = lint(R"(
 local _ = 0x1234567812345678
