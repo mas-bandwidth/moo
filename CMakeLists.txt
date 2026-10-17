@@ -341,7 +341,7 @@ if(LUAU_BUILD_TESTS)
     target_compile_definitions(Luau.Conformance PRIVATE LUAU_CONFORMANCE_SOURCE_DIR="${LUAU_CONFORMANCE_SOURCE_DIR}")
 
     # moo: its own tests and the determinism suite, on the VM and the compiler alone (the push gate)
-    target_sources(Moo.Test PRIVATE tests/Moo.test.cpp tests/Determinism.test.cpp tests/moo_main.cpp)
+    target_sources(Moo.Test PRIVATE tests/Moo.test.cpp tests/MooNumber.test.cpp tests/Determinism.test.cpp tests/moo_main.cpp)
     target_compile_options(Moo.Test PRIVATE ${LUAU_OPTIONS})
     target_compile_definitions(Moo.Test PRIVATE DOCTEST_CONFIG_USE_STD_HEADERS LUAU_CONFORMANCE_SOURCE_DIR="${LUAU_CONFORMANCE_SOURCE_DIR}")
     target_include_directories(Moo.Test PRIVATE extern VM/src)

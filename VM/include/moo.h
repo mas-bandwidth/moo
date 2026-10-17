@@ -20,3 +20,19 @@ LUA_API void moo_setrandomseed(lua_State* L, uint64_t seed);
 // thread is 0. Non-collectable values (nil, boolean, number, vector, light userdata) give 0.
 // tostring prints it as "table: #123".
 LUA_API uint64_t moo_objectseq(lua_State* L, int idx);
+
+// The boundary between host floating point and moo's number (docs/DESIGN.md, "Boundary"). A number
+// is the raw signed 64-bit Q48.16 value (fixed's fixed_t); its domain is [-INT64_MAX, INT64_MAX].
+#define MOO_NUMBER_OK 0
+#define MOO_NUMBER_NAN 1          // the input is a NaN
+#define MOO_NUMBER_INFINITE 2     // the input is an infinity
+#define MOO_NUMBER_OUT_OF_RANGE 3 // the input rounds to a value outside the domain
+
+// Decodes the IEEE-754 bits of x in integer arithmetic and rounds once to the nearest Q48.16 value,
+// ties to even. Negative zero gives 0; subnormals and anything below half a unit give 0. Writes *out
+// only when it returns MOO_NUMBER_OK.
+LUA_API int moo_fromdouble(double x, int64_t* out);
+LUA_API int moo_fromfloat(float x, int64_t* out);
+
+// The double nearest to the number, ties to even: exact for magnitudes below 2^37.
+LUA_API double moo_todouble(int64_t n);
