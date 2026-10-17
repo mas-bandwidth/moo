@@ -60,6 +60,29 @@ means no second set of conversions in the GC's work accounting (which is also in
 no change to the hot allocation path. `lua_gc` and `gcinfo` report it, so both are deterministic.
 `lua_allocationrate` returns -1 (cannot be measured), always.
 
+**The determinism suite.** `tests/Determinism.test.cpp` (doctest `DeterminismSuite`, in
+`Luau.Conformance`) runs each adversarial program in `tests/determinism` in a fresh VM with a fixed
+host seed and logging host functions, twice, and takes two hashes: the **effects** (every log line,
+every destructor with the GC step boundaries, `lua_close`'s destructors) and the **state** (every GC
+object's header mid-cycle, then after a full collection every object's header and contents: table
+slots, strings, buffers, userdata, closures, threads; and the GC counters). Both must equal
+`tests/determinism/expected.txt` everywhere. The programs: object-keyed tables of every
+collectable kind with deletes and rehash (`objectkeys`), allocation churn with weak keys, weak
+values, weak both and userdata destructors in five size classes (`gcchurn`), coroutines
+(generators, yields across `pcall`, errors, close, wrap, nesting: `coroutines`), and the rest of
+the surface without transcendentals (`library`). Measured 2026-10-17, all identical:
+
+| program | effects | state | hulk gcc 13.3 | hulk clang 18.1 | hulk clang Debug ASan+UBSan | mini-m5-1 arm64 Apple clang 21 |
+|---|---|---|---|---|---|---|
+| coroutines | `c2101c58c9141949` | `d59008475cc0efa8` | same | same | same | same |
+| gcchurn | `3fb416325297900d` | `e044604535a6a1e5` | same | same | same | same |
+| library | `009401661dac79ec` | `3517c3f5eeac8dfa` | same | same | same | same |
+| objectkeys | `c33c0a917acf2ebf` | `9fac96c3362df53c` | same | same | same | same |
+
+`MOO_DETERMINISM_PRINT=1` prints the table's lines. The nightly runs it on Linux gcc, Linux clang
+and macOS arm64; CI runs it on Linux clang on every push. Floats are still the number type, so
+the suite avoids libm functions and `^`; layer 2 removes that limit.
+
 Upstream tests moo changed, and why:
 
 - `tests/conformance/datetime.luau` tested `os`. It is replaced by the moo-specific expected
