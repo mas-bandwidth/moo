@@ -225,8 +225,10 @@ lua_State* lua_newstate(lua_Alloc allocator, void* ud)
         lua_State* L = &((LG*)l)->l;
         global_State* g = &((LG*)l)->g;
 
+        L->gcseq = 0;
         L->tt = LUA_TTHREAD;
         L->marked = g->currentwhite = bit2mask(WHITE0BIT, FIXEDBIT);
+        g->gcseq = 1;
 
         L->global = g;
         g->mainthread = L;
@@ -277,8 +279,10 @@ lua_State* lua_newstate(lua_Alloc allocator, void* ud)
             return NULL;
         L = (lua_State*)l;
         g = &((LG*)L)->g;
+        L->gcseq = 0;
         L->tt = LUA_TTHREAD;
         L->marked = g->currentwhite = bit2mask(WHITE0BIT, FIXEDBIT);
+        g->gcseq = 1;
         L->memcat = 0;
         preinit_state(L, g);
         g->frealloc = allocator;

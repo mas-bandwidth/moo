@@ -14,3 +14,9 @@
 // the call may come before or after the libraries are opened. math.randomseed in a script
 // still reseeds the generator.
 LUA_API void moo_setrandomseed(lua_State* L, uint64_t seed);
+
+// The creation number of the collectable value at idx (a table, function, userdata, thread,
+// buffer, string, ...): the per-VM sequence number it was given when it was allocated. The main
+// thread is 0. Non-collectable values (nil, boolean, number, vector, light userdata) give 0.
+// tostring prints it as "table: #123".
+LUA_API uint64_t moo_objectseq(lua_State* L, int idx);

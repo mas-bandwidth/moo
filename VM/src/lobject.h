@@ -14,8 +14,11 @@ typedef union GCObject GCObject;
 ** Common Header for all collectible objects (in macro form, to be included in other objects)
 */
 // clang-format off
+// moo: gcseq is the object's creation number, from a per-VM counter (global_State::gcseq).
+// Object keys hash by it and tostring prints it, never the address (docs/DETERMINISM.md, 1 and 6).
+// It comes first so that each object's own small fields pack after the three bytes below.
 #define CommonHeader \
-     uint8_t tt; uint8_t marked; uint8_t memcat
+     uint64_t gcseq; uint8_t tt; uint8_t marked; uint8_t memcat
 // clang-format on
 
 /*
@@ -315,6 +318,9 @@ typedef struct Udata
     int len;
 
     struct LuaTable* metatable;
+
+    // moo: keeps data at offset 32, 16-byte aligned, after the 8-byte creation number
+    void* moopadding;
 
     // userdata is allocated right after the header
     // while the alignment is only 8 here, for sizes starting at 16 bytes, 16 byte alignment is provided
