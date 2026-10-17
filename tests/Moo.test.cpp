@@ -6,6 +6,7 @@
 #include "lualib.h"
 #include "luacode.h"
 #include "moo.h"
+#include "moo_number.h"
 
 #include "fixed/fixed.h"
 
@@ -471,6 +472,36 @@ TEST_CASE("FixedIsVendoredSaturating")
     CHECK(fixMul(FIX_MAX, 2 * FIX_ONE) == FIX_MAX);
     CHECK(fixMul(FIX_MAX, -2 * FIX_ONE) == FIX_MIN);
     CHECK(fixDiv(FIX_ONE, 4 * FIX_ONE) == FIX_ONE / 4);
+}
+
+// DESIGN.md "Exact integers", tla/NumericFor.tla: the trip count is computed exactly before the loop starts
+TEST_CASE("ForTripCountIsExact")
+{
+    MooState s;
+    // 0.1 is 6554/65536, so the tenth step passes 1: ten iterations, the last index 0.8999...
+    CHECK(mooRun(s.L, "local c = 0 for i = 0, 1, 0.1 do c += 1 end return c") == "10");
+    CHECK(mooRun(s.L, "local c = 0 for i = 1, 10 do c += 1 end return c") == "10");
+    CHECK(mooRun(s.L, "local c = 0 for i = 10, 1, -3 do c += 1 end return c") == "4");
+    CHECK(mooRun(s.L, "local c = 0 for i = 1, 0 do c += 1 end return c") == "0");
+    // at the edge of the range the index never steps past the limit, so it never saturates into one more iteration
+    CHECK(mooRun(s.L, "local c, last = 0, 0 for i = math.huge - 0.5, math.huge, 1 do c += 1 last = i end return c .. ' ' .. tostring(last == math.huge - 0.5)") == "1 true");
+    CHECK(mooRun(s.L, "local c = 0 for i = -math.huge, -math.huge + 3, 1 do c += 1 end return c") == "4");
+    // a zero step is a named error, never an endless loop
+    CHECK(mooRun(s.L, "for i = 1, 10, 0 do end return 1").find("'for' step is zero") != std::string::npos);
+    CHECK(mooRun(s.L, "local z = 0 for i = 1, 10, z do end return 1").find("'for' step is zero") != std::string::npos);
+    // the loop variable sees each index exactly
+    CHECK(mooRun(s.L, "local t = {} for i = 0.5, 2, 0.5 do t[#t + 1] = i end return table.concat(t, ',')") == "0.5,1,1.5,2");
+}
+
+TEST_CASE("ForTripsFormula")
+{
+    CHECK(moo_numfortrips(0, 65536, 6554) == 10);
+    CHECK(moo_numfortrips(-INT64_MAX, INT64_MAX, 1) == UINT64_MAX);
+    CHECK(moo_numfortrips(INT64_MAX, -INT64_MAX, -1) == UINT64_MAX);
+    CHECK(moo_numfortrips(INT64_MAX - 32768, INT64_MAX, 65536) == 1);
+    CHECK(moo_numfortrips(5, 4, 1) == 0);
+    CHECK(moo_numfortrips(4, 5, -1) == 0);
+    CHECK(moo_numfortrips(7, 7, -INT64_MAX) == 1);
 }
 
 TEST_SUITE_END();

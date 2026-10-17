@@ -2521,7 +2521,8 @@ reentry:
                 VM_CASE_INSTRUCTION insn = *pc++;
                 VM_CASE_STKID ra = VM_REG(LUAU_INSN_A(insn));
 
-                if (!ttisnumber(ra + 0) || !ttisnumber(ra + 1) || !ttisnumber(ra + 2))
+                // moo: a zero step is the named error "'for' step is zero", raised by luaV_prepareFORN
+                if (!ttisnumber(ra + 0) || !ttisnumber(ra + 1) || !ttisnumber(ra + 2) || nvalue(ra + 1) == 0)
                 {
                     // slow-path: can convert arguments to numbers and trigger Lua errors
                     // Note: this doesn't reallocate stack so we don't need to recompute ra/base
@@ -2530,12 +2531,12 @@ reentry:
                     luaV_prepareFORN(L, ra + 0, ra + 1, ra + 2);
                 }
 
-                lua_Number limit = nvalue(ra + 0);
-                lua_Number step = nvalue(ra + 1);
-                lua_Number idx = nvalue(ra + 2);
-
-                // Note: make sure the loop condition is exactly the same between this and LOP_FORNLOOP so that we handle NaN/etc. consistently
-                pc += (step > 0 ? idx <= limit : limit <= idx) ? 0 : LUAU_INSN_D(insn);
+                // moo: the trip count is exact, computed here once (tla/NumericFor.tla); ra + 0, the limit, is replaced by the
+                // iterations left after this one, as raw bits, so the index never steps past the limit and never saturates
+                uint64_t trips = moo_numfortrips(nvalue(ra + 2), nvalue(ra + 0), nvalue(ra + 1));
+                if (trips != 0)
+                    setnvalue(ra + 0, lua_Number(trips - 1));
+                pc += trips != 0 ? 0 : LUAU_INSN_D(insn);
                 VM_ASSERT_PC(pc);
                 VM_NEXT();
             }
@@ -2549,17 +2550,13 @@ reentry:
                 VM_CASE_STKID ra = VM_REG(LUAU_INSN_A(insn));
                 LUAU_ASSERT(ttisnumber(ra + 0) && ttisnumber(ra + 1) && ttisnumber(ra + 2));
 
-                lua_Number limit = nvalue(ra + 0);
-                lua_Number step = nvalue(ra + 1);
-                lua_Number prev = nvalue(ra + 2);
-                lua_Number idx = luai_numadd(prev, step);
+                // moo: count down the iterations LOP_FORNPREP computed; the next index is exact, between from and the limit
+                uint64_t left = uint64_t(nvalue(ra + 0));
 
-                setnvalue(ra + 2, idx);
-
-                // Note: make sure the loop condition is exactly the same between this and LOP_FORNPREP so that we handle NaN/etc. consistently
-                // moo: an index that saturated cannot advance, so the loop ends there (the exact trip count is a later layer 3 PR)
-                if ((step > 0 ? idx <= limit : limit <= idx) && (idx != prev || step == 0))
+                if (left != 0)
                 {
+                    setnvalue(ra + 0, lua_Number(left - 1));
+                    setnvalue(ra + 2, nvalue(ra + 2) + nvalue(ra + 1));
                     pc += LUAU_INSN_D(insn);
                     VM_ASSERT_PC(pc);
                     VM_NEXT();
