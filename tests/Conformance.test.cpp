@@ -1971,10 +1971,12 @@ TEST_CASE("Vector")
     }
     SUBCASE("IrHooks")
     {
+#ifdef MOO_CODEGEN // moo: the IR hooks build native code, which is excluded (MOO_CODEGEN)
         nativeOpts.hooks.vectorAccessBytecodeType = vectorAccessBytecodeType;
         nativeOpts.hooks.vectorNamecallBytecodeType = vectorNamecallBytecodeType;
         nativeOpts.hooks.vectorAccess = vectorAccess;
         nativeOpts.hooks.vectorNamecall = vectorNamecall;
+#endif
 
         SUBCASE("O0")
         {
@@ -4674,6 +4676,10 @@ TEST_CASE("NativeTypeAnnotations")
 
 TEST_CASE("NativeUserdata")
 {
+    // moo: this test checks native code generation, which is excluded (MOO_CODEGEN)
+    if (!luau_codegen_supported())
+        return;
+
     lua_CompileOptions copts = defaultOptions();
     Luau::CodeGen::CompilationOptions nativeOpts = defaultCodegenOptions();
 
@@ -4697,6 +4703,7 @@ TEST_CASE("NativeUserdata")
     }
     SUBCASE("IrHooks")
     {
+#ifdef MOO_CODEGEN // moo: the IR hooks build native code, which is excluded (MOO_CODEGEN)
         nativeOpts.hooks.vectorAccessBytecodeType = vectorAccessBytecodeType;
         nativeOpts.hooks.vectorNamecallBytecodeType = vectorNamecallBytecodeType;
         nativeOpts.hooks.vectorAccess = vectorAccess;
@@ -4708,6 +4715,7 @@ TEST_CASE("NativeUserdata")
         nativeOpts.hooks.userdataAccess = userdataAccess;
         nativeOpts.hooks.userdataMetamethod = userdataMetamethod;
         nativeOpts.hooks.userdataNamecall = userdataNamecall;
+#endif
 
         nativeOpts.userdataTypes = kUserdataRunTypes;
 
@@ -5219,6 +5227,10 @@ TEST_CASE("IrInstructionLimit")
 
 TEST_CASE("BytecodeDistributionPerFunctionTest")
 {
+    // moo: this test checks native code generation, which is excluded (MOO_CODEGEN)
+    if (!luau_codegen_supported())
+        return;
+
     const char* source = R"(
 local function first(n, p)
   local t = {}

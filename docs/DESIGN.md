@@ -192,10 +192,21 @@ by Luau's `string.format` and stays unsupported. `%q` of a number uses `tostring
 
 ## Native codegen
 
-Off. moo runs the interpreter only (`luau_codegen_supported` returns false, and the CMake build
-does not link CodeGen into the VM by default) until the code generator's IR and lowering are
-rebuilt on `fixed_t`. The JIT inliner is off with it. CodeGen's own unit tests keep running
-against the unmodified upstream code until then, so upstream merges into CodeGen stay checked.
+**Excluded from the build** (Glenn, 2026-10-17). Luau's code generator computes on doubles, and
+moo's number is fixed point; code that computes wrong answers is worse than absent code. So:
+
+- the CMake option `MOO_CODEGEN` is off by default, and turning it on is a configure error;
+- `Luau.CodeGen` (and the Makefile's `libluaucodegen.a`) is one file,
+  `CodeGen/src/moo_codegen_off.cpp`, which answers every entry point with "not supported"
+  (`luau_codegen_supported` returns 0, `compile` returns `CodeGenNotInitialized`), so the CLI and
+  the tests take the interpreter path they already have;
+- CodeGen's sources stay in the tree, unbuilt, so upstream merges into them stay mechanical;
+- CodeGen's tests (assembly builders, IR builder and lowering, register allocation, code
+  allocators) are not built; the conformance tests that exercise codegen return early when it
+  is not supported;
+- `moo --codegen*` and `--jit-inliner` are refused by name.
+
+A later layer reinstates it, rebuilt on the fixed type (no FMA, integer lowering), with its tests.
 
 ## Analyzer
 

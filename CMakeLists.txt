@@ -15,6 +15,13 @@ option(LUAU_EXTERN_C "Use extern C for all APIs" OFF)
 option(LUAU_BUILD_SHARED "Build as a shared library" OFF)
 
 # Compile time options for Luau features
+# moo: native code generation computes on doubles, and moo's number is fixed point. It is excluded
+# from the build until a later layer rebuilds it on the fixed type (docs/DESIGN.md, "Native codegen").
+option(MOO_CODEGEN "Build native code generation (not available in moo yet)" OFF)
+if(MOO_CODEGEN)
+    message(FATAL_ERROR "MOO_CODEGEN: native code generation is excluded from moo until it is rebuilt on fixed point (docs/DESIGN.md)")
+endif()
+
 option(LUAU_VECTOR_DOUBLE "Use 64-bit doubles for vector components" OFF)
 option(LUAU_VECTOR_FOUR_WIDE "Enable 4-wide mode for vectors, adding a 'w' component" OFF)
 
