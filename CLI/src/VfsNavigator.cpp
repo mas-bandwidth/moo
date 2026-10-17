@@ -10,8 +10,8 @@
 #include <string>
 #include <string_view>
 
-const std::array<std::string_view, 2> kSuffixes = {".luau", ".lua"};
-const std::array<std::string_view, 2> kInitSuffixes = {"/init.luau", "/init.lua"};
+const std::array<std::string_view, 3> kSuffixes = {".moo", ".luau", ".lua"};
+const std::array<std::string_view, 3> kInitSuffixes = {"/init.moo", "/init.luau", "/init.lua"};
 
 struct ResolvedRealPath
 {

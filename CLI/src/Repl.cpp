@@ -575,6 +575,10 @@ static std::string getFilePath(const char* name)
 
     std::string base = name;
 
+    std::string mooPath = base + ".moo";
+    if (isFile(mooPath))
+        return mooPath;
+
     std::string luauPath = base + ".luau";
     if (isFile(luauPath))
         return luauPath;

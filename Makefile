@@ -68,19 +68,19 @@ TEST_LINK_CODEGEN_TARGET=$(BUILD)/luau-test-link-codegen
 
 REPL_CLI_SOURCES=CLI/src/FileUtils.cpp CLI/src/Flags.cpp CLI/src/Profiler.cpp CLI/src/Coverage.cpp CLI/src/Counters.cpp CLI/src/Repl.cpp CLI/src/ReplEntry.cpp CLI/src/ReplRequirer.cpp CLI/src/VfsNavigator.cpp
 REPL_CLI_OBJECTS=$(REPL_CLI_SOURCES:%=$(BUILD)/%.o)
-REPL_CLI_TARGET=$(BUILD)/luau
+REPL_CLI_TARGET=$(BUILD)/moo
 
 ANALYZE_CLI_SOURCES=CLI/src/FileUtils.cpp CLI/src/Flags.cpp CLI/src/Analyze.cpp CLI/src/AnalyzeRequirer.cpp CLI/src/VfsNavigator.cpp
 ANALYZE_CLI_OBJECTS=$(ANALYZE_CLI_SOURCES:%=$(BUILD)/%.o)
-ANALYZE_CLI_TARGET=$(BUILD)/luau-analyze
+ANALYZE_CLI_TARGET=$(BUILD)/moo-analyze
 
 COMPILE_CLI_SOURCES=CLI/src/FileUtils.cpp CLI/src/Flags.cpp CLI/src/Compile.cpp
 COMPILE_CLI_OBJECTS=$(COMPILE_CLI_SOURCES:%=$(BUILD)/%.o)
-COMPILE_CLI_TARGET=$(BUILD)/luau-compile
+COMPILE_CLI_TARGET=$(BUILD)/moo-compile
 
 BYTECODE_CLI_SOURCES=CLI/src/FileUtils.cpp CLI/src/Flags.cpp CLI/src/Bytecode.cpp
 BYTECODE_CLI_OBJECTS=$(BYTECODE_CLI_SOURCES:%=$(BUILD)/%.o)
-BYTECODE_CLI_TARGET=$(BUILD)/luau-bytecode
+BYTECODE_CLI_TARGET=$(BUILD)/moo-bytecode
 
 MUTATOR_LIBS=build/libprotobuf-mutator/src/libfuzzer/libprotobuf-mutator-libfuzzer.a build/libprotobuf-mutator/src/libprotobuf-mutator.a
 
@@ -96,13 +96,13 @@ ifneq ($(opt),)
 endif
 
 OBJECTS=$(COMMON_OBJECTS) $(AST_OBJECTS) $(COMPILER_OBJECTS) $(BYTECODE_OBJECTS) $(JITINLINER_OBJECTS) $(CONFIG_OBJECTS) $(ANALYSIS_OBJECTS) $(CODEGEN_OBJECTS) $(VM_OBJECTS) $(REQUIRE_OBJECTS) $(ISOCLINE_OBJECTS) $(TESTS_OBJECTS) $(REPL_CLI_OBJECTS) $(ANALYZE_CLI_OBJECTS) $(COMPILE_CLI_OBJECTS) $(BYTECODE_CLI_OBJECTS) $(TEST_LINK_VM_OBJECTS) $(TEST_LINK_CODEGEN_OBJECTS) $(FUZZ_OBJECTS)
-EXECUTABLE_ALIASES = luau luau-analyze luau-compile luau-bytecode luau-tests
+EXECUTABLE_ALIASES = moo moo-analyze moo-compile moo-bytecode luau-tests
 
 # `LUAU_CONFORMANCE_SOURCE_DIR` is configured at build time
 LUAU_CONFORMANCE_SOURCE_DIR = "\"$(realpath .)/tests/conformance\""
 
 # common flags
-CXXFLAGS=-g -Wall
+CXXFLAGS=-g -Wall -ffp-contract=off
 LDFLAGS=
 
 # some gcc versions treat var in `if (type var = val)` as unused
@@ -206,9 +206,9 @@ aliases: $(EXECUTABLE_ALIASES)
 test: $(TESTS_TARGET) $(TEST_LINK_VM_TARGET) $(TEST_LINK_CODEGEN_TARGET) golden
 	$(TESTS_TARGET) $(TESTS_ARGS)
 
-golden: luau luau-analyze
-	python3 -m tools.golden.selftest --luau $(abspath luau) --luau-analyze $(abspath luau-analyze)
-	python3 -m tools.golden --luau $(abspath luau) --luau-analyze $(abspath luau-analyze)
+golden: moo moo-analyze
+	python3 -m tools.golden.selftest --luau $(abspath moo) --luau-analyze $(abspath moo-analyze)
+	python3 -m tools.golden --luau $(abspath moo) --luau-analyze $(abspath moo-analyze)
 
 conformance: $(TESTS_TARGET)
 	$(TESTS_TARGET) $(TESTS_ARGS) -ts=Conformance
@@ -235,34 +235,34 @@ coverage: $(TESTS_TARGET) $(COMPILE_CLI_TARGET)
 	mv default.profraw codegen-x64.profraw
 	llvm-profdata merge *.profraw -o default.profdata
 	rm *.profraw
-	llvm-cov show -format=html -show-instantiations=false -show-line-counts=true -show-region-summary=false -ignore-filename-regex=\(tests\|extern\|CLI\)/.* -output-dir=coverage --instr-profile default.profdata -object build/coverage/luau-tests -object build/coverage/luau-compile
-	llvm-cov report -ignore-filename-regex=\(tests\|extern\|CLI\)/.* -show-region-summary=false --instr-profile default.profdata -object build/coverage/luau-tests -object build/coverage/luau-compile
-	llvm-cov export -ignore-filename-regex=\(tests\|extern\|CLI\)/.* -format lcov --instr-profile default.profdata -object build/coverage/luau-tests -object build/coverage/luau-compile >coverage.info
+	llvm-cov show -format=html -show-instantiations=false -show-line-counts=true -show-region-summary=false -ignore-filename-regex=\(tests\|extern\|CLI\)/.* -output-dir=coverage --instr-profile default.profdata -object build/coverage/luau-tests -object build/coverage/moo-compile
+	llvm-cov report -ignore-filename-regex=\(tests\|extern\|CLI\)/.* -show-region-summary=false --instr-profile default.profdata -object build/coverage/luau-tests -object build/coverage/moo-compile
+	llvm-cov export -ignore-filename-regex=\(tests\|extern\|CLI\)/.* -format lcov --instr-profile default.profdata -object build/coverage/luau-tests -object build/coverage/moo-compile >coverage.info
 
 format:
 	git ls-files '*.h' '*.cpp' | xargs clang-format-11 -i
 
 FUZZ_OBJECTS: $(MUTATOR_LIBS)
 
-luau-size: luau
-	nm --print-size --demangle luau | grep ' t void luau_execute<false>' | awk -F ' ' '{sum += strtonum("0x" $$2)} END {print sum " interpreter" }'
-	nm --print-size --demangle luau | grep ' t luauF_' | awk -F ' ' '{sum += strtonum("0x" $$2)} END {print sum " builtins" }'
+luau-size: moo
+	nm --print-size --demangle moo | grep ' t void luau_execute<false>' | awk -F ' ' '{sum += strtonum("0x" $$2)} END {print sum " interpreter" }'
+	nm --print-size --demangle moo | grep ' t luauF_' | awk -F ' ' '{sum += strtonum("0x" $$2)} END {print sum " builtins" }'
 
 check-source:
 	git ls-files '*.h' '*.cpp' | xargs -I+ sh -c 'grep -L LICENSE +'
 	git ls-files '*.h' ':!:extern' | xargs -I+ sh -c 'grep -L "#pragma once" +'
 
 # executable target aliases
-luau: $(REPL_CLI_TARGET)
+moo: $(REPL_CLI_TARGET)
 	ln -fs $^ $@
 
-luau-analyze: $(ANALYZE_CLI_TARGET)
+moo-analyze: $(ANALYZE_CLI_TARGET)
 	ln -fs $^ $@
 
-luau-compile: $(COMPILE_CLI_TARGET)
+moo-compile: $(COMPILE_CLI_TARGET)
 	ln -fs $^ $@
 
-luau-bytecode: $(BYTECODE_CLI_TARGET)
+moo-bytecode: $(BYTECODE_CLI_TARGET)
 	ln -fs $^ $@
 
 luau-tests: $(TESTS_TARGET) $(TEST_LINK_VM_TARGET) $(TEST_LINK_CODEGEN_TARGET)

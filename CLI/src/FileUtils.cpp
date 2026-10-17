@@ -452,7 +452,7 @@ std::vector<std::string> getSourceFiles(int argc, char** argv)
                 {
                     std::string ext = getExtension(name);
 
-                    if (ext == ".lua" || ext == ".luau")
+                    if (ext == ".lua" || ext == ".luau" || ext == ".moo")
                         files.push_back(name);
                 }
             );

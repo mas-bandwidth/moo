@@ -32,6 +32,11 @@ endif()
 
 project(Luau LANGUAGES CXX C)
 
+# moo: no floating-point contraction (FMA) anywhere, so every platform rounds the same way
+if(NOT MSVC)
+    add_compile_options(-ffp-contract=off)
+endif()
+
 if (LUAU_BUILD_SHARED)
     add_library(Luau.Common SHARED)
     add_library(Luau.CLI.lib SHARED)
@@ -69,12 +74,12 @@ if(LUAU_BUILD_CLI)
     add_executable(Luau.Bytecode.CLI)
 
     # This also adds target `name` on Linux/macOS and `name.exe` on Windows
-    set_target_properties(Luau.Repl.CLI PROPERTIES OUTPUT_NAME luau)
-    set_target_properties(Luau.Analyze.CLI PROPERTIES OUTPUT_NAME luau-analyze)
-    set_target_properties(Luau.Ast.CLI PROPERTIES OUTPUT_NAME luau-ast)
-    set_target_properties(Luau.Reduce.CLI PROPERTIES OUTPUT_NAME luau-reduce)
-    set_target_properties(Luau.Compile.CLI PROPERTIES OUTPUT_NAME luau-compile)
-    set_target_properties(Luau.Bytecode.CLI PROPERTIES OUTPUT_NAME luau-bytecode)
+    set_target_properties(Luau.Repl.CLI PROPERTIES OUTPUT_NAME moo)
+    set_target_properties(Luau.Analyze.CLI PROPERTIES OUTPUT_NAME moo-analyze)
+    set_target_properties(Luau.Ast.CLI PROPERTIES OUTPUT_NAME moo-ast)
+    set_target_properties(Luau.Reduce.CLI PROPERTIES OUTPUT_NAME moo-reduce)
+    set_target_properties(Luau.Compile.CLI PROPERTIES OUTPUT_NAME moo-compile)
+    set_target_properties(Luau.Bytecode.CLI PROPERTIES OUTPUT_NAME moo-bytecode)
 endif()
 
 if(LUAU_BUILD_TESTS)
