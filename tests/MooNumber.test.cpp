@@ -1,10 +1,12 @@
 // This file is part of moo, a fork of the Luau programming language; moo's changes are licensed under MIT License; see LICENSE-moo.txt for details
 //
 // Tests of moo's number operations (VM/src/moo_number.h) and the boundary (moo_fromdouble,
-// moo_todouble), against independent references: 128-bit integer arithmetic, and for the boundary the
+// moo_todouble), against independent references: two-word integer arithmetic (MooWide.h), and for the boundary the
 // FPU itself (scaling by 2^16 is exact, and nearbyint rounds ties to even in the default mode).
 #include "moo.h"
 #include "moo_number.h"
+
+#include "MooWide.h"
 
 #include "doctest.h"
 
@@ -26,21 +28,45 @@ struct Lcg
     }
 };
 
-int64_t clampRef(__int128 v)
+int64_t addRef(int64_t a, int64_t b)
 {
-    if (v > INT64_MAX)
-        return INT64_MAX;
-    if (v < -INT64_MAX)
-        return -INT64_MAX;
-    return int64_t(v);
+    return mooClampWide(MooWide::from(a) + MooWide::from(b));
 }
 
-__int128 floorDivRef(__int128 a, __int128 b)
+int64_t subRef(int64_t a, int64_t b)
 {
-    __int128 q = a / b;
+    return mooClampWide(MooWide::from(a) - MooWide::from(b));
+}
+
+int64_t floorDivRef(int64_t a, int64_t b)
+{
+    int64_t q = a / b;
     if ((a % b != 0) && ((a < 0) != (b < 0)))
         q -= 1;
     return q;
+}
+
+MooWide absWide(MooWide v)
+{
+    return v.negative() ? -v : v;
+}
+
+// fixDiv's contract, checked without a wide division: q truncates (a * 2^16) / b toward zero, saturating
+bool divIsTruncation(int64_t a, int64_t b, int64_t q)
+{
+    MooWide n = absWide(MooWide::from(a).shl(16));
+    MooWide ub = absWide(MooWide::from(b));
+    MooWide uq = absWide(MooWide::from(q));
+    bool neg = (a < 0) != (b < 0);
+    if (a != 0 && q != 0 && (q < 0) != neg)
+        return false;
+    // |q| * |b| <= |n|, unless saturated
+    MooWide low = mooMulWide(int64_t(uq.lo), int64_t(ub.lo));
+    if (q == INT64_MAX || q == -INT64_MAX)
+        return low <= n;
+    // |n| < (|q| + 1) * |b|
+    MooWide high = low + ub;
+    return low <= n && n < high;
 }
 
 const int64_t kEdges[] = {0, 1, -1, 2, -2, 65535, 65536, -65536, 65537, 1ll << 31, -(1ll << 31), 1ll << 47, -(1ll << 47), (1ll << 62) + 12345,
@@ -60,14 +86,14 @@ TEST_CASE("NumberAddSubSaturate")
             continue;
         if (i % 3 == 0)
             b >>= 20;
-        CHECK(moo_numadd(a, b) == clampRef(__int128(a) + b));
-        CHECK(moo_numsub(a, b) == clampRef(__int128(a) - b));
+        CHECK(moo_numadd(a, b) == addRef(a, b));
+        CHECK(moo_numsub(a, b) == subRef(a, b));
     }
     for (int64_t a : kEdges)
         for (int64_t b : kEdges)
         {
-            CHECK(moo_numadd(a, b) == clampRef(__int128(a) + b));
-            CHECK(moo_numsub(a, b) == clampRef(__int128(a) - b));
+            CHECK(moo_numadd(a, b) == addRef(a, b));
+            CHECK(moo_numsub(a, b) == subRef(a, b));
         }
     // the domain never reaches INT64_MIN
     CHECK(moo_numadd(-INT64_MAX, -1) == -INT64_MAX);
@@ -93,10 +119,16 @@ TEST_CASE("NumberMulDivAreFixed")
         int64_t a = int64_t(r.next()) >> (r.next() % 40), b = int64_t(r.next()) >> (r.next() % 40);
         if (a == INT64_MIN || b == INT64_MIN)
             continue;
-        __int128 p = __int128(a) * b + 32768;
-        CHECK(moo_nummul(a, b) == clampRef(p >> 16));
+        MooWide p = mooMulWide(a, b) + MooWide::from(32768);
+        CHECK(moo_nummul(a, b) == mooClampWide(p.shr(16)));
         if (b != 0)
-            CHECK(moo_numdiv(a, b) == clampRef((__int128(a) << 16) / b));
+        {
+            int64_t q = moo_numdiv(a, b);
+            CHECK(divIsTruncation(a, b, q));
+            // the reference refuses a quotient one unit away from the truncated one
+            if (q != INT64_MAX && q != -INT64_MAX && q != 0)
+                CHECK(!divIsTruncation(a, b, q > 0 ? q + 1 : q - 1));
+        }
     }
 }
 
@@ -108,9 +140,9 @@ TEST_CASE("NumberFloorDivModAreExact")
         int64_t a = int64_t(r.next()) >> (r.next() % 50), b = int64_t(r.next()) >> (r.next() % 60);
         if (a == INT64_MIN || b == INT64_MIN || b == 0)
             continue;
-        __int128 q = floorDivRef(a, b);
-        CHECK(moo_numidiv(a, b) == clampRef(q * 65536));
-        CHECK(moo_nummod(a, b) == int64_t(__int128(a) - q * b));
+        int64_t q = floorDivRef(a, b);
+        CHECK(moo_numidiv(a, b) == mooClampWide(mooMulWide(q, 65536)));
+        CHECK(moo_nummod(a, b) == mooClampWide(MooWide::from(a) - mooMulWide(q, b)));
         // the remainder has the sign of the divisor and is smaller than it
         int64_t m = moo_nummod(a, b);
         CHECK((m == 0 || (m < 0) == (b < 0)));

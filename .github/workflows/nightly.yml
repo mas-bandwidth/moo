@@ -73,6 +73,28 @@ jobs:
           ! build/moo --codegen tests/conformance/assert.luau
           ! build/moo --jit-inliner tests/conformance/assert.luau
 
+  windows-msvc:
+    name: windows-msvc
+    runs-on: windows-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: configure
+        run: cmake -S . -B build -A x64 -DLUAU_WERROR=OFF
+
+      - name: build
+        run: cmake --build build --config RelWithDebInfo --parallel 4 --target Moo.Test Luau.Conformance Luau.UnitTest
+
+      - name: moo tests and the determinism suite
+        run: build/RelWithDebInfo/Moo.Test.exe
+
+      - name: conformance
+        run: build/RelWithDebInfo/Luau.Conformance.exe
+
+      - name: unit tests
+        run: build/RelWithDebInfo/Luau.UnitTest.exe
+
   tla:
     name: tla
     runs-on: ubuntu-latest
