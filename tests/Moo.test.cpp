@@ -7,6 +7,8 @@
 #include "luacode.h"
 #include "moo.h"
 
+#include "fixed/fixed.h"
+
 #include "doctest.h"
 
 #include <stdlib.h>
@@ -460,6 +462,15 @@ TEST_CASE("WeakTableOrderIsAFunctionOfTheProgram")
 
     // Pinned.
     CHECK(mooHash(trace) == 4913729863109054677ull);
+}
+
+// DESIGN.md "Semantics": number is built on the vendored fixed, compiled with FIX_SATURATE.
+TEST_CASE("FixedIsVendoredSaturating")
+{
+    CHECK(fixMul(3 * FIX_ONE / 2, 5 * FIX_ONE / 2) == 15 * FIX_ONE / 4);
+    CHECK(fixMul(FIX_MAX, 2 * FIX_ONE) == FIX_MAX);
+    CHECK(fixMul(FIX_MAX, -2 * FIX_ONE) == FIX_MIN);
+    CHECK(fixDiv(FIX_ONE, 4 * FIX_ONE) == FIX_ONE / 4);
 }
 
 TEST_SUITE_END();

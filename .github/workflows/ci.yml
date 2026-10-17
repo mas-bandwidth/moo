@@ -31,6 +31,12 @@ jobs:
       - name: sccache
         uses: mozilla-actions/sccache-action@v0.0.9
 
+      - name: extern/fixed matches its pin
+        run: |
+          tools/revendor-fixed.sh --check
+          script_pin="$(grep -oE '^FIXED_PIN="[0-9a-f]{40}"' tools/revendor-fixed.sh | grep -oE '[0-9a-f]{40}')"
+          grep -q "$script_pin" extern/fixed/NOTES.md
+
       - name: configure
         run: >
           cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DLUAU_WERROR=ON

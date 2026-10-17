@@ -43,6 +43,8 @@ CODEGEN_OBJECTS=$(CODEGEN_SOURCES:%=$(BUILD)/%.o)
 CODEGEN_TARGET=$(BUILD)/libluaucodegen.a
 
 VM_SOURCES=$(wildcard VM/src/*.cpp)
+FIXED_SOURCES=extern/fixed/src/fixed_math.c extern/fixed/src/fixed_vec.c
+FIXED_OBJECTS=$(FIXED_SOURCES:%=$(BUILD)/%.o)
 VM_OBJECTS=$(VM_SOURCES:%=$(BUILD)/%.o)
 VM_TARGET=$(BUILD)/libluauvm.a
 
@@ -175,10 +177,11 @@ $(COMPILER_OBJECTS): CXXFLAGS+=-std=c++17 -IBytecode/include -ICompiler/include 
 $(CONFIG_OBJECTS): CXXFLAGS+=-std=c++17 -IConfig/include -ICommon/include -IAst/include -IBytecode/include -ICompiler/include -IVM/include
 $(ANALYSIS_OBJECTS): CXXFLAGS+=-std=c++17 -ICommon/include -IAst/include -IAnalysis/include -IConfig/include -IBytecode/include -ICompiler/include -IVM/include
 $(CODEGEN_OBJECTS): CXXFLAGS+=-std=c++17 -ICommon/include -ICodeGen/include -IVM/include -IVM/src # Code generation needs VM internals
-$(VM_OBJECTS): CXXFLAGS+=-std=c++11 -ICommon/include -IVM/include
+$(VM_OBJECTS): CXXFLAGS+=-std=c++11 -ICommon/include -IVM/include -Iextern/fixed/include -DFIX_SATURATE
+$(FIXED_OBJECTS): CXXFLAGS+=-std=c11 -Iextern/fixed/include -DFIX_SATURATE
 $(REQUIRE_OBJECTS): CXXFLAGS+=-std=c++17 -ICommon/include -IVM/include -IAst/include -IConfig/include -IRequire/include
 $(ISOCLINE_OBJECTS): CXXFLAGS+=-Wno-unused-function -Iextern/isocline/include
-$(TESTS_OBJECTS): CXXFLAGS+=-std=c++17 -ICommon/include -IAst/include -IBytecode/include -IInliner/include -ICompiler/include -IConfig/include -IAnalysis/include -ICodeGen/include -IVM/include -IVM/src -IRequire/include -ICLI/include -Iextern -DDOCTEST_CONFIG_DOUBLE_STRINGIFY -DDOCTEST_CONFIG_USE_STD_HEADERS -DLUAU_CONFORMANCE_SOURCE_DIR=$(LUAU_CONFORMANCE_SOURCE_DIR)
+$(TESTS_OBJECTS): CXXFLAGS+=-std=c++17 -ICommon/include -IAst/include -IBytecode/include -IInliner/include -ICompiler/include -IConfig/include -IAnalysis/include -ICodeGen/include -IVM/include -IVM/src -IRequire/include -ICLI/include -Iextern -Iextern/fixed/include -DFIX_SATURATE -DDOCTEST_CONFIG_DOUBLE_STRINGIFY -DDOCTEST_CONFIG_USE_STD_HEADERS -DLUAU_CONFORMANCE_SOURCE_DIR=$(LUAU_CONFORMANCE_SOURCE_DIR)
 $(REPL_CLI_OBJECTS): CXXFLAGS+=-std=c++17 -ICommon/include -IAst/include -IBytecode/include -IInliner/include -ICompiler/include -IVM/include -ICodeGen/include -IRequire/include -Iextern -Iextern/isocline/include -ICLI/include
 $(ANALYZE_CLI_OBJECTS): CXXFLAGS+=-std=c++17 -ICommon/include -IAst/include -IAnalysis/include -IConfig/include -IRequire/include -IVM/include -Iextern -ICLI/include
 $(COMPILE_CLI_OBJECTS): CXXFLAGS+=-std=c++17 -ICommon/include -IAst/include -IBytecode/include -ICompiler/include -IVM/include -ICodeGen/include -ICLI/include
@@ -304,7 +307,7 @@ $(COMPILER_TARGET): $(COMPILER_OBJECTS)
 $(CONFIG_TARGET): $(CONFIG_OBJECTS)
 $(ANALYSIS_TARGET): $(ANALYSIS_OBJECTS)
 $(CODEGEN_TARGET): $(CODEGEN_OBJECTS)
-$(VM_TARGET): $(VM_OBJECTS)
+$(VM_TARGET): $(VM_OBJECTS) $(FIXED_OBJECTS)
 $(REQUIRE_TARGET): $(REQUIRE_OBJECTS)
 $(ISOCLINE_TARGET): $(ISOCLINE_OBJECTS)
 
