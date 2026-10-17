@@ -18,3 +18,4 @@
 
 LUAI_FUNC Udata* luaU_newudata(lua_State* L, size_t s, int tag);
 LUAI_FUNC void luaU_freeudata(lua_State* L, Udata* u, struct lua_Page* page);
+LUAI_FUNC bool luaU_hasdtor(lua_State* L, Udata* u); // moo

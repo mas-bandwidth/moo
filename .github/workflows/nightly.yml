@@ -69,3 +69,18 @@ jobs:
         run: |
           ! build/moo --codegen tests/conformance/assert.luau
           ! build/moo --jit-inliner tests/conformance/assert.luau
+
+  tla:
+    name: tla
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: fetch TLC 1.8.0 (tla2tools)
+        run: |
+          curl -fsSL -o tla2tools.jar https://github.com/tlaplus/tlaplus/releases/download/v1.8.0/tla2tools.jar
+
+      - name: model check
+        run: tools/moo-tlc.sh "$PWD/tla2tools.jar"
+

@@ -817,6 +817,72 @@ static void freeobj(lua_State* L, GCObject* o, lua_Page* page)
     }
 }
 
+// moo: the destructor queue (docs/DETERMINISM.md, 13; modelled in tla/DestructorQueue.tla).
+// The sweep never runs a destructor: it queues a dead userdata that has one, and the queue runs at the end
+// of the same GC step, in creation-number order, freeing each block after its destructor. So destructors
+// run in an order that is a function of the program, not of the GC pages, and never in mid-sweep.
+static bool queuedtor(lua_State* L, Udata* u, lua_Page* page)
+{
+    if (!luaU_hasdtor(L, u))
+        return false;
+
+    u->dtorpage = page; // the metatable is never read again
+    u->dtornext = L->global->dtorqueue;
+    L->global->dtorqueue = u;
+    return true;
+}
+
+static Udata* mergebyseq(Udata* a, Udata* b)
+{
+    Udata* head = NULL;
+    Udata** tail = &head;
+
+    while (a && b)
+    {
+        Udata** first = a->gcseq < b->gcseq ? &a : &b;
+        *tail = *first;
+        *first = (*first)->dtornext;
+        tail = &(*tail)->dtornext;
+    }
+
+    *tail = a ? a : b;
+    return head;
+}
+
+static Udata* sortbyseq(Udata* list)
+{
+    if (!list || !list->dtornext)
+        return list;
+
+    Udata* slow = list;
+    Udata* fast = list->dtornext;
+    while (fast && fast->dtornext)
+    {
+        slow = slow->dtornext;
+        fast = fast->dtornext->dtornext;
+    }
+
+    Udata* second = slow->dtornext;
+    slow->dtornext = NULL;
+
+    return mergebyseq(sortbyseq(list), sortbyseq(second));
+}
+
+static void rundtorqueue(lua_State* L)
+{
+    global_State* g = L->global;
+
+    Udata* u = sortbyseq(g->dtorqueue);
+    g->dtorqueue = NULL;
+
+    while (u)
+    {
+        Udata* next = u->dtornext;
+        luaU_freeudata(L, u, u->dtorpage);
+        u = next;
+    }
+}
+
 static void stringresizeprotected(lua_State* L, int newsize)
 {
     struct CallContext
@@ -858,6 +924,11 @@ static void shrinkbuffersfull(lua_State* L)
 static bool deletegco(void* context, lua_Page* page, GCObject* gco)
 {
     lua_State* L = (lua_State*)context;
+
+    // moo: destructors at lua_close run in creation order too, after everything else is freed
+    if (gco->gch.tt == LUA_TUSERDATA && queuedtor(L, gco2u(gco), page))
+        return false;
+
     freeobj(L, gco, page);
     return true;
 }
@@ -869,6 +940,7 @@ void luaC_freeall(lua_State* L)
     LUAU_ASSERT(L == g->mainthread);
 
     luaM_visitgco(L, L, deletegco);
+    rundtorqueue(L);
 
     for (int i = 0; i < g->strt.size; i++) // free all string lists
         LUAU_ASSERT(g->strt.hash[i] == NULL);
@@ -1134,6 +1206,11 @@ static int sweepgcopage(lua_State* L, lua_Page* page)
         else
         {
             LUAU_ASSERT(isdead(g, gco));
+
+            // moo: a dead userdata with a destructor waits for the end of this GC step; its block stays busy
+            if (gco->gch.tt == LUA_TUSERDATA && queuedtor(L, gco2u(gco), page))
+                continue;
+
             freeobj(L, gco, page);
 
             // if the last block was removed, page would be removed as well
@@ -1231,6 +1308,9 @@ static size_t gcstep(lua_State* L, size_t limit)
             g->sweepgcopage_cage = next;
             cost += static_cast<size_t>(steps * GC_SWEEPPAGESTEPCOST);
         }
+
+        // moo: the end of the GC step for the destructors this sweep step queued
+        rundtorqueue(L);
 
         // nothing more to sweep?
         if (g->sweepgcopage == NULL && g->sweepgcopage_cage == NULL)
