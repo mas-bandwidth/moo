@@ -1,5 +1,7 @@
 # moo
 
+<img width="559" height="510" alt="image" src="https://github.com/user-attachments/assets/f8f8e7c8-04fe-40a3-8050-f9f698ab4e04" />
+
 moo is a deterministic, fixed-point fork of [Luau](https://github.com/luau-lang/luau).
 
 - **Home:** https://github.com/mas-bandwidth/moo
