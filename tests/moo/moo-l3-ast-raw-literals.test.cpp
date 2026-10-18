@@ -88,6 +88,11 @@ TEST_CASE("MooLiteralRawAboveFiftyThreeBits")
     CHECK_EQ(runRaw(s.L, "return 140737488355327.99998474121094"), int64_t(9223372036854775807LL));
     CHECK_EQ(runRaw(s.L, "return -140737488355327.99998474121094"), int64_t(-9223372036854775807LL));
     CHECK_EQ(runRaw(s.L, "return 70368744177663.00001525878906"), int64_t(4611686018427322369LL));
+
+    // the three further literals above 2^37 the conformance script pins: each denotes the largest value
+    CHECK_EQ(runRaw(s.L, "return 140737488355327.9999847412109375"), int64_t(9223372036854775807LL));
+    CHECK_EQ(runRaw(s.L, "return 140737488355327.99998474121092"), int64_t(9223372036854775807LL));
+    CHECK_EQ(runRaw(s.L, "return 140737488355327.9999847412109"), int64_t(9223372036854775807LL));
 }
 
 // The parser stores the exact raw value from moo_numparse in the AST (docs/DESIGN.md "Literals"), and the double is

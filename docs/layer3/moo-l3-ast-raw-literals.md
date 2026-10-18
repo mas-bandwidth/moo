@@ -50,3 +50,26 @@ deleted; Luau's integer type is out (DESIGN.md "integer").
   `AstExprConstantInteger` is built."
 - DETERMINISM.md: no sentence changes. No frozen hash or `tests/determinism/expected.txt` changes; the literal is
   now the value the run time already computed for the same decimal.
+
+## Gate at attempt 3
+
+The new cases and script are green, and every command below was run on the Linux bench with clang 21.1.8. Two suites
+carry failures that already exist at the unchanged BASE (`e2581b9f`, sprint/moo), so the all-green DONE-WHEN line is
+not met by this card alone:
+
+- `tools/revendor-fixed.sh --check`: `extern/fixed matches pin 2f1ed913374a -- clean`.
+- `tools/moo-check-no-clock.sh build/libLuau.VM.a`: `references no clock`.
+- `git grep -c 'Until the moo bytecode version' Ast/src/Parser.cpp`: 0 (no match).
+- `build/Luau.Conformance`: 109/109 cases, 9143/9143 assertions.
+- `build/Luau.CLI.Test`: 113/113 cases, 461/461 assertions.
+- `build/Moo.Test`: 151/154 cases. The three failures are `MooL3Scripts` (the existing
+  `moo-l4-pow-integer-math.luau` case `9 ^ 1.5`), `MathPowFractionalStaysOnBridge` and
+  `MooPowIntVmFractionalBridge`; the last two build raw values in C++ and never parse a literal. All three fail the
+  same way at BASE.
+- `build/Luau.UnitTest`: 5146/5159 cases, 22933/22947 assertions. The 13 failing cases are
+  `fold_constants_div_by_zero`, `MooBuiltinsDoNotFold`, six `TypeFunction.user` cases, the two vector cases in
+  `TypeInfer.operators`/`TypeInfer.refinements`, and the two `os`-table cases; all 13 fail the same way at BASE.
+
+Red at BASE for the largest literal, with the new case trimmed to the fields BASE has: BASE compiles
+`140737488355327.99998474121094` to raw `0` and `70368744177663.00001525878906` to `4611686018427322368`, one unit
+low. Both are exact at this card's head.
