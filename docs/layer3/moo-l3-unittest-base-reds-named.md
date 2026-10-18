@@ -16,3 +16,5 @@ At BASE `0ca1115f552eef25ddb231b2833459ddb2479409`, clang 18.1.3 runs 13 failed 
 | `udtf_integer_is_distinct_from_number` | `tests/TypeFunction.user.test.cpp` | `types.integer` and `integer` are unknown | skipped | `integer` is not a moo builtin (DESIGN.md "Analyzer") |
 | `udtf_integer_methods_work` | `tests/TypeFunction.user.test.cpp` | `types.integer` and `integer` are unknown | skipped | `integer` is not a moo builtin (DESIGN.md "Analyzer") |
 | `MooBuiltinsDoNotFold` | `tests/MooCompiler.test.cpp` | The vector compiler builtin was removed; the call compiles as `GETIMPORT`, not `FASTCALL` | fixed | Updated only the obsolete vector opcode expectation; retained other assertions |
+
+Attempt 3 re-verified the twelve dispositions at the merged sprint/moo tip `3234bcbd27bd` (clang, `RelWithDebInfo`, `LUAU_WERROR=ON`): all eleven named cases select as skipped, `MooBuiltinsDoNotFold` runs and passes; the only full-suite red is `fold_constants_div_by_zero` (`tests/BytecodeCallInliner.test.cpp:1093`), which is red at that same base and out of this card's scope.
