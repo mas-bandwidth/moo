@@ -279,7 +279,8 @@ MooOracleFile mooOracleLoad()
 // The fixed source of each function, from docs/DESIGN.md "math library". moo's math library itself still crosses the
 // libm bridge (docs/DESIGN.md "Layer 3 as built", TEMPORARY bridges), so what is measured is the fixed function the
 // table names for it, called directly; the functions the table builds from others (tan, asin, acos, atan, exp, log,
-// log10, sinh, cosh, tanh) have no fixed source of their own yet and are listed as not measured.
+// log10, sinh, cosh, tanh) have no row here yet and are listed as not measured; math.tan is now sin / cos on
+// fixComputeCosSin (moo-l4-math-trig) and is owed a row.
 // `measures` says which records the source is defined on: fixPow is the non-integer-exponent rule and returns 0
 // for a base <= 0 (docs/DESIGN.md "pow and ^"), so it is measured on base > 0 only.
 struct MooOracleSource
@@ -541,8 +542,8 @@ TEST_CASE("MooL4MathOracleErrorTable")
 
         if (!source)
         {
-            printf("moo-math-oracle %s samples=%llu not measured: no fixed source yet (math.%s is the libm bridge)\n", f.name.c_str(),
-                (unsigned long long)f.count, f.name.c_str());
+            printf("moo-math-oracle %s samples=%llu not measured: no row in mooOracleSources yet\n", f.name.c_str(),
+                (unsigned long long)f.count);
             continue;
         }
 

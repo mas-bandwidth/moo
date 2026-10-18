@@ -8,8 +8,10 @@ the compiler and `moo_number.h` are as they were.
 ## Decisions
 
 1. **What is measured is the `fixed` source of each function, called directly.** The brief asks for the error of
-   "each function moo already implements on fixed". At this BASE that set is empty: every libm function of `math`
-   still crosses the libm bridge (DESIGN.md "Layer 3 as built", TEMPORARY bridges; `VM/src/lmathlib.cpp`). Measuring
+   "each function moo already implements on fixed". At the BASE this card started from that set was empty: every libm function of `math`
+   crossed the libm bridge (DESIGN.md "Layer 3 as built", TEMPORARY bridges; `VM/src/lmathlib.cpp`). Since then
+   moo-l4-math-trig has moved `math.sin` and `math.cos` onto `fixSin` and `fixCos` themselves, so those two rows now
+   measure moo's own functions; `math.tan` (sin / cos from `fixComputeCosSin`) has no row yet and is owed one. Measuring
    `math.sin` through the VM today would measure glibc, not moo, and would call libm from a test. The test therefore
    measures the `fixed` function that DESIGN.md's "math library" table names as each function's source, at the pin
    moo vendors:
@@ -60,12 +62,12 @@ the compiler and `moo_number.h` are as they were.
    each error", so each line is a full histogram: every signed error value `got - ideal` that occurs, in raw units,
    with the number of inputs at it, from the most negative to the most positive (`MooOracleError`, a sign and an
    exact 64-bit magnitude, so no error overflows). Lines are long where errors are large and varied: fixSin's
-   and fixPow's run to tens of thousands of entries. The maximum error is also printed with its input.
+   and fixCos's run to about 24,000 entries over all inputs, fixPow's to about 2,100. The maximum error is also printed with its input.
    `MooL4MathOracleCountsEachExactError` pins it: 5 and 6 are distinct entries, labels are the exact values up to
-   2^64 - 1, and the order runs from negative to positive. (Attempt 1 counted -4 to 4 exactly and grouped larger
+   2^64 - 1, and the order runs from negative to positive. (Pass 1 counted -4 to 4 exactly and grouped larger
    magnitudes by powers of two; a reader found that short of THE TASK, and it is gone.)
-9. **The conformance script calls no libm function.** At this BASE every transcendental in `math` is the libm bridge,
-   so a script that called `math.sin` would call libm from a test. The script checks instead what the VM gives
+9. **The conformance script calls no libm function.** When this card started every transcendental in `math` was the libm
+   bridge, so a script that called `math.sin` would have called libm from a test. The script checks instead what the VM gives
    without libm and the file also holds: `math.pi` is 205887 raw, the file's ideal for acos(-1), and `math.huge`
    is `INT64_MAX` raw, the saturated ideal. When the math library is rebuilt on fixed, its card adds the exact
    points through the VM.
@@ -115,7 +117,7 @@ the compiler and `moo_number.h` are as they were.
 | sqrt | fixSqrt | 1 (toward zero) | 1 | 10038 of 20177 |
 | log2 | fixLog2 | 0 | 0 | all 19914 |
 | pow (base > 0) | fixPow | about 2.6e14 raw, at results near 2^47 | about 1.1e14 raw | 4900 of 7233 |
-| tan, asin, acos, atan, exp, log, log10, sinh, cosh, tanh | none yet | not measured | | |
+| tan (now on fixed, row owed), asin, acos, atan, exp, log, log10, sinh, cosh, tanh | no row yet | not measured | | |
 
 Findings for layer 4 to decide on (this card fixes none of them: they are in `fixed`, upstream):
 
