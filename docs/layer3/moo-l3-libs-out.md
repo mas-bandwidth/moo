@@ -42,19 +42,33 @@ card removes the runtime library and fastcall half; the compiler (moo-l3-vector-
 
 ## Upstream tests the removal moved
 
-- `tests/conformance/types.luau` no longer ignores `_G.vector`: the merged analyzer definitions and
-  this card's VM removal both omit the global. `_G.os` remains ignored pending the VM's os removal.
 - `tests/Conformance.test.cpp` installs a test-only `vector.create` in `setupVectorHelpers`, because
   `udata_direct.luau` is a userdata test that happens to build vector fields; `vector` is still nil
   for every program that does not ask the host for it.
-- `tests/require/without_config/types/vector.luau` returns a plain table, so the `RequireByString`
-  case still checks the module path without a script-made vector.
-- The frozen determinism values move because the vector library's startup objects are gone: every
-  creation number shifts. `tests/determinism/expected.txt` and the pinned values in
-  `tests/Moo.test.cpp` (`ObjectKeyOrderIgnoresAddresses`, `TostringPrintsCreationNumber`,
-  `GcPacingIsAFunctionOfTheProgram`, `DestructorsRunInCreationOrder`,
-  `WeakTableOrderIsAFunctionOfTheProgram`) are re-pinned; the values remain a function of the program
-  alone and are the same on every compiler.
+- `tests/conformance/types.luau` still lists `_G.vector` in its ignore set. The ignore is now
+  redundant (both the analyzer and the VM omit the global) but harmless: an ignored path is skipped
+  whether or not it exists. Removing the entry is outside this card's PATHS.
+
+## Re-pins this card cannot make (files outside its PATHS)
+
+The vector library's startup objects are gone, so every creation number shifts. The values below are
+what a checkout with this change actually produces; they remain a function of the program alone and
+are the same on every compiler. They must land in a follow-up that owns these files, because this
+card's PATHS do not name them (attempt 6 was refused for touching them):
+
+- `tests/determinism/expected.txt`: `coroutines.luau a2351a1850f47a3e eae7f9734f410e3a`,
+  `gcchurn.luau 6d789a68240b8976 5ee2eb0d2642bda5`, `library.luau 9ce6b3fc5ed7d5fe 039fbc53f46d1d5a`,
+  `objectkeys.luau c026a789bb37c024 38780e98f3910393`, `coroutines2.luau 2ca405a9600143fa dc579a5432f7898e`,
+  `errors.luau ee7b3d6f2b3bfb9e 4d4a67e1614c5a55`.
+- `tests/Moo.test.cpp`: `ObjectKeyOrderIgnoresAddresses` order
+  `43,28,42,57,9,10,34,24,49,22,47,17,59,8,46,58,36,56,13,52,55,54,37,53,1,41,35,50,15,51,60,16,45,2,44,48,40,39,6,32,4,19,12,5,29,21,3`;
+  `TostringPrintsCreationNumber` `table: #375 table: #376`;
+  `GcPacingIsAFunctionOfTheProgram` `8555275115460150344`;
+  `DestructorsRunInCreationOrder` `10826925009745639169`;
+  `WeakTableOrderIsAFunctionOfTheProgram` `4589104574784354874`.
+- `tests/require/without_config/types/vector.luau` must stop calling `vector.create`; until it does,
+  `Luau.CLI.Test`'s `RequireVector` reports `attempt to index nil with 'create'`. Returning
+  `{1, 2, 3}` keeps the case's `true, 1, 2, 3` expectation and still exercises the module path.
 
 ## Sentences that must change when the layer closes
 

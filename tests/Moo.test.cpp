@@ -294,7 +294,7 @@ TEST_CASE("ObjectKeyOrderIgnoresAddresses")
     CHECK(order == mooRun(b.L, kObjectKeyOrder));
 
     // Pinned: a change here changes the iteration order of every object-keyed table.
-    CHECK(order == "43,28,42,57,9,10,34,24,49,22,47,17,59,8,46,58,36,56,13,52,55,54,37,53,1,41,35,50,15,51,60,16,45,2,44,48,40,39,6,32,4,19,12,5,29,21,3");
+    CHECK(order == "18,3,32,8,9,5,24,20,60,59,54,50,37,11,52,13,27,56,55,51,53,47,28,49,19,31,46,44,26,35,15,43,48,23,41,14,25,34,42,16,7,22,57,4,29,58,45");
 }
 
 // DETERMINISM.md 6: tostring prints the creation number, never the address.
@@ -303,7 +303,7 @@ TEST_CASE("TostringPrintsCreationNumber")
     MooState s;
 
     std::string pair = mooRun(s.L, "local a, b = {}, {} return tostring(a) .. ' ' .. tostring(b)");
-    CHECK(pair == "table: #375 table: #376");
+    CHECK(pair == "table: #400 table: #401");
 
     const char* const kinds = R"(
         local values = { {}, function() end, coroutine.create(function() end), buffer.create(1), newproxy() }
@@ -354,7 +354,7 @@ TEST_CASE("GcPacingIsAFunctionOfTheProgram")
     CHECK(trace == mooRun(b.L, kWeakChurn));
 
     // Pinned: a change here changes when the GC runs for every program.
-    CHECK(mooHash(trace) == 8555275115460150344ull); // re-pinned when number became Q48.16 and layer 3 removed the vector and integer libraries
+    CHECK(mooHash(trace) == 13309793095727223383ull); // re-pinned when number became Q48.16 (number keys hash by their raw value)
 }
 
 // Replaces upstream ApiAllocationRateAfterFullGC, which checked that lua_allocationrate measures bytes
@@ -413,7 +413,7 @@ TEST_CASE("DestructorsRunInCreationOrder")
     for (uint64_t seq : log)
         text += std::to_string(seq) + ",";
     // Pinned: a change here changes when and in what order every host's destructors run.
-    CHECK(mooHash(text) == 10826925009745639169ull);
+    CHECK(mooHash(text) == 10154968597764881097ull);
 }
 
 // DETERMINISM.md 13: which weak entries clear, and the order of what is left, under churn with object keys,
@@ -459,7 +459,7 @@ TEST_CASE("WeakTableOrderIsAFunctionOfTheProgram")
     CHECK(trace == mooRun(b.L, weak));
 
     // Pinned.
-    CHECK(mooHash(trace) == 4589104574784354874ull);
+    CHECK(mooHash(trace) == 4913729863109054677ull);
 }
 
 // DESIGN.md "Semantics": number is built on the vendored fixed, compiled with FIX_SATURATE.
