@@ -42,6 +42,13 @@ fixed_t moo_math_atan2(fixed_t y, fixed_t x);
 fixed_t moo_math_atan(fixed_t x);
 bool moo_math_asin(fixed_t x, fixed_t* out);
 bool moo_math_acos(fixed_t x, fixed_t* out);
+bool moo_math_fmod(fixed_t a, fixed_t b, fixed_t* out);
+void moo_math_modf(fixed_t a, fixed_t* ip, fixed_t* fp);
+void moo_math_frexp(fixed_t a, fixed_t* m, int* e);
+fixed_t moo_math_ldexp(fixed_t a, int e);
+fixed_t moo_math_deg(fixed_t a);
+fixed_t moo_math_rad(fixed_t a);
+fixed_t moo_math_lerp(fixed_t a, fixed_t b, fixed_t t);
 
 // luauF functions implement FASTCALL instruction that performs a direct execution of some builtin functions from the VM
 // The rule of thumb is that FASTCALL functions can not call user code, yield, fail, or reallocate stack.
@@ -165,9 +172,8 @@ static int luauF_deg(lua_State* L, StkId res, TValue* arg0, int nresults, StkId 
 {
     if (nparams >= 1 && nresults <= 1 && ttisnumber(arg0))
     {
-        double a1 = moo_numbridgetodouble(nvalue(arg0));
-        const double rpd = (3.14159265358979323846 / 180.0);
-        setnvalue(res, moo_numbridgefromdouble(a1 / rpd));
+        // moo: deg on fixed (docs/DESIGN.md "math library")
+        setnvalue(res, moo_math_deg(nvalue(arg0)));
         return 1;
     }
 
@@ -204,10 +210,13 @@ static int luauF_fmod(lua_State* L, StkId res, TValue* arg0, int nresults, StkId
 {
     if (nparams >= 2 && nresults <= 1 && ttisnumber(arg0) && ttisnumber(args))
     {
-        double a1 = moo_numbridgetodouble(nvalue(arg0));
-        double a2 = moo_numbridgetodouble(nvalue(args));
-        setnvalue(res, moo_numbridgefromdouble(fmod(a1, a2)));
-        return 1;
+        // moo: fmod on the raw value; b == 0 returns -1 so math_fmod raises "division by zero" (docs/DESIGN.md "math library")
+        fixed_t out;
+        if (moo_math_fmod(nvalue(arg0), nvalue(args), &out))
+        {
+            setnvalue(res, out);
+            return 1;
+        }
     }
 
     return -1;
@@ -217,11 +226,12 @@ static int luauF_frexp(lua_State* L, StkId res, TValue* arg0, int nresults, StkI
 {
     if (nparams >= 1 && nresults <= 2 && ttisnumber(arg0))
     {
-        double a1 = moo_numbridgetodouble(nvalue(arg0));
+        // moo: frexp on the raw value (docs/DESIGN.md "math library")
+        fixed_t m;
         int e;
-        double f = frexp(a1, &e);
-        setnvalue(res, moo_numbridgefromdouble(f));
-        setnvalue(res + 1, moo_numbridgefromdouble(double(e)));
+        moo_math_frexp(nvalue(arg0), &m, &e);
+        setnvalue(res, m);
+        setnvalue(res + 1, moo_numfromint(e));
         return 2;
     }
 
@@ -230,13 +240,12 @@ static int luauF_frexp(lua_State* L, StkId res, TValue* arg0, int nresults, StkI
 
 static int luauF_ldexp(lua_State* L, StkId res, TValue* arg0, int nresults, StkId args, int nparams)
 {
-    // moo: refuse non-integer exponent so fallback raises (see docs/DESIGN.md "Exact integers")
+    // moo: ldexp on the raw value; refuse non-integer exponent so fallback raises (docs/DESIGN.md "math library", "Exact integers")
     if (nparams >= 2 && nresults <= 1 && ttisnumber(arg0) && ttisnumber(args) && luai_numisint(nvalue(args)))
     {
-        double a1 = moo_numbridgetodouble(nvalue(arg0));
         int e;
         luai_num2int(e, nvalue(args));
-        setnvalue(res, moo_numbridgefromdouble(ldexp(a1, e)));
+        setnvalue(res, moo_math_ldexp(nvalue(arg0), e));
         return 1;
     }
 
@@ -347,11 +356,11 @@ static int luauF_modf(lua_State* L, StkId res, TValue* arg0, int nresults, StkId
 {
     if (nparams >= 1 && nresults <= 2 && ttisnumber(arg0))
     {
-        double a1 = moo_numbridgetodouble(nvalue(arg0));
-        double ip;
-        double fp = modf(a1, &ip);
-        setnvalue(res, moo_numbridgefromdouble(ip));
-        setnvalue(res + 1, moo_numbridgefromdouble(fp));
+        // moo: modf on the raw value (docs/DESIGN.md "math library")
+        fixed_t ip, fp;
+        moo_math_modf(nvalue(arg0), &ip, &fp);
+        setnvalue(res, ip);
+        setnvalue(res + 1, fp);
         return 2;
     }
 
@@ -397,9 +406,8 @@ static int luauF_rad(lua_State* L, StkId res, TValue* arg0, int nresults, StkId 
 {
     if (nparams >= 1 && nresults <= 1 && ttisnumber(arg0))
     {
-        double a1 = moo_numbridgetodouble(nvalue(arg0));
-        const double rpd = (3.14159265358979323846 / 180.0);
-        setnvalue(res, moo_numbridgefromdouble(a1 * rpd));
+        // moo: rad on fixed (docs/DESIGN.md "math library")
+        setnvalue(res, moo_math_rad(nvalue(arg0)));
         return 1;
     }
 
@@ -1890,13 +1898,8 @@ static int luauF_lerp(lua_State* L, StkId res, TValue* arg0, int nresults, StkId
 {
     if (nparams >= 3 && nresults <= 1 && ttisnumber(arg0) && ttisnumber(args) && ttisnumber(args + 1))
     {
-        double a = moo_numbridgetodouble(nvalue(arg0));
-        double b = moo_numbridgetodouble(nvalue(args));
-        double t = moo_numbridgetodouble(nvalue(args + 1));
-
-        double r = (t == 1.0) ? b : a + (b - a) * t;
-
-        setnvalue(res, moo_numbridgefromdouble(r));
+        // moo: lerp on fixed (docs/DESIGN.md "math library")
+        setnvalue(res, moo_math_lerp(nvalue(arg0), nvalue(args), nvalue(args + 1)));
         return 1;
     }
 
@@ -1907,9 +1910,8 @@ static int luauF_isnan(lua_State* L, StkId res, TValue* arg0, int nresults, StkI
 {
     if (nparams >= 1 && nresults <= 1 && ttisnumber(arg0))
     {
-        double x = moo_numbridgetodouble(nvalue(arg0));
-
-        setbvalue(res, isnan(x));
+        // moo: NaN does not exist, so math.isnan always returns false (docs/DESIGN.md "Division by zero")
+        setbvalue(res, 0);
         return 1;
     }
 
@@ -1920,9 +1922,8 @@ static int luauF_isinf(lua_State* L, StkId res, TValue* arg0, int nresults, StkI
 {
     if (nparams >= 1 && nresults <= 1 && ttisnumber(arg0))
     {
-        double x = moo_numbridgetodouble(nvalue(arg0));
-
-        setbvalue(res, isinf(x));
+        // moo: infinity does not exist, so math.isinf always returns false (docs/DESIGN.md "Division by zero")
+        setbvalue(res, 0);
         return 1;
     }
 
@@ -1933,9 +1934,8 @@ static int luauF_isfinite(lua_State* L, StkId res, TValue* arg0, int nresults, S
 {
     if (nparams >= 1 && nresults <= 1 && ttisnumber(arg0))
     {
-        double x = moo_numbridgetodouble(nvalue(arg0));
-
-        setbvalue(res, isfinite(x));
+        // moo: every Q48.16 number is finite, so math.isfinite always returns true (docs/DESIGN.md "Division by zero")
+        setbvalue(res, 1);
         return 1;
     }
 
