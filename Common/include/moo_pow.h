@@ -1,0 +1,338 @@
+// This file is part of moo, a fork of the Luau programming language; moo's changes are licensed under MIT License; see LICENSE-moo.txt for details
+//
+// moo's integer-exponent pow (docs/DESIGN.md, "math library", "pow and ^": integer-valued exponent):
+// a Q48.16 base raised to an integer exponent exactly, rounded once at the end to the nearest
+// Q48.16 value, ties to even, saturating (docs/DESIGN.md, "Overflow"); 0 ^ negative is division by
+// zero (docs/DESIGN.md, "Division by zero"). Integer arithmetic only, no float or double. Every pow
+// path calls moo_pow_int: luai_numpow and the ^ opcodes, math.pow and its fastcall, and the
+// compiler's constant folding (docs/layer4/moo-l4-pow-integer.md has the design and each caller's
+// steps).
+//
+// The value. For raw base b = s * a (s the sign, a = |b|) and exponent n, the result is
+// V = 2^16 * (a / 2^16)^|n|, or 2^16 / (a / 2^16)^|n| for n < 0, with the sign s when n is odd, and
+// the answer is V rounded half to even. Two representations, both exact in what they claim:
+//
+//   EXACT, for |n| <= MOO_POW_EXACT_MAX: a^|n| as an exact 256-bit integer D (fixed_int256.h). For
+//   n > 0, V = D / 2^(16(n-1)), a shift with the shifted-out bits deciding the rounding; for n < 0,
+//   V = 2^(16|n|+16) / D, one 256-bit division with the remainder deciding it. If D does not fit in
+//   256 bits, V is at least 2^64 (n > 0: saturates) or at most 2^-32 (n < 0: rounds to 0), so no
+//   case is left.
+//
+//   INTERVAL, for |n| > MOO_POW_EXACT_MAX: (a / 2^16)^|n| bracketed by two wide values lo <= P <= hi,
+//   each a normalized 128-bit mantissa with a tracked binary exponent (m * 2^e, m in [2^127, 2^128)),
+//   built by left-to-right binary exponentiation with every product rounded down for lo and up for
+//   hi. While no bit has been dropped (the sticky bit of every product so far is clear) lo == hi is
+//   the exact value, so exact results, ties included, are seen exactly. The two bounds are rounded
+//   once each; the answer is certain when they round to the same value. Outside the exact range only
+//   bases near 1 can give a result that neither saturates nor rounds to 0, so the inputs that reach
+//   the final rounding are a finite set, and MooPowIntCertainEverywhere (tests/moo/
+//   moo-l4-pow-integer-design.test.cpp) visits every one of them and finds the two bounds agreeing
+//   on each, so the single rounding is the correctly rounded value for every input. The loop stops
+//   early when a bound shows the result certainly saturates or certainly rounds to 0, which also
+//   keeps the tracked exponent small.
+#pragma once
+
+#include "moo_number.h"
+#include "fixed/fixed_int256.h"
+
+#include <stdint.h>
+
+// what moo_pow_int reports; the caller raises the named errors
+#define MOO_POW_OK 0
+#define MOO_POW_SATURATED 1        // *out is MOO_NUMBER_MAX or MOO_NUMBER_MIN: "number overflow in '^'" in a checked build
+#define MOO_POW_DIVISION_BY_ZERO 2 // 0 ^ negative; *out is 0: "division by zero" in every build
+
+// the largest |n| computed exactly in 256 bits; above it the interval path runs
+#define MOO_POW_EXACT_MAX 13
+
+namespace moo_pow_detail
+{
+
+// a wide value m * 2^e, m in [2^127, 2^128)
+struct Wide
+{
+    fixUInt128 m;
+    int e;
+};
+
+inline fixUInt128 top128()
+{
+    return fixUInt128Make(uint64_t(1) << 63, 0);
+}
+
+// a * b exactly, 256 bits
+inline fixUInt256 mul128(fixUInt128 a, fixUInt128 b)
+{
+    uint64_t a0 = fixUInt128Lo(a), a1 = fixUInt128Hi(a), b0 = fixUInt128Lo(b), b1 = fixUInt128Hi(b);
+    fixUInt256 r;
+    r.lo = fixUInt128MulU64(a0, b0);
+    r.hi = fixUInt128MulU64(a1, b1);
+    fixUInt128 c1 = fixUInt128MulU64(a0, b1);
+    fixUInt128 c2 = fixUInt128MulU64(a1, b0);
+    fixUInt256 s;
+    s.hi = fixUInt128Shr(c1, 64);
+    s.lo = fixUInt128Shl(c1, 64);
+    r = fixUInt256Add(r, s);
+    s.hi = fixUInt128Shr(c2, 64);
+    s.lo = fixUInt128Shl(c2, 64);
+    return fixUInt256Add(r, s);
+}
+
+// the next wide value up (m + 1, renormalized)
+inline Wide bumpUp(Wide w)
+{
+    w.m = fixUInt128Add(w.m, fixUInt128FromU64(1));
+    if (fixUInt128Eq(w.m, FIX_UINT128_ZERO)) // was 2^128 - 1
+    {
+        w.m = top128();
+        w.e += 1;
+    }
+    return w;
+}
+
+// x * y rounded down into *down and up into *up; returns true when the product is exact (sticky clear)
+inline bool mul(Wide x, Wide y, Wide* down, Wide* up)
+{
+    fixUInt256 p = mul128(x.m, y.m); // in [2^254, 2^256)
+    bool top = !fixUInt128Eq(fixUInt128Shr(p.hi, 127), FIX_UINT128_ZERO);
+    Wide r;
+    bool sticky;
+    if (top)
+    {
+        r.m = p.hi;
+        r.e = x.e + y.e + 128;
+        sticky = !fixUInt128Eq(p.lo, FIX_UINT128_ZERO);
+    }
+    else
+    {
+        r.m = fixUInt128Or(fixUInt128Shl(p.hi, 1), fixUInt128Shr(p.lo, 127));
+        r.e = x.e + y.e + 127;
+        sticky = !fixUInt128Eq(fixUInt128Shl(p.lo, 1), FIX_UINT128_ZERO);
+    }
+    *down = r;
+    *up = sticky ? bumpUp(r) : r;
+    return !sticky;
+}
+
+// 1 / w rounded down (up = false) or up, as a wide value: 2^255 / m in (2^127, 2^128], times 2^(-255 - e)
+inline Wide reciprocal(Wide w, bool up)
+{
+    fixUInt256 q, r;
+    fixUInt256DivMod(fixUInt256Shl(fixUInt256FromU64(1), 255), fixUInt256FromU128(w.m), &q, &r);
+    Wide out;
+    out.e = -255 - w.e;
+    if (!fixUInt128Eq(q.hi, FIX_UINT128_ZERO)) // q == 2^128, only when m == 2^127, exact
+    {
+        out.m = top128();
+        out.e += 1;
+        return out;
+    }
+    out.m = q.lo;
+    return (up && !fixUInt256IsZero(r)) ? bumpUp(out) : out;
+}
+
+const uint64_t kSaturated = uint64_t(1) << 63; // any magnitude at or above 2^63 saturates
+
+// m * 2^e rounded to an integer, half to even (docs/DESIGN.md, "pow and ^": rounded once, ties to even), clamped
+// to kSaturated (m in [2^127, 2^128])
+inline uint64_t roundWide(fixUInt128 m, int e)
+{
+    if (e >= 0)
+        return kSaturated;
+    int s = -e;
+    if (s > 128)
+        return 0; // below 2^128 * 2^-129 = 1/2
+    if (s == 128)
+        return fixUInt128Eq(m, top128()) ? 0 : 1; // in [1/2, 1): exactly 1/2 is the tie to 0
+    fixUInt128 i = fixUInt128Shr(m, s);
+    if (fixUInt128Hi(i) != 0 || fixUInt128Lo(i) >= kSaturated)
+        return kSaturated;
+    fixUInt128 rest = fixUInt128Sub(m, fixUInt128Shl(i, s));
+    fixUInt128 half = fixUInt128Shl(fixUInt128FromU64(1), s - 1);
+    uint64_t v = fixUInt128Lo(i);
+    if (fixUInt128Gt(rest, half) || (fixUInt128Eq(rest, half) && (v & 1)))
+        v += 1;
+    return v; // at most 2^63
+}
+
+// D = a^n exactly (n >= 1); false when it does not fit in 256 bits
+inline bool exactPower(uint64_t a, uint64_t n, fixUInt256* out)
+{
+    uint64_t d[4] = {1, 0, 0, 0};
+    for (uint64_t k = 0; k < n; ++k)
+    {
+        uint64_t carry = 0;
+        for (int i = 0; i < 4; ++i)
+        {
+            fixUInt128 t = fixUInt128Add(fixUInt128MulU64(d[i], a), fixUInt128FromU64(carry));
+            d[i] = fixUInt128Lo(t);
+            carry = fixUInt128Hi(t);
+        }
+        if (carry != 0)
+            return false;
+    }
+    *out = fixUInt256FromLimbs(d);
+    return true;
+}
+
+inline bool isBelow2to63(fixUInt256 v)
+{
+    return fixUInt128Eq(v.hi, FIX_UINT128_ZERO) && fixUInt128Hi(v.lo) == 0 && fixUInt128Lo(v.lo) < kSaturated;
+}
+
+// the rounded magnitude for 1 <= n <= MOO_POW_EXACT_MAX (docs/DESIGN.md, "pow and ^"), clamped to kSaturated
+inline uint64_t exactMagnitude(uint64_t a, uint64_t n, bool negativeExponent)
+{
+    fixUInt256 d;
+    if (!exactPower(a, n, &d))
+        return negativeExponent ? 0 : kSaturated; // D >= 2^256: V >= 2^64, or V <= 2^-32
+
+    if (!negativeExponent)
+    {
+        int s = int(16 * (n - 1)); // V = D / 2^s, s <= 192
+        fixUInt256 i = fixUInt256Shr(d, s);
+        if (!isBelow2to63(i))
+            return kSaturated;
+        uint64_t v = fixUInt128Lo(i.lo);
+        if (s == 0)
+            return v;
+        fixUInt256 rest = fixUInt256Sub(d, fixUInt256Shl(i, s));
+        fixUInt256 half = fixUInt256Shl(fixUInt256FromU64(1), s - 1);
+        if (fixUInt256Lt(half, rest) || (!fixUInt256Lt(rest, half) && (v & 1)))
+            v += 1;
+        return v;
+    }
+
+    // V = 2^(16n + 16) / D, 16n + 16 <= 224
+    fixUInt256 q, r;
+    fixUInt256DivMod(fixUInt256Shl(fixUInt256FromU64(1), int(16 * n + 16)), d, &q, &r);
+    if (!isBelow2to63(q))
+        return kSaturated;
+    uint64_t v = fixUInt128Lo(q.lo);
+    fixUInt256 other = fixUInt256Sub(d, r); // r > d - r is r > d / 2
+    if (fixUInt256Lt(other, r) || (!fixUInt256Lt(r, other) && (v & 1)))
+        v += 1;
+    return v;
+}
+
+// the rounded magnitude for n > MOO_POW_EXACT_MAX by the interval (docs/DESIGN.md, "pow and ^"), clamped to
+// kSaturated; *certain is true when both bounds round to the same value, which is then the answer.
+// 1 <= a, a != 2^16.
+inline uint64_t intervalMagnitude(uint64_t a, uint64_t n, bool negativeExponent, bool* certain)
+{
+    int bits = 64 - fixCountLeadingZeros64(a);
+    Wide x;
+    x.m = fixUInt128Shl(fixUInt128FromU64(a), 128 - bits);
+    x.e = -16 - (128 - bits); // x = a / 2^16
+
+    bool above = a > (uint64_t(1) << 16); // x > 1: the power grows with each step
+    Wide lo = x, hi = x;
+    bool exact = true;
+
+    int top = 63 - fixCountLeadingZeros64(n);
+    for (int i = top - 1; i >= 0; --i)
+    {
+        Wide unused;
+        if (exact)
+            exact = mul(lo, lo, &lo, &hi);
+        else
+        {
+            mul(lo, lo, &lo, &unused);
+            mul(hi, hi, &unused, &hi);
+        }
+        if ((n >> i) & 1)
+        {
+            if (exact)
+                exact = mul(lo, x, &lo, &hi);
+            else
+            {
+                mul(lo, x, &lo, &unused);
+                mul(hi, x, &unused, &hi);
+            }
+        }
+
+        // early exits: a bound shows the final value is certainly out of range or certainly below 1/2.
+        // lo >= 2^(lo.e + 127) and hi < 2^(hi.e + 128); the power only moves away from 1 from here.
+        if (above && lo.e + 127 >= (negativeExponent ? 18 : 48))
+        {
+            *certain = true;
+            return negativeExponent ? 0 : kSaturated; // P >= 2^18: V <= 2^-2; P >= 2^48: V >= 2^64
+        }
+        if (!above && hi.e + 128 <= (negativeExponent ? -48 : -18))
+        {
+            *certain = true;
+            return negativeExponent ? kSaturated : 0; // P < 2^-48: V > 2^64; P < 2^-18: V < 2^-2
+        }
+    }
+
+    uint64_t vlo, vhi;
+    if (!negativeExponent)
+    {
+        vlo = roundWide(lo.m, lo.e + 16); // V = 2^16 * P
+        vhi = roundWide(hi.m, hi.e + 16);
+    }
+    else
+    {
+        Wide rlo = reciprocal(hi, false); // V = 2^16 / P
+        Wide rhi = reciprocal(lo, true);
+        vlo = roundWide(rlo.m, rlo.e + 16);
+        vhi = roundWide(rhi.m, rhi.e + 16);
+    }
+    *certain = vlo == vhi;
+    return vlo; // deterministic either way; MooPowIntCertainEverywhere shows the two always agree
+}
+
+} // namespace moo_pow_detail
+
+// base ^ exponent for a raw Q48.16 base and an integer exponent (docs/DESIGN.md, "pow and ^"), with
+// *certain set as moo_pow_detail::intervalMagnitude says (true on every other path). The tests use it to
+// show the interval path always decides; every other caller calls moo_pow_int.
+inline int moo_pow_int_certain(fixed_t base, int64_t exponent, fixed_t* out, bool* certain)
+{
+    using namespace moo_pow_detail;
+    *certain = true;
+
+    if (exponent == 0) // x ^ 0 = 1 for every x, 0 ^ 0 included (Lua's rule)
+    {
+        *out = MOO_NUMBER_ONE;
+        return MOO_POW_OK;
+    }
+
+    bool negativeExponent = exponent < 0;
+    uint64_t n = negativeExponent ? uint64_t(0) - uint64_t(exponent) : uint64_t(exponent);
+    uint64_t a = base < 0 ? uint64_t(0) - uint64_t(base) : uint64_t(base);
+    bool negative = base < 0 && (n & 1);
+
+    if (a == 0) // docs/DESIGN.md, "Division by zero": 0 ^ negative is the named error
+    {
+        *out = 0;
+        return negativeExponent ? MOO_POW_DIVISION_BY_ZERO : MOO_POW_OK;
+    }
+
+    uint64_t magnitude;
+    if (a == (uint64_t(1) << 16)) // |x| = 1
+        magnitude = a;
+    else if (n <= MOO_POW_EXACT_MAX)
+        magnitude = exactMagnitude(a, n, negativeExponent);
+    else
+        magnitude = intervalMagnitude(a, n, negativeExponent, certain);
+
+    if (magnitude >= kSaturated) // docs/DESIGN.md, "Overflow": the rounded value is beyond the domain
+    {
+        *out = negative ? MOO_NUMBER_MIN : MOO_NUMBER_MAX;
+        return MOO_POW_SATURATED;
+    }
+    *out = negative ? -fixed_t(magnitude) : fixed_t(magnitude);
+    return MOO_POW_OK;
+}
+
+// base ^ exponent for a raw Q48.16 base and an integer exponent: the exact power rounded once, half to
+// even (docs/DESIGN.md, "pow and ^"). MOO_POW_OK with the value; MOO_POW_SATURATED with MOO_NUMBER_MAX or
+// MOO_NUMBER_MIN (the release value; a checked build raises "number overflow in '^'"); or
+// MOO_POW_DIVISION_BY_ZERO for 0 ^ negative (the caller raises "division by zero"). An exact edge
+// (MOO_NUMBER_MAX ^ 1) is not saturation.
+inline int moo_pow_int(fixed_t base, int64_t exponent, fixed_t* out)
+{
+    bool certain;
+    return moo_pow_int_certain(base, exponent, out, &certain);
+}
