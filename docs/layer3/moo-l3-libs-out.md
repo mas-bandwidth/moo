@@ -58,9 +58,18 @@ card removes the runtime library and fastcall half; the compiler (moo-l3-vector-
 
 ## Sentences that must change when the layer closes
 
-- docs/DESIGN.md, "Layer 3 as built": the line `'vector' and the integer library while those are
-  out` must read as having already removed the library half; and the "vec3, quat and transform
-  (layer 3b)" sentence "(the library, the type and the bytecode constant, each refused by name)"
-  must read as the library now gone, with the compiler and VM halves (and the analyzer) remaining.
-- docs/DETERMINISM.md: the note that "VM/src/linit.cpp:44 still opens the integer library when
-  FFlag::LuauIntegerLibrary is set" must change to say it never opens it.
+- docs/DESIGN.md, "Layer 3 as built", the TEMPORARY bridges bullet: "the libm functions of `math`,
+  `^`, `math.noise`, and the float `vector` type convert through doubles ..., until the math
+  library is rebuilt on fixed and the vector type is removed" must say the vector *library* is
+  already out (this card) and only the float `vector` type and bytecode constant remain, owned by
+  moo-l3-vector-compiler-out and moo-l3-vector-vm-out.
+- docs/DESIGN.md, "Analyzer": "the builtin definitions drop `os`, `vector` and the integer library
+  while those are out" must read as already true for `vector` and `integer` in both the analyzer
+  and `luaL_openlibs`; only `os` still waits for the VM removal.
+- docs/DESIGN.md, "vec3, quat and transform (layer 3b)": "moo removes it in layer 3 (the library,
+  the type and the bytecode constant, each refused by name)" must read as the library now gone,
+  with the compiler and VM halves (and the analyzer definitions) remaining.
+- docs/DETERMINISM.md, 23: already says "the integer library is not opened (Luau already ships
+  `lualibs_NOINTEGER`, `VM/src/linit.cpp:28`)". That is now true unconditionally: no
+  `FFlag::LuauIntegerLibrary` branch remains in `linit.cpp`. The "still opens" sentence quoted in
+  the card does not exist at base b7bca855; no further change is needed here.
