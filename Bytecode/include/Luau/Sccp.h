@@ -14,6 +14,8 @@
 
 #include <math.h>
 
+#include "moo_number.h"
+
 namespace Luau
 {
 namespace Bytecode
@@ -43,51 +45,36 @@ bool bcCompare(T a, T b, BcCondition cond)
     return false;
 }
 
-inline bool bcCompare(double a, double b, BcCondition cond)
-{
-    // Note: redundant bool() casts work around invalid MSVC optimization that merges cases in this switch, violating IEEE754 comparison semantics
-    switch (cond)
-    {
-    case BcCondition::Equal:
-        return a == b;
-    case BcCondition::NotEqual:
-        return a != b;
-    case BcCondition::Less:
-        return a < b;
-    case BcCondition::NotLess:
-        return !bool(a < b);
-    case BcCondition::LessEqual:
-        return a <= b;
-    case BcCondition::NotLessEqual:
-        return !bool(a <= b);
-    default:
-        LUAU_ASSERT(!"Unsupported condition");
-    }
-
-    return false;
-}
-
-inline std::optional<double> evaluateNumberBinaryOp(double a, double b, LuauOpcode op)
+// moo: number folding uses moo_number.h exactly as Compiler/src/ConstantFolding.cpp's mooFold does, so a folded
+// constant and the same computation at run time are the same bits (docs/DESIGN.md "Layer 3 as built"). The operands
+// are raw Q48.16 values. Division, floor division and remainder by zero are never folded: the VM raises "division
+// by zero" at run time. ^ is never folded: it is still on the libm bridge (docs/DESIGN.md "pow and ^").
+inline std::optional<fixed_t> evaluateNumberBinaryOp(fixed_t a, fixed_t b, LuauOpcode op)
 {
     switch (op)
     {
     case LuauOpcode::LOP_ADD:
-        return a + b;
+        return moo_numadd(a, b);
     case LuauOpcode::LOP_SUB:
-        return a - b;
+        return moo_numsub(a, b);
     case LuauOpcode::LOP_MUL:
-        return a * b;
+        return moo_nummul(a, b);
     case LuauOpcode::LOP_DIV:
-        return a / b;
+        if (b != 0)
+            return moo_numdiv(a, b);
+        break;
     case LuauOpcode::LOP_MOD:
-        return a - floor(a / b) * b;
-    case LuauOpcode::LOP_POW:
-        return pow(a, b);
+        if (b != 0)
+            return moo_nummod(a, b);
+        break;
     case LuauOpcode::LOP_IDIV:
-        return floor(a / b);
+        if (b != 0)
+            return moo_numidiv(a, b);
+        break;
     default:
-        return std::nullopt;
+        break;
     }
+    return std::nullopt;
 }
 
 // SCCP is generic over the constant representation
@@ -117,7 +104,8 @@ struct VmConstOps
     virtual bool isNumber(const BcOp& op) const = 0;
 
     virtual bool asBoolean(const BcOp& op) const = 0;
-    virtual double asNumber(const BcOp& op) const = 0;
+    // moo: the raw Q48.16 value (moo_number.h), not a double
+    virtual fixed_t asNumber(const BcOp& op) const = 0;
 
     virtual BcRef<BcImm> asImm(BcOp op) const = 0;
 
@@ -151,7 +139,7 @@ struct BcVmConstImpl : public VmConstOps
     bool isNumber(const BcOp& op) const override;
 
     bool asBoolean(const BcOp& op) const override;
-    double asNumber(const BcOp& op) const override;
+    fixed_t asNumber(const BcOp& op) const override;
 
     BcRef<BcImm> asImm(BcOp op) const override;
 
@@ -920,7 +908,8 @@ struct Sccp
 
                 // we can do some potential folding here now that we know one operand is constant
                 // for instance, adds of zero, muls of zero or 1, pows of zero or 1, etc
-                double valueNumber = impl->asNumber(constantK.constant.value());
+                // moo: asNumber is the raw Q48.16 value, so the number 0.0 is raw 0 and the number 1.0 is MOO_NUMBER_ONE
+                fixed_t valueNumber = impl->asNumber(constantK.constant.value());
                 if (valueNumber == 0)
                 {
                     if (inst->op == LOP_ADD || (inst->op == LOP_SUB && constantIsRhs))
@@ -944,7 +933,7 @@ struct Sccp
                         func.setOps(op, inst, {func.addImm(imm)});
                     }
                 }
-                else if (valueNumber == 1)
+                else if (valueNumber == MOO_NUMBER_ONE)
                 {
                     if (inst->op == LOP_MUL || (inst->op == LOP_POW && constantIsRhs) || (inst->op == LOP_DIV && constantIsRhs))
                     {
