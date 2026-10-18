@@ -4,6 +4,7 @@
 
 #include "lstring.h"
 #include "moo_format.h"
+#include "moo.h"
 
 #include <ctype.h>
 #include <string.h>
@@ -1258,6 +1259,7 @@ typedef struct Header
     lua_State* L;
     int islittle;
     int maxalign;
+    int fltype; // moo: 0 for 'f', 1 for 'd', 2 for 'n' (all Kfloat, but f/d/n round differently)
 } Header;
 
 /*
@@ -1362,12 +1364,15 @@ static KOption getoption(Header* h, const char** fmt, int* size)
         return Kuint;
     case 'f':
         *size = 4;
+        h->fltype = 0;
         return Kfloat;
     case 'd':
         *size = 8;
+        h->fltype = 1;
         return Kfloat;
     case 'n':
         *size = 8;
+        h->fltype = 2;
         return Kfloat;
     case 'i':
         *size = getnumlimit(h, fmt, 4);
@@ -1485,6 +1490,44 @@ static void copywithendian(volatile char* dest, volatile const char* src, int si
     }
 }
 
+// moo: the exact float boundary rule (docs/DESIGN.md "Boundary", DETERMINISM.md 18). A Q48.16 number
+// packs to the nearest float/double bit pattern, ties to even, through moo_todouble; a float/double's
+// IEEE bits unpack to Q48.16 in integer arithmetic through moo_numfromdouble. The byte store below is
+// integer only: no float or double arithmetic reaches lstrlib.cpp itself.
+static uint32_t moo_numtofloatbits(int64_t n)
+{
+    double d = moo_todouble(n);
+    float f = (float)d;
+    uint32_t bits;
+    memcpy(&bits, &f, 4);
+    return bits;
+}
+
+static uint64_t moo_numtodoublebits(int64_t n)
+{
+    double d = moo_todouble(n);
+    uint64_t bits;
+    memcpy(&bits, &d, 8);
+    return bits;
+}
+
+// moo: float to double is exact, so the double decoder is the one boundary rule for both f and d.
+static int moo_numfromfloat(float x, int64_t* out)
+{
+    return moo_numfromdouble((double)x, out);
+}
+
+// moo: the named unpack errors (THE TASK); a NaN, infinity or out-of-range float/double never becomes a number.
+static void moo_packfloat_error(lua_State* L, int status)
+{
+    if (status == MOO_NUMBER_NAN)
+        luaL_error(L, "string.unpack float is NaN");
+    else if (status == MOO_NUMBER_INFINITE)
+        luaL_error(L, "string.unpack float is infinite");
+    else if (status == MOO_NUMBER_OUT_OF_RANGE)
+        luaL_error(L, "string.unpack float out of number range");
+}
+
 static int str_pack(lua_State* L)
 {
     luaL_Strbuf b;
@@ -1526,17 +1569,23 @@ static int str_pack(lua_State* L)
         }
         case Kfloat:
         { // floating-point options
-            volatile Ftypes u;
             char buff[MAXINTSIZE];
-            double n = moo_numbridgetodouble(luaL_checknumber(L, arg)); // get argument (TEMPORARY until the exact float boundary rule)
-            if (size == sizeof(u.f))
-                u.f = (float)n; // copy it into 'u'
-            else if (size == sizeof(u.d))
-                u.d = (double)n;
+            int64_t n = luaL_checknumber(L, arg);
+            if (h.fltype == 0)
+            { // 'f': nearest float bit pattern
+                uint32_t bits = moo_numtofloatbits(n);
+                copywithendian(buff, (const char*)&bits, size, h.islittle);
+            }
+            else if (h.fltype == 1)
+            { // 'd': nearest double bit pattern
+                uint64_t bits = moo_numtodoublebits(n);
+                copywithendian(buff, (const char*)&bits, size, h.islittle);
+            }
             else
-                u.n = n;
-            // move 'u' to final result, correcting endianness if needed
-            copywithendian(buff, u.buff, size, h.islittle);
+            { // 'n': the raw Q48.16 int64, an exact round trip
+                uint64_t bits = (uint64_t)n;
+                copywithendian(buff, (const char*)&bits, size, h.islittle);
+            }
             luaL_addlstring(&b, buff, size);
             break;
         }
@@ -1677,16 +1726,30 @@ static int str_unpack(lua_State* L)
         }
         case Kfloat:
         {
-            volatile Ftypes u;
-            double num;
-            copywithendian(u.buff, data + pos, size, h.islittle);
-            if (size == sizeof(u.f))
-                num = (double)u.f;
-            else if (size == sizeof(u.d))
-                num = (double)u.d;
+            char raw[8];
+            int64_t num;
+            int status;
+            copywithendian(raw, data + pos, size, h.islittle);
+            if (h.fltype == 0)
+            { // 'f': float bits, widened to double exactly, decoded in integer arithmetic
+                float f;
+                memcpy(&f, raw, 4);
+                status = moo_numfromfloat(f, &num);
+            }
+            else if (h.fltype == 1)
+            { // 'd': double bits, decoded in integer arithmetic
+                double d;
+                memcpy(&d, raw, 8);
+                status = moo_numfromdouble(d, &num);
+            }
             else
-                num = u.n;
-            lua_pushnumber(L, moo_numbridgefromdouble(num)); // TEMPORARY until the exact float boundary rule
+            { // 'n': the raw Q48.16 int64, an exact round trip
+                memcpy(&num, raw, 8);
+                status = MOO_NUMBER_OK;
+            }
+            if (status != MOO_NUMBER_OK)
+                moo_packfloat_error(L, status);
+            lua_pushnumber(L, num);
             break;
         }
         case Kchar:
