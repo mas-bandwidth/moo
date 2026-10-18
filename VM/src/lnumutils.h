@@ -7,6 +7,8 @@
 #include "moo_parse.h"
 #include "moo_pow.h"
 
+#include "fixed/fixed_math.h"
+
 #include <math.h>
 #include <cstdint>
 
@@ -19,7 +21,10 @@
 #define luai_numdiv(a, b) moo_numdiv(a, b)
 // moo: an integer-valued exponent is moo_pow_int, exact and rounded once (docs/DESIGN.md, "math
 // library", "pow and ^"); its callers raise its statuses. *out is the release value for OK and SATURATED,
-// and 0 for division by zero (0 ^ negative).
+// and 0 for division by zero (0 ^ negative). A fractional exponent is fixPow = fixExp2(exponent *
+// fixLog2(base)) (docs/DESIGN.md, "pow and ^"): it returns 0 for a base <= 0 (so 0 ^ positive fraction
+// is 0); a negative base with a fractional exponent is the named error "pow of a negative number to a
+// fractional power", raised by math.pow's caller and by the fastcall's library path.
 inline fixed_t moo_numpow(fixed_t a, fixed_t b)
 {
     if (moo_numisinteger(b))
@@ -28,9 +33,7 @@ inline fixed_t moo_numpow(fixed_t a, fixed_t b)
         (void)moo_pow_int(a, b >> MOO_NUMBER_FRACTION_BITS, &r);
         return r;
     }
-    // TEMPORARY BRIDGE for a fractional exponent until pow is rebuilt on fixed (docs/DESIGN.md, "pow and
-    // ^"): libm pow on doubles
-    return moo_numbridgefromdouble(pow(moo_numbridgetodouble(a), moo_numbridgetodouble(b)));
+    return fixPow(a, b);
 }
 #define luai_numpow(a, b) moo_numpow(a, b)
 #define luai_numunm(a) moo_numunm(a)

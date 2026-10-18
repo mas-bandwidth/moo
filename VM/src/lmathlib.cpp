@@ -308,9 +308,12 @@ static int math_pow(lua_State* L)
         return 1;
     }
 
-    // moo: a fractional exponent stays on the libm bridge until moo-l4-pow-fractional (docs/DESIGN.md,
-    // "Layer 3 as built", TEMPORARY bridges)
-    lua_pushnumber(L, moo_numbridgefromdouble(pow(moo_numbridgetodouble(base), moo_numbridgetodouble(exponent))));
+    // moo: a fractional exponent is fixPow = fixExp2(exponent * fixLog2(base)) (docs/DESIGN.md, "pow
+    // and ^"). A negative base with a fractional exponent is the named error; 0 ^ positive fraction is 0
+    // (fixPow returns 0 for a base <= 0).
+    if (base < 0)
+        luaL_error(L, "pow of a negative number to a fractional power");
+    lua_pushnumber(L, fixPow(base, exponent));
     return 1;
 }
 
