@@ -336,26 +336,37 @@ const MooOracleSource mooOracleSources[] = {
 const char* const mooOracleFunctionNames[] = {
     "sin", "cos", "tan", "asin", "acos", "atan", "atan2", "exp", "log", "log10", "log2", "sinh", "cosh", "tanh", "sqrt", "pow"};
 
-// The error bucket of a signed raw error: exact for |e| <= 4, then by powers of two of the magnitude, as a key that
-// sorts in order (e itself, or +-(100 + j) for 2^(j-1) < |e| <= 2^j) and a label.
-int mooOracleBucket(bool negative, uint64_t magnitude)
+// One exact signed error, got - ideal, as a sign and a magnitude so no value overflows int64 (THE TASK: "the count of
+// inputs at each error"). Keys order from the most negative error to the most positive.
+struct MooOracleError
 {
-    if (magnitude <= 4)
-        return negative ? -int(magnitude) : int(magnitude);
-    int j = 3;
-    while (j < 64 && magnitude > (uint64_t(1) << j))
-        j++;
-    return negative ? -(100 + j) : 100 + j;
+    int sign; // -1, 0 or 1
+    uint64_t magnitude;
+
+    bool operator<(const MooOracleError& other) const
+    {
+        if (sign != other.sign)
+            return sign < other.sign;
+        return sign < 0 ? magnitude > other.magnitude : magnitude < other.magnitude;
+    }
+    bool operator==(const MooOracleError& other) const
+    {
+        return sign == other.sign && magnitude == other.magnitude;
+    }
+    bool operator!=(const MooOracleError& other) const
+    {
+        return !(*this == other);
+    }
+};
+
+MooOracleError mooOracleBucket(bool negative, uint64_t magnitude)
+{
+    return {magnitude == 0 ? 0 : negative ? -1 : 1, magnitude};
 }
 
-std::string mooOracleBucketLabel(int key)
+std::string mooOracleBucketLabel(const MooOracleError& error)
 {
-    if (key >= -4 && key <= 4)
-        return std::to_string(key);
-    int j = key < 0 ? -key - 100 : key - 100;
-    std::string lo = std::to_string((uint64_t(1) << (j - 1)) + 1);
-    std::string hi = j == 64 ? "2^64" : std::to_string(uint64_t(1) << j);
-    return std::string(key < 0 ? "-" : "+") + "[" + lo + "," + hi + "]";
+    return std::string(error.sign < 0 ? "-" : "") + std::to_string(error.magnitude);
 }
 
 } // namespace
@@ -492,8 +503,30 @@ TEST_CASE("MooL4MathOracleExactPoints")
     CHECK(ideal("exp", INT64_MAX - 1023, 0) == INT64_MAX);
 }
 
+// THE TASK asks for "the count of inputs at each error": every exact signed error is its own histogram entry, with no
+// range bucket, from the most negative to the most positive, and a magnitude up to 2^64 - 1 keeps its exact value.
+TEST_CASE("MooL4MathOracleCountsEachExactError")
+{
+    CHECK(mooOracleBucket(false, 5) != mooOracleBucket(false, 6));
+    CHECK(mooOracleBucket(false, 7) != mooOracleBucket(false, 8));
+    CHECK(mooOracleBucket(true, 5) != mooOracleBucket(true, 6));
+    CHECK(mooOracleBucket(false, uint64_t(1) << 40) != mooOracleBucket(false, (uint64_t(1) << 40) + 1));
+    CHECK(mooOracleBucket(false, 5) == mooOracleBucket(false, 5));
+    CHECK(mooOracleBucketLabel(mooOracleBucket(false, 0)) == "0");
+    CHECK(mooOracleBucketLabel(mooOracleBucket(true, 3)) == "-3");
+    CHECK(mooOracleBucketLabel(mooOracleBucket(false, 6)) == "6");
+    CHECK(mooOracleBucketLabel(mooOracleBucket(true, 131066)) == "-131066");
+    CHECK(mooOracleBucketLabel(mooOracleBucket(false, UINT64_MAX)) == "18446744073709551615");
+    CHECK(mooOracleBucketLabel(mooOracleBucket(true, uint64_t(1) << 63)) == "-9223372036854775808");
+    // ordered from the most negative error to the most positive
+    CHECK(mooOracleBucket(true, 9) < mooOracleBucket(true, 8));
+    CHECK(mooOracleBucket(true, 1) < mooOracleBucket(false, 0));
+    CHECK(mooOracleBucket(false, 0) < mooOracleBucket(false, 1));
+    CHECK(mooOracleBucket(false, 8) < mooOracleBucket(false, 9));
+}
+
 // The table layer 4 decides the bounds from: for each function with a fixed source, the maximum error in raw units
-// against the ideal and the count of inputs at each error (exact for |e| <= 4, then by powers of two). Asserts no
+// against the ideal and the count of inputs at each exact error value, over all records and over the core. Asserts no
 // bound (docs/layer4/moo-l4-math-oracle.md, Decision 2).
 TEST_CASE("MooL4MathOracleErrorTable")
 {
@@ -514,7 +547,7 @@ TEST_CASE("MooL4MathOracleErrorTable")
         }
 
         auto measure = [&](bool core) {
-            std::map<int, uint64_t> buckets;
+            std::map<MooOracleError, uint64_t> buckets;
             uint64_t measured = 0, worst = 0;
             bool worstNegative = false;
             MooOracleRecord worstAt = {0, 0, 0};

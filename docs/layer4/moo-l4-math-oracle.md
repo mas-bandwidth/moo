@@ -56,10 +56,14 @@ the compiler and `moo_number.h` are as they were.
    and pow; the bounds layer 4 sets for those functions must allow for it or measure against a wider reference.
 7. **sqrt's ideal is the C library's `sqrt`.** CORE-MATH has no `sqrt`, because IEEE 754 makes `sqrt` itself
    correctly rounded. The generator is built with `-fno-builtin -fno-fast-math -ffp-contract=off`.
-8. **Errors are counted exactly up to 4 raw units, then by powers of two.** The brief asks for "the count of inputs
-   at each error". fixSin's errors reach about 131000 distinct values and fixPow's reach 10^14, so one count per
-   value would print thousands of entries per line. Each line therefore counts -4 to 4 exactly and groups larger
-   magnitudes as (2^(j-1), 2^j], by sign. The maximum error is printed exactly, with its input.
+8. **Every exact error value gets its own count, with no range bucket.** THE TASK asks for "the count of inputs at
+   each error", so each line is a full histogram: every signed error value `got - ideal` that occurs, in raw units,
+   with the number of inputs at it, from the most negative to the most positive (`MooOracleError`, a sign and an
+   exact 64-bit magnitude, so no error overflows). Lines are long where errors are large and varied: fixSin's
+   and fixPow's run to tens of thousands of entries. The maximum error is also printed with its input.
+   `MooL4MathOracleCountsEachExactError` pins it: 5 and 6 are distinct entries, labels are the exact values up to
+   2^64 - 1, and the order runs from negative to positive. (Attempt 1 counted -4 to 4 exactly and grouped larger
+   magnitudes by powers of two; a reader found that short of THE TASK, and it is gone.)
 9. **The conformance script calls no libm function.** At this BASE every transcendental in `math` is the libm bridge,
    so a script that called `math.sin` would call libm from a test. The script checks instead what the VM gives
    without libm and the file also holds: `math.pi` is 205887 raw, the file's ideal for acos(-1), and `math.huge`
@@ -96,8 +100,8 @@ the compiler and `moo_number.h` are as they were.
   - `MooL4MathOracleExactPoints` checks the ideal at the exact points.
   - `MooL4MathOracleErrorTable` prints two lines for each measured function. The first covers every record. The
     second covers the dense core only: |x| <= 64, or for pow a base <= 16 and |exponent| <= 8. Each line gives the
-    maximum error in raw units with its input, and the count of inputs at each error: exact for |e| <= 4, then by
-    powers of two.
+    maximum error in raw units with its input, and the count of inputs at each exact error value (Decision 8).
+  - `MooL4MathOracleCountsEachExactError` pins that every exact error is its own entry, in order.
 - `tests/conformance/moo/l3/moo-l4-math-oracle.luau` (new): run by `MooL3Scripts`. It checks `math.pi` and
   `math.huge` against the file's ideals for acos(-1) and saturation, and calls no libm function (Decision 9).
 
