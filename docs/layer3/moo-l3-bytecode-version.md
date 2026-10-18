@@ -73,7 +73,7 @@ compiles but does not load (see "Not done").
 | `Bytecode/src/BytecodeDump.cpp` | `toString(BcVmConst)` | the same `moo_numtostr` |
 | `Bytecode/include/Luau/BytecodeGraph.h` | `BcVmConst`, `addVmConstNumberRaw`, `addVmConstNumber` | `valueNumber` is the raw `int64_t`; `addVmConstNumber(double)` converts once with `mooNumberFromDouble` |
 | `Bytecode/src/BytecodeGraph.cpp` | `fromFunctionBytecode`, `toFunctionBytecode` | read and write the raw value (`addConstantNumberRaw`), so a graph round trip is bit exact |
-| `Bytecode/src/Sccp.cpp` (outside PATHS, see below) | `BcVmConstImpl::evaluate`, `asNumber` | convert at the two calls only: Sccp still folds doubles until `moo-l3-bytecode-graph-fixed` |
+| `Bytecode/src/Sccp.cpp` (see below) | `BcVmConstImpl::evaluate`, `asNumber` | convert at the two calls only: Sccp still folds doubles until `moo-l3-bytecode-graph-fixed` |
 | `VM/src/lvmload.cpp` | `loadsafe` | refuses Luau bytecode and unknown moo versions by name, then reads the Luau version byte; reads the raw number with `setnvalue` (the TEMPORARY comment and `moo_numbridgefromdouble` are gone); refuses `INT64_MIN` and integer constants by name |
 | `tests/Compiler.test.cpp` | 10 golden dumps | numbers print shortest (`0.3`, not `0.3000030517578125`); `PreserveNegZero` prints `0`, since a number has no negative zero. Each is marked `// moo:` |
 
@@ -152,7 +152,7 @@ should update them.
 
 ## Test cases the moo header and raw constants changed (attempt 2)
 
-Each was green at BASE `1fcc79e5` and broke only because of this card's required change. Attempt 2 fixed each:
+Each was green at BASE `1fcc79e5` (attempt 1's base) and broke only because of this card's required change. Attempt 2 fixed each:
 
 - `tests/BytecodeCallInliner.test.cpp:176` and `tests/BytecodeCompiler.test.cpp:99` skipped the header with
   `size_t offset = 2`. A moo header is 3 bytes, so it is now `offset = 3` (`moo:`). Without it the string table is
@@ -175,8 +175,8 @@ a NaN constant (`tests/Sccp.test.cpp` `sccp_nan_compare_check1/2/3`) and `Native
 beside each."
 
 BASE `d4b5c1d6` and its tip `efdb83f5` are red on their own in `tests/moo/moo-l5-suite-audit.test.cpp`, and this
-card does not edit that file. `MooL5MovedScriptsNameAReason` expects 19 moved scripts and finds 21; this card's new l3
-script makes it 22. `MooL5SkippedCasesNameAReason` expects 29 doctest skips and finds 36 at `efdb83f5`; the four
+card does not edit that file. `MooL5MovedScriptsNameAReason` expects 19 moved scripts and finds 25 at `efdb83f5` (21 at `d4b5c1d6`); this card's new l3
+script makes it 26. `MooL5SkippedCasesNameAReason` expects 29 doctest skips and finds 36 at `efdb83f5`; the four
 skips above make it 40. Both counts are owned by moo-l5-suite-audit (or the card that next corrects that audit).
 
 `Bytecode/src/Sccp.cpp` (added to PATHS at attempt 2): the change converts at the two calls only (`evaluate` stores through

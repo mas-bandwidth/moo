@@ -1075,7 +1075,7 @@ TEST_CASE_FIXTURE(BytecodeInlinerFixture, "fold_constants_div_by_zero")
         true
     );
 
-    // moo: 1/0 folds to the saturated MOO_NUMBER_MAX (raw INT64_MAX), not inf; moo has no infinity
+    // moo: 10 / 0 folds to the saturated MOO_NUMBER_MAX (raw INT64_MAX), not inf; moo has no infinity
     REQUIRE_EQ(
         "\n" + result,
         R"(
