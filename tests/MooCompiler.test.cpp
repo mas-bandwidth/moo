@@ -64,7 +64,8 @@ TEST_CASE("MooBuiltinsDoNotFold")
     CHECK(has(mooCompile0("return string.char(65)"), "FASTCALL"));
     CHECK(has(mooCompile0("return math.pi"), "GETIMPORT"));
     CHECK(has(mooCompile0("return math.huge"), "GETIMPORT"));
-    CHECK(has(mooCompile0("return vector.create(1, 2, 3)"), "FASTCALL"));
+    // moo: vector is not a compiler builtin (DESIGN.md "Analyzer"; docs/layer3/moo-l3-vector-compiler-out.md)
+    CHECK(has(mooCompile0("return vector.create(1, 2, 3)"), "GETIMPORT"));
 }
 
 // DESIGN.md "Literals": a literal beyond the range is a compile error, and the constant is the exact rational

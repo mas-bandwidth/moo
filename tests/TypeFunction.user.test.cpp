@@ -3375,7 +3375,8 @@ TEST_CASE_FIXTURE(BuiltinsFixture, "udtf_setmetatable_wrong_error_tag")
     );
 }
 
-TEST_CASE_FIXTURE(BuiltinsFixture, "udtf_cloner_missing_integer_crashes_copy")
+// moo: integer is not a moo builtin (DESIGN.md "Analyzer")
+TEST_CASE_FIXTURE(BuiltinsFixture, "udtf_cloner_missing_integer_crashes_copy" * doctest::skip())
 {
     ScopedFastFlag newSolver{FFlag::DebugLuauForceOldSolver, false};
     ScopedFastFlag integerType{FFlag::LuauIntegerType2, true};
@@ -3392,7 +3393,8 @@ TEST_CASE_FIXTURE(BuiltinsFixture, "udtf_cloner_missing_integer_crashes_copy")
     LUAU_REQUIRE_NO_ERRORS(result);
 }
 
-TEST_CASE_FIXTURE(BuiltinsFixture, "udtf_integer_methods_work")
+// moo: integer is not a moo builtin (DESIGN.md "Analyzer")
+TEST_CASE_FIXTURE(BuiltinsFixture, "udtf_integer_methods_work" * doctest::skip())
 {
     ScopedFastFlag newSolver{FFlag::DebugLuauForceOldSolver, false};
     ScopedFastFlag integerType{FFlag::LuauIntegerType2, true};
@@ -3412,7 +3414,8 @@ TEST_CASE_FIXTURE(BuiltinsFixture, "udtf_integer_methods_work")
     LUAU_REQUIRE_NO_ERRORS(result);
 }
 
-TEST_CASE_FIXTURE(BuiltinsFixture, "udtf_integer_is_distinct_from_number")
+// moo: integer is not a moo builtin (DESIGN.md "Analyzer")
+TEST_CASE_FIXTURE(BuiltinsFixture, "udtf_integer_is_distinct_from_number" * doctest::skip())
 {
     ScopedFastFlag newSolver{FFlag::DebugLuauForceOldSolver, false};
     ScopedFastFlag integerType{FFlag::LuauIntegerType2, true};
@@ -3431,7 +3434,8 @@ TEST_CASE_FIXTURE(BuiltinsFixture, "udtf_integer_is_distinct_from_number")
     LUAU_REQUIRE_NO_ERRORS(result);
 }
 
-TEST_CASE_FIXTURE(BuiltinsFixture, "udtf_integer_constructor_is_not_number")
+// moo: integer is not a moo builtin (DESIGN.md "Analyzer")
+TEST_CASE_FIXTURE(BuiltinsFixture, "udtf_integer_constructor_is_not_number" * doctest::skip())
 {
     ScopedFastFlag newSolver{FFlag::DebugLuauForceOldSolver, false};
     ScopedFastFlag integerType{FFlag::LuauIntegerType2, true};
@@ -3469,7 +3473,8 @@ TEST_CASE_FIXTURE(BuiltinsFixture, "udtf_setgenerics_wrong_argcount_check")
     );
 }
 
-TEST_CASE_FIXTURE(BuiltinsFixture, "issubtypeof")
+// moo: vector is not a moo builtin (DESIGN.md "Analyzer")
+TEST_CASE_FIXTURE(BuiltinsFixture, "issubtypeof" * doctest::skip())
 {
     DOES_NOT_PASS_OLD_SOLVER_GUARD();
 
@@ -3737,7 +3742,8 @@ TEST_CASE_FIXTURE(BuiltinsFixture, "types_singleton_error_message")
     );
 }
 
-TEST_CASE_FIXTURE(BuiltinsFixture, "type_tostring")
+// moo: vector is not a moo builtin (DESIGN.md "Analyzer")
+TEST_CASE_FIXTURE(BuiltinsFixture, "type_tostring" * doctest::skip())
 {
     DOES_NOT_PASS_WITH_EXACT_TABLES();
 
