@@ -1,7 +1,7 @@
 # moo-l3-overflow-errors-debug
 
 Checked arithmetic: a build with `MOO_OVERFLOW_ERRORS` raises `number overflow in '<op>'` where
-release saturates, so a program either gives the release value or stops with the named error.
+release saturates (for `+`, `-`, `*`, `/` and `//`), so a program either gives the release value or stops with the named error.
 Release compiles to the same machine code as before.
 
 ## Decisions
@@ -11,7 +11,9 @@ Release compiles to the same machine code as before.
   `LUAU_ASSERT` (`Common/include/Luau/Common.h`). Otherwise it is 0. A build can force it with CMake
   `-DMOO_OVERFLOW_ERRORS=ON|OFF` (default `AUTO`, put on `Luau.Common` so every target that includes
   `moo_number.h` sees one value) or `make overflow=on|off` (which also picks its own build directory).
-  So CMake Debug is checked and RelWithDebInfo/Release is not. Upstream Luau has no
+  So CMake Debug is checked and RelWithDebInfo/Release is not. AUTO is decided per translation
+  unit, so an embedder that builds the compiler and the VM with different `NDEBUG` settings should
+  set the option explicitly. Upstream Luau has no
   `LUAU_ENABLE_ASSERT` CMake option, so `-DLUAU_ENABLE_ASSERT=ON` on the command line does nothing by
   itself. The C macro does.
 - **The seam is a saturation test, not a second arithmetic path.** Each saturating operation in
@@ -24,12 +26,13 @@ Release compiles to the same machine code as before.
   `luaG_runerror(L, "number overflow in '%s'")`, right after the `division by zero` check. The error
   therefore carries the operation's line, behaves like every other runtime error, and also covers
   string-coerced operands and the `K` and `RK` opcode forms.
-- **Which operators.** `+`, `-`, `*`, `/`, `//` and `^`. Unary `-` and `%` are exact on the symmetric
+- **Which operators.** `+`, `-`, `*`, `/` and `//`. Unary `-` and `%` are exact on the symmetric
   domain `[-INT64_MAX, INT64_MAX]`, so they never saturate and get no check. The tests show that
-  neither one raises at the edges in a checked build. `^` goes through the temporary pow bridge, and
-  its test is that the libm result is `>= 2^47` in magnitude (`moo_numbridgesaturates`). Below that,
-  the rounded value is always in range. NaN is not overflow and still gives 0. When moo-l4-pow-integer
-  rebuilds `^` on fixed, it replaces this test with that operation's own.
+  neither one raises at the edges in a checked build. `^` is not checked yet. It is the temporary libm
+  bridge, and checking it would mean a second double `pow` inside the VM, which the card's DETERMINISM
+  rule forbids. So `2 ^ 47` still saturates in both builds, and `MooOverflowPowUncheckedBridge` pins
+  that. moo-l4-pow-integer rebuilds `^` on fixed and needs this card; it adds `^` with an integer
+  saturation test beside the others.
 - **An exact edge is not overflow.** `MAX * 1`, `MAX / 1` and `MAX + 0` give `MAX` and do not raise.
   For `*` the test is exact: `fixMul` clamps only to the two edges, so the test re-rounds only when
   the result is an edge, using fixed's own 128-bit seam (`fixInt128MulI64`, `fixInt128Add`,
@@ -41,29 +44,32 @@ Release compiles to the same machine code as before.
   is then computed at run time, where it raises. Today `mooResult` already refuses any result of
   magnitude `>= 2^53` raw, so no saturated value was being folded in either build. The guard keeps
   the rule true once the raw-constant cards (moo-l3-compiler-raw-constants) lift that bound. With the
-  option off, the guard is compiled out and folding is unchanged.
+  option off, the guard is compiled out and folding is unchanged. So today the "folded" test cases
+  (constant operands) exercise the run-time raise of a constant operation that was not folded. The
+  guard itself can only be observed once that bound is lifted.
 
 ## What changed
 
 - `Common/include/moo_number.h`: the `MOO_OVERFLOW_ERRORS` default. `moo_numaddsaturates`,
-  `moo_numsubsaturates`, `moo_nummulsaturates`, `moo_numdivsaturates`, `moo_numidivsaturates`, and
-  `moo_numbridgesaturates`. None of the existing operations changed.
-- `VM/src/lnumutils.h`: `luai_num{add,sub,mul,div,idiv,pow}sat` and `luai_numnosat` (just `(true)` in
+  `moo_numsubsaturates`, `moo_nummulsaturates`, `moo_numdivsaturates` and `moo_numidivsaturates`.
+  None of the existing operations changed.
+- `VM/src/lnumutils.h`: `luai_num{add,sub,mul,div,idiv}sat` and `luai_numnosat` (just `(true)` in
   release).
-- `VM/src/lvmexecute.cpp`: the fast-path condition of the 14 arms `LOP_ADD`, `SUB`, `MUL`, `DIV`,
-  `IDIV`, `POW`, `ADDK`, `SUBK`, `MULK`, `DIVK`, `IDIVK`, `POWK`, `SUBRK`, `DIVRK`.
+- `VM/src/lvmexecute.cpp`: the fast-path condition of the 12 arms `LOP_ADD`, `SUB`, `MUL`, `DIV`,
+  `IDIV`, `ADDK`, `SUBK`, `MULK`, `DIVK`, `IDIVK`, `SUBRK`, `DIVRK`.
 - `VM/src/lvmutils.cpp` `luaV_doarithimpl`: the raise site.
 - `Compiler/src/ConstantFolding.cpp`: `mooSaturates` and the guard in `mooFold`.
 - `CMakeLists.txt`: the `MOO_OVERFLOW_ERRORS` cache option (`AUTO`/`ON`/`OFF`). `Makefile`:
   `overflow=on|off`, and a separate `BUILD` directory for each setting.
 - Tests: `tests/moo/moo-l3-overflow-errors-debug.test.cpp`:
   - `MooOverflowSaturationTestsAreExact` checks every saturation test against an exact MooWide
-    reference over edge values plus 200 seeded operands, and checks the bridge edge.
-  - `MooOverflowAdd`, `Sub`, `Mul`, `Div`, `FloorDiv` and `Pow` each cover one runtime and one folded
+    reference over edge values plus 200 seeded operands.
+  - `MooOverflowAdd`, `Sub`, `Mul`, `Div` and `FloorDiv` each cover one runtime and one folded
     case at optimization levels 0 to 2. A checked build gets the exact text
     `moo:1: number overflow in '<op>'`; release gets `MOO_NUMBER_MAX` or `MOO_NUMBER_MIN`. A case one
     step inside the range never raises.
-  - `MooOverflowUnaryMinusAndModNeverRaise`.
+  - `MooOverflowUnaryMinusAndModNeverRaise`, and `MooOverflowPowUncheckedBridge` (`^` saturates in
+    both builds).
   - `MooOverflowCoercedOperand` covers the string-coercion path.
 - `tests/conformance/moo/l3/moo-l3-overflow-errors-debug.luau` runs in both builds. It uses its
   first edge to tell which build it is in, then checks that every operator, opcode form and folded
@@ -74,18 +80,18 @@ Release compiles to the same machine code as before.
 
 ## Release is unchanged
 
-The check was done on the bench with the same clang and the DONE-WHEN RelWithDebInfo configuration
-at the base and at this head: `objdump -d --no-show-raw-insn` of every object in `libLuau.VM.a` and
-`libLuau.Compiler.a`. The result, and the unchanged frozen determinism hashes
-(`tests/determinism/expected.txt`, exercised by `Determinism.test.cpp` in `build/Moo.Test`), are in
-the PR body.
+Checked on hetzner1 with clang and the DONE-WHEN RelWithDebInfo configuration, at base efdb83f5 and
+at this change. `objdump -d --no-show-raw-insn` of `build/libLuau.VM.a` (73106 lines) and of
+`build/libLuau.Compiler.a` (58404 lines) is identical at both points: 0 diff lines and the same
+sha256. The frozen determinism hashes (`tests/determinism/expected.txt`) are untouched, and
+`Determinism.test.cpp` passes in `build/Moo.Test`.
 
 ## DESIGN.md and DETERMINISM.md sentences that must change
 
 - DESIGN.md, "Overflow": replace "Debug builds (`LUAU_ENABLE_ASSERT` or a moo debug option) raise a
   named error instead: `number overflow in '*'` (and so on per operator)." with: "Checked builds
-  raise the named error `number overflow in '<op>'` at the operation, for `+`, `-`, `*`, `/`, `//`
-  and `^`. A build is checked when assertions are on (no `NDEBUG`, or `LUAU_ENABLE_ASSERT`), or when
+  raise the named error `number overflow in '<op>'` at the operation, for `+`, `-`, `*`, `/` and
+  `//` (`^` joins them when it is rebuilt on fixed). A build is checked when assertions are on (no `NDEBUG`, or `LUAU_ENABLE_ASSERT`), or when
   it sets `MOO_OVERFLOW_ERRORS=ON` (CMake) or `overflow=on` (make). Unary `-` and `%` are exact on
   the domain and never saturate. An exact result at the edge (`MAX * 1`) is not overflow. The
   compiler does not fold an operation that saturates in a checked build." The sentence "Saturation

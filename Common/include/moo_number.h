@@ -103,7 +103,8 @@ inline fixed_t moo_nummod(fixed_t a, fixed_t b)
 // [MOO_NUMBER_MIN, MOO_NUMBER_MAX]. A result equal to MOO_NUMBER_MAX or MOO_NUMBER_MIN that is exact does not
 // saturate. The value is always the release operation's own; these only say whether it was clamped, so a
 // checked build either gives the release value or stops with the named error. Unary - and % are exact on
-// the domain and never saturate, so they have no test.
+// the domain and never saturate, so they have no test. ^ is not checked while it is the libm bridge: a test
+// would be a second double pow in the VM; moo-l4-pow-integer adds it with the integer pow.
 
 // true when moo_numadd(a, b) saturates
 inline bool moo_numaddsaturates(fixed_t a, fixed_t b)
@@ -242,13 +243,6 @@ inline fixed_t moo_numbridgefromdouble(double d)
     if (t < MOO_NUMBER_MIN)
         return MOO_NUMBER_MIN;
     return t;
-}
-
-// true when moo_numbridgefromdouble(d) saturates (checked arithmetic, docs/DESIGN.md "Overflow"): d at or
-// beyond 2^47 in magnitude. Below it the rounded value is always inside the domain. NaN is not overflow.
-inline bool moo_numbridgesaturates(double d)
-{
-    return d >= 140737488355328.0 || d <= -140737488355328.0;
 }
 
 inline double moo_numbridgetodouble(fixed_t a)

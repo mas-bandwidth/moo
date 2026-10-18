@@ -24,14 +24,14 @@
 // operation that would saturate leaves the VM's fast path (luai_numnosat is false), and luaV_doarithimpl
 // raises "number overflow in '<op>'" at the operation's own error site, as it raises "division by zero".
 // In release luai_numnosat is (true) without evaluating its operands, so the fast path is what it was.
-// Unary - and % never saturate on the domain, so they have no check.
+// Unary - and % never saturate on the domain, so they have no check; ^ (the libm bridge) is unchecked until
+// it is rebuilt on fixed (moo-l4-pow-integer), since a check would be a second double pow in the VM.
 #if MOO_OVERFLOW_ERRORS
 #define luai_numaddsat(a, b) moo_numaddsaturates(a, b)
 #define luai_numsubsat(a, b) moo_numsubsaturates(a, b)
 #define luai_nummulsat(a, b) moo_nummulsaturates(a, b)
 #define luai_numdivsat(a, b) moo_numdivsaturates(a, b)
 #define luai_numidivsat(a, b) moo_numidivsaturates(a, b)
-#define luai_numpowsat(a, b) moo_numbridgesaturates(pow(moo_numbridgetodouble(a), moo_numbridgetodouble(b)))
 #define luai_numnosat(op, a, b) (!luai_num##op##sat(a, b))
 #else
 #define luai_numnosat(op, a, b) (true)

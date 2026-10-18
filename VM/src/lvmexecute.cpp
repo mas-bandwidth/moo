@@ -2061,8 +2061,7 @@ reentry:
                 VM_CASE_STKID rc = VM_REG(LUAU_INSN_C(insn));
 
                 // fast-path
-                // moo: a checked build leaves it when the operation saturates (docs/DESIGN.md, "Overflow")
-                if (ttisnumber(rb) && ttisnumber(rc) && luai_numnosat(pow, nvalue(rb), nvalue(rc)))
+                if (ttisnumber(rb) && ttisnumber(rc))
                 {
                     setnvalue(ra, luai_numpow(nvalue(rb), nvalue(rc)));
                     VM_NEXT();
@@ -2298,8 +2297,7 @@ reentry:
                 TValue* kv = VM_KV(LUAU_INSN_C(insn));
 
                 // fast-path
-                // moo: a checked build leaves it when the operation saturates (docs/DESIGN.md, "Overflow")
-                if (ttisnumber(rb) && luai_numnosat(pow, nvalue(rb), nvalue(kv)))
+                if (ttisnumber(rb))
                 {
                     setnvalue(ra, luai_numpow(nvalue(rb), nvalue(kv)));
                     VM_NEXT();

@@ -128,10 +128,10 @@ endif
 
 # moo: checked arithmetic (docs/DESIGN.md, "Overflow"): overflow=on raises "number overflow in <op>" where
 # release saturates, overflow=off never; unset, it follows assertions (on in config=debug, off with NDEBUG)
-ifeq ($(overflow),on)
+ifneq ($(filter on ON,$(overflow)),)
 	CXXFLAGS+=-DMOO_OVERFLOW_ERRORS=1
 endif
-ifeq ($(overflow),off)
+ifneq ($(filter off OFF,$(overflow)),)
 	CXXFLAGS+=-DMOO_OVERFLOW_ERRORS=0
 endif
 

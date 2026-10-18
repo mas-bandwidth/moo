@@ -63,7 +63,8 @@ struct Edge
 {
     const char* op;
     std::string over;        // past the edge at run time: release gives saturated, a checked build raises
-    std::string folded;      // the same with constant operands, which the compiler would fold
+    std::string folded;      // the same with constant operands (mooFold refuses saturated results today, and
+                             // its checked-build guard keeps them for run time once that bound is lifted)
     const char* saturated;   // release's raw result for both
     std::string inside;      // one step inside the range: never raises
     const char* insideRaw;   // its raw result
@@ -176,16 +177,6 @@ TEST_CASE("MooOverflowSaturationTestsAreExact")
     CHECK(!moo_numaddsaturates(MOO_NUMBER_MAX, 0));
     CHECK(moo_nummulsaturates(MOO_NUMBER_MAX, MOO_NUMBER_ONE + 1));
     CHECK(moo_numdivsaturates(MOO_NUMBER_MAX, MOO_NUMBER_ONE - 1));
-
-    // the bridge (pow): 2^47 and beyond saturate, the largest double below 2^47 does not, NaN is not overflow
-    CHECK(moo_numbridgesaturates(140737488355328.0));
-    CHECK(moo_numbridgesaturates(-140737488355328.0));
-    CHECK(!moo_numbridgesaturates(140737488355327.984375));
-    CHECK(moo_numbridgefromdouble(140737488355327.984375) != MOO_NUMBER_MAX);
-    CHECK(moo_numbridgefromdouble(140737488355328.0) == MOO_NUMBER_MAX);
-    double nan = 0.0;
-    nan = nan / nan;
-    CHECK(!moo_numbridgesaturates(nan));
 }
 
 // '+': MAX + 2^-16 (docs/DESIGN.md, "Overflow")
@@ -219,11 +210,16 @@ TEST_CASE("MooOverflowFloorDiv")
         "9223372036854710272"});
 }
 
-// '^': 2 ^ 47 (the pow bridge); 2 ^ 46 is in range
-TEST_CASE("MooOverflowPow")
+// '^' is the libm bridge and not checked yet (moo-l4-pow-integer): 2 ^ 47 saturates in both builds
+TEST_CASE("MooOverflowPowUncheckedBridge")
 {
-    checkEdge({"^", runtime("^", "131072", "3080192"), "return moo_test.raw(2 ^ 47)", kMax, runtime("^", "131072", "3014656"),
-        "4611686018427387904"});
+    for (int level = 0; level <= 2; ++level)
+    {
+        CAPTURE(level);
+        CHECK(runAt(runtime("^", "131072", "3080192"), level) == kMax);
+        CHECK(runAt("return moo_test.raw(2 ^ 47)", level) == kMax);
+        CHECK(runAt(runtime("^", "131072", "3014656"), level) == "4611686018427387904");
+    }
 }
 
 // unary - and % are exact on the symmetric domain: no edge raises in either build
