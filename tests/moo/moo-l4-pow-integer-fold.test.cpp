@@ -75,6 +75,7 @@ TEST_CASE("MooFoldPowIntFoldsToPowInt")
         {"return 3 ^ 4", 3 * MOO_NUMBER_ONE, 4},
         {"return 2 ^ -3", 2 * MOO_NUMBER_ONE, -3},
         {"return 1.5 ^ 7", 98304, 7},
+        {"return 10 ^ 2", 10 * MOO_NUMBER_ONE, 2},
     };
 
     for (const auto& c : cases)

@@ -24,15 +24,15 @@ folded constant is bit-identical to the run time's result by construction. The f
   - The upstream `case AstExprBinary::Pow:` double `pow` is already unreachable for number operands:
     `foldBinary` returns after `mooFold` for two number constants, so it is left as it is.
 - NEW `tests/moo/moo-l4-pow-integer-fold.test.cpp`, suite `moo-l4-pow-integer-fold` in `Moo.Test`:
-  - `MooFoldPowIntFoldsToPowInt`: `return 3 ^ 4`, `return 2 ^ -3` and `return 1.5 ^ 7` compile with no
-    `POWK`, and the value the chunk returns is `moo_pow_int`'s raw result. That pins the folded constant to
-    the function rather than to a second computation.
+  - `MooFoldPowIntFoldsToPowInt`: `return 3 ^ 4`, `return 2 ^ -3`, `return 1.5 ^ 7` and
+    `return 10 ^ 2` compile with no `POWK`, and the value the chunk returns is `moo_pow_int`'s raw
+    result. That pins the folded constant to the function rather than to a second computation.
   - `MooFoldPowIntLeavesDivisionByZeroAndFractionalUnfolded`: `return 0 ^ -1` and `return 2 ^ 0.5` still
     compile to `POWK`.
-- `tests/MooCompiler.test.cpp`: `MooFoldArithIsFixedPoint` pinned `10 ^ 2` as `POWK`. This card makes it
-  fold, so the case now checks `LOADN R0 100`, and the file's header comment says which `^` cases fold.
-  This is the one case the design note (`docs/layer4/moo-l4-pow-integer.md`, the pro cards) says changes in
-  this card.
+- `tests/MooCompiler.test.cpp` is not changed. The design note says `MooFoldArithIsFixedPoint`'s pin of
+  `10 ^ 2` as `POWK` changes in this card, but that file is outside this card's PATHS, so the card cannot
+  edit it; the `10 ^ 2` fold is instead pinned in the new test file above. `MooCompiler.test.cpp:58`'s
+  `POWK` assertion is now stale and fails once this fold lands.
 - NEW this note. `Common/include/moo_pow.h` and `docs/layer4/moo-l4-pow-integer.md` are unchanged.
 
 Not changed: `Compiler/src/BuiltinFolding.cpp`. `foldBuiltin` returns `Constant()` before its switch for
