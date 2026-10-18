@@ -542,73 +542,69 @@ static const unsigned char kPerlinHash[257] = {
     127, 4,   150, 254, 138, 236, 205, 93,  222, 114, 67,  29,  24,  72,  243, 141, 128, 195, 78,  66,  215, 61,  156, 180, 151
 };
 
-const float kPerlinGrad[16][3] = {
-    {1, 1, 0},
-    {-1, 1, 0},
-    {1, -1, 0},
-    {-1, -1, 0},
-    {1, 0, 1},
-    {-1, 0, 1},
-    {1, 0, -1},
-    {-1, 0, -1},
-    {0, 1, 1},
-    {0, -1, 1},
-    {0, 1, -1},
-    {0, -1, -1},
-    {1, 1, 0},
-    {0, -1, 1},
-    {-1, 1, 0},
-    {0, -1, -1}
+// moo: Perlin noise uses the fixed Q48.16 operators in the order described by DESIGN.md "math library".
+static const int kPerlinGrad[16][3] = {
+    {1, 1, 0}, {-1, 1, 0}, {1, -1, 0}, {-1, -1, 0},
+    {1, 0, 1}, {-1, 0, 1}, {1, 0, -1}, {-1, 0, -1},
+    {0, 1, 1}, {0, -1, 1}, {0, 1, -1}, {0, -1, -1},
+    {1, 1, 0}, {0, -1, 1}, {-1, 1, 0}, {0, -1, -1}
 };
 
-inline float perlin_fade(float t)
+static fixed_t perlin_fade(fixed_t t)
 {
-    return t * t * t * (t * (t * 6 - 15) + 10);
+    fixed_t six = moo_numfromint(6);
+    fixed_t fifteen = moo_numfromint(15);
+    fixed_t ten = moo_numfromint(10);
+    fixed_t inner = moo_numadd(moo_nummul(t, moo_numsub(moo_nummul(t, six), fifteen)), ten);
+    return moo_nummul(moo_nummul(moo_nummul(t, t), t), inner);
 }
 
-inline float perlin_lerp(float t, float a, float b)
+static fixed_t perlin_lerp(fixed_t t, fixed_t a, fixed_t b)
 {
-    return a + t * (b - a);
+    return moo_numadd(a, moo_nummul(t, moo_numsub(b, a)));
 }
 
-inline float perlin_grad(int hash, float x, float y, float z)
+static fixed_t perlin_grad(int hash, fixed_t x, fixed_t y, fixed_t z)
 {
-    const float* g = kPerlinGrad[hash & 15];
-    return g[0] * x + g[1] * y + g[2] * z;
+    const int* g = kPerlinGrad[hash & 15];
+    fixed_t gx = g[0] < 0 ? moo_numunm(x) : (g[0] ? x : 0);
+    fixed_t gy = g[1] < 0 ? moo_numunm(y) : (g[1] ? y : 0);
+    fixed_t gz = g[2] < 0 ? moo_numunm(z) : (g[2] ? z : 0);
+    return moo_numadd(moo_numadd(gx, gy), gz);
 }
 
-static float perlin(float x, float y, float z)
+fixed_t moo_math_noise(fixed_t x, fixed_t y, fixed_t z)
 {
-    float xflr = floorf(x);
-    float yflr = floorf(y);
-    float zflr = floorf(z);
+    // moo: the 256-cell period keeps the table index bounded and preserves negative inputs exactly.
+    const fixed_t period = moo_numfromint(256);
+    x = moo_nummod(x, period);
+    y = moo_nummod(y, period);
+    z = moo_nummod(z, period);
 
-    int xi = int(xflr) & 255;
-    int yi = int(yflr) & 255;
-    int zi = int(zflr) & 255;
+    int xi = int(moo_numfloor(x)) & 255;
+    int yi = int(moo_numfloor(y)) & 255;
+    int zi = int(moo_numfloor(z)) & 255;
 
-    float xf = x - xflr;
-    float yf = y - yflr;
-    float zf = z - zflr;
+    fixed_t xf = moo_numsub(x, moo_numfromint(moo_numfloor(x)));
+    fixed_t yf = moo_numsub(y, moo_numfromint(moo_numfloor(y)));
+    fixed_t zf = moo_numsub(z, moo_numfromint(moo_numfloor(z)));
 
-    float u = perlin_fade(xf);
-    float v = perlin_fade(yf);
-    float w = perlin_fade(zf);
+    fixed_t u = perlin_fade(xf);
+    fixed_t v = perlin_fade(yf);
+    fixed_t w = perlin_fade(zf);
 
     const unsigned char* p = kPerlinHash;
-
     int a = (p[xi] + yi) & 255;
     int aa = (p[a] + zi) & 255;
     int ab = (p[a + 1] + zi) & 255;
-
     int b = (p[xi + 1] + yi) & 255;
     int ba = (p[b] + zi) & 255;
     int bb = (p[b + 1] + zi) & 255;
 
-    float la = perlin_lerp(u, perlin_grad(p[aa], xf, yf, zf), perlin_grad(p[ba], xf - 1, yf, zf));
-    float lb = perlin_lerp(u, perlin_grad(p[ab], xf, yf - 1, zf), perlin_grad(p[bb], xf - 1, yf - 1, zf));
-    float la1 = perlin_lerp(u, perlin_grad(p[aa + 1], xf, yf, zf - 1), perlin_grad(p[ba + 1], xf - 1, yf, zf - 1));
-    float lb1 = perlin_lerp(u, perlin_grad(p[ab + 1], xf, yf - 1, zf - 1), perlin_grad(p[bb + 1], xf - 1, yf - 1, zf - 1));
+    fixed_t la = perlin_lerp(u, perlin_grad(p[aa], xf, yf, zf), perlin_grad(p[ba], moo_numsub(xf, MOO_NUMBER_ONE), yf, zf));
+    fixed_t lb = perlin_lerp(u, perlin_grad(p[ab], xf, moo_numsub(yf, MOO_NUMBER_ONE), zf), perlin_grad(p[bb], moo_numsub(xf, MOO_NUMBER_ONE), moo_numsub(yf, MOO_NUMBER_ONE), zf));
+    fixed_t la1 = perlin_lerp(u, perlin_grad(p[aa + 1], xf, yf, moo_numsub(zf, MOO_NUMBER_ONE)), perlin_grad(p[ba + 1], moo_numsub(xf, MOO_NUMBER_ONE), yf, moo_numsub(zf, MOO_NUMBER_ONE)));
+    fixed_t lb1 = perlin_lerp(u, perlin_grad(p[ab + 1], xf, moo_numsub(yf, MOO_NUMBER_ONE), moo_numsub(zf, MOO_NUMBER_ONE)), perlin_grad(p[bb + 1], moo_numsub(xf, MOO_NUMBER_ONE), moo_numsub(yf, MOO_NUMBER_ONE), moo_numsub(zf, MOO_NUMBER_ONE)));
 
     return perlin_lerp(w, perlin_lerp(v, la, lb), perlin_lerp(v, la1, lb1));
 }
@@ -616,28 +612,15 @@ static float perlin(float x, float y, float z)
 static int math_noise(lua_State* L)
 {
     int nx, ny, nz;
-    double x = moo_numbridgetodouble(lua_tonumberx(L, 1, &nx));
-    double y = moo_numbridgetodouble(lua_tonumberx(L, 2, &ny));
-    double z = moo_numbridgetodouble(lua_tonumberx(L, 3, &nz));
+    fixed_t x = lua_tonumberx(L, 1, &nx);
+    fixed_t y = lua_tonumberx(L, 2, &ny);
+    fixed_t z = lua_tonumberx(L, 3, &nz);
 
     luaL_argexpected(L, nx, 1, "number");
     luaL_argexpected(L, ny || lua_isnoneornil(L, 2), 2, "number");
     luaL_argexpected(L, nz || lua_isnoneornil(L, 3), 3, "number");
 
-    if (FFlag::FixMathNoisePrecision)
-    {
-        // NOTES: input numbers from Luau are double with higher precision and range than float used by perlin().
-        // If we don't do this, for large numbers, perlin() will return almost always 0, since with larger inputs,
-        // most of the mantissa is used to store the integer part and perlin() is always 0 at integer cell values.
-        // Noise repeat exactly every 256 units in all dimensions, so we can wrap to prevent loss of precision for large numbers.
-        x = fmod(x, 256.0);
-        y = fmod(y, 256.0);
-        z = fmod(z, 256.0);
-    }
-
-    double r = perlin((float)x, (float)y, (float)z);
-
-    lua_pushnumber(L, moo_numbridgefromdouble(r));
+    lua_pushnumber(L, moo_math_noise(x, y, z));
     return 1;
 }
 
