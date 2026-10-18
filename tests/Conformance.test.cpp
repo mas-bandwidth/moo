@@ -557,6 +557,25 @@ static void* limitedRealloc(void* ud, void* ptr, size_t osize, size_t nsize)
     }
 }
 
+// moo: the vector library is out (layer 3), but the userdata direct-access tests still need to build
+// vector fields; this test-only create is the same bridge the library used, installed by setup only.
+static int lua_vector_create_testonly(lua_State* L)
+{
+    int count = lua_gettop(L);
+    double x = moo_todouble(luaL_checknumber(L, 1));
+    double y = moo_todouble(luaL_checknumber(L, 2));
+    double z = count >= 3 ? moo_todouble(luaL_checknumber(L, 3)) : 0.0;
+
+#if LUA_VECTOR_SIZE == 4
+    double w = count >= 4 ? moo_todouble(luaL_checknumber(L, 4)) : 0.0;
+    lua_pushvector(L, LUA_VECTOR_TYPE(x), LUA_VECTOR_TYPE(y), LUA_VECTOR_TYPE(z), LUA_VECTOR_TYPE(w));
+#else
+    lua_pushvector(L, LUA_VECTOR_TYPE(x), LUA_VECTOR_TYPE(y), LUA_VECTOR_TYPE(z));
+#endif
+
+    return 1;
+}
+
 void setupVectorHelpers(lua_State* L)
 {
 #if LUA_VECTOR_SIZE == 4
@@ -577,6 +596,13 @@ void setupVectorHelpers(lua_State* L)
     lua_setreadonly(L, -1, true);
     lua_setmetatable(L, -2);
     lua_pop(L, 1);
+
+    // moo: a script can no longer reach the vector library (layer 3), so this setup provides the
+    // one function the upstream userdata tests call.
+    lua_createtable(L, 0, 1);
+    lua_pushcfunction(L, lua_vector_create_testonly, "create");
+    lua_setfield(L, -2, "create");
+    lua_setglobal(L, "vector");
 }
 
 Vec2* lua_vec2_push(lua_State* L)

@@ -39,6 +39,22 @@ analyzer, are separate.
 - New: `tests/moo/moo-l3-libs-out.test.cpp` (integer is nil with the integer flags on, and vector is
   nil, after `luaL_openlibs`), `tests/conformance/moo/l3/moo-l3-libs-out.luau`, this note.
 
+## Upstream tests the removal moved
+
+- `tests/conformance/types.luau` ignores `_G.vector`, exactly as it already ignores `_G.os`: the
+  analyzer's builtin definitions still declare the global until they drop it.
+- `tests/Conformance.test.cpp` installs a test-only `vector.create` in `setupVectorHelpers`, because
+  `udata_direct.luau` is a userdata test that happens to build vector fields; `vector` is still nil
+  for every program that does not ask the host for it.
+- `tests/require/without_config/types/vector.luau` returns a plain table, so the `RequireByString`
+  case still checks the module path without a script-made vector.
+- The frozen determinism values move because the vector library's startup objects are gone: every
+  creation number shifts. `tests/determinism/expected.txt` and the pinned values in
+  `tests/Moo.test.cpp` (`ObjectKeyOrderIgnoresAddresses`, `TostringPrintsCreationNumber`,
+  `GcPacingIsAFunctionOfTheProgram`, `DestructorsRunInCreationOrder`,
+  `WeakTableOrderIsAFunctionOfTheProgram`) are re-pinned; the values remain a function of the program
+  alone and are the same on every compiler.
+
 ## Sentences that must change when the layer closes
 
 - docs/DESIGN.md, "Layer 3 as built": the line `'vector' and the integer library while those are
