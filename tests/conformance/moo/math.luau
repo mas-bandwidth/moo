@@ -429,7 +429,8 @@ assert(math.lerp(sq2, sq2, sq2 / 2) == sq2) -- consistent (fails for a*t + b*(1-
 
 -- math constants
 -- moo: math.tau is 2 pi rounded once to 2^-16, math.pi * 2 is pi rounded then doubled: assert(math.pi * 2 == math.tau)
-assert(math.sqrt(2) == math.sqrt2)
+-- moo: sqrt is exact toward zero (fixSqrt), one raw below the nearest sqrt2 constant: assert(math.sqrt(2) == math.sqrt2)
+assert(math.sqrt(2) == 92681/65536)
 assert(math.exp(1) == math.e)
 assert(((1 + math.sqrt(5)) / 2) == math.phi)
 -- moo: no NaN: assert(math.nan ~= math.nan)

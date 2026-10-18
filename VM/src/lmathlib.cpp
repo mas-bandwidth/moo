@@ -280,9 +280,15 @@ static int math_modf(lua_State* L)
     return 2;
 }
 
+// moo: sqrt on fixed's fixSqrt, exact, rounded toward zero; negative is a named error
+// (docs/DESIGN.md, "math library": sqrt from fixSqrt). The seed question (fixSqrt's double seed
+// vs fixISqrt128High) is Glenn's; this card keeps fixSqrt as it is at the pin (docs/layer4/moo-l4-math-sqrt.md).
 static int math_sqrt(lua_State* L)
 {
-    lua_pushnumber(L, moo_numbridgefromdouble(sqrt(moo_numbridgetodouble(luaL_checknumber(L, 1)))));
+    lua_Number a = luaL_checknumber(L, 1);
+    if (a < 0)
+        luaL_error(L, "math.sqrt of a negative number");
+    lua_pushnumber(L, fixSqrt(a));
     return 1;
 }
 
