@@ -49,3 +49,9 @@ Keep these source rows and add the rounding compositions above, the base-1 error
 > | 7 | platform libm | **partly**: `+ - * / // %` are fixed's integer arithmetic, and the compiler folds with the same functions; the libm functions and `^` still cross a double bridge until the math library is rebuilt on fixed |
 
 Replace the status with the remaining platform-libm paths after the other layer 4 cards land; this card removes the `exp`, `sinh`, `cosh`, `tanh`, `log`, `log10`, and `log(x, base)` bridges and shares their fixed calculations with fastcalls.
+
+## Gate status (attempt 5, confirmed)
+
+`tools/revendor-fixed.sh --check` and `tools/moo-check-no-clock.sh build/libLuau.VM.a` pass, and the seven functions carry no `moo_numbridge` line. `Moo.Test` runs the four exp/log cases green (`MathExpLogLibraryFastcallAndComposition`, `MathExpLogNamedDomainErrors`, `MathExpLogOracleMaximumErrors`, `MathExpLogConformanceScript`), including 4096 seeded inputs, library-vs-fastcall bit-exactness, and the oracle maximum-error print. The remaining four `Moo.Test` failures (`MooL3Scripts`, `MathPowFractionalStaysOnBridge`, `MooPowIntVmFractionalBridge`, `MooL5SkippedCasesNameAReason`) are identical on the unchanged base `3234bcbd` and belong to the pow and suite-audit cards, not this one.
+
+`Luau.Conformance` fails only in the upstream `Math` case, at `math.luau:434` (`assert(math.exp(1) == math.e)`); the later `math.log("0") == -inf` line is the same conflict. Both contradict the fixed results and the `x <= 0` named error above and cannot be edited here (`math.luau` is outside this card's PATHS, E12). The layer-closing card must update `math.luau` and lift the `Conformance` gate.
