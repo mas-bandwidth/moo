@@ -167,6 +167,9 @@ static int buffer_readfp(lua_State* L)
     memcpy(&val, (char*)buf + offset, sizeof(T));
 #endif
 
+    // moo: the exact float boundary rule (docs/DESIGN.md "Boundary", "Layer 3 as built"; DETERMINISM.md 18):
+    // moo_numfromdouble decodes the stored IEEE bits to Q48.16, ties to even; a NaN, infinity or out-of-range
+    // value is a named error, never silently mapped.
     int64_t out = 0;
     int status = moo_numfromdouble(double(val), &out);
     if (status == MOO_NUMBER_NAN)
@@ -190,6 +193,9 @@ static int buffer_writefp(lua_State* L)
     if (isoutofbounds(offset, len, sizeof(T)))
         luaL_error(L, "buffer access out of bounds");
 
+    // moo: the exact float boundary rule (docs/DESIGN.md "Boundary", "Layer 3 as built"; DETERMINISM.md 18):
+    // moo_numtofloatbits / moo_numtodoublebits store the nearest IEEE bits, ties to even, with no float or
+    // double arithmetic.
     StorageType val;
     if (sizeof(T) == sizeof(float))
         val = StorageType(moo_numtofloatbits(raw));

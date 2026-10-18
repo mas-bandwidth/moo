@@ -1425,6 +1425,9 @@ static int luauF_readfp(lua_State* L, StkId res, TValue* arg0, int nresults, Stk
 #else
         memcpy(&val, (char*)bufvalue(arg0)->data + unsigned(offset), sizeof(T));
 #endif
+        // moo: the fastcall follows the exact float boundary rule (docs/DESIGN.md "Boundary", "Layer 3 as
+        // built"; DETERMINISM.md 18): a status other than OK returns -1 so the library path raises the named
+        // error; on success the same Q48.16 bits are stored.
         int64_t out = 0;
         if (moo_numfromdouble(double(val), &out) != 0)
             return -1;
@@ -1447,6 +1450,9 @@ static int luauF_writefp(lua_State* L, StkId res, TValue* arg0, int nresults, St
         if (checkoutofbounds(offset, bufvalue(arg0)->len, sizeof(T)))
             return -1;
 
+        // moo: the fastcall follows the exact float boundary rule (docs/DESIGN.md "Boundary", "Layer 3 as
+        // built"; DETERMINISM.md 18): the same moo_numtofloatbits / moo_numtodoublebits as the library path,
+        // with no float or double arithmetic.
         fixed_t raw = nvalue(args + 1);
         T val;
         if (sizeof(T) == sizeof(float))
