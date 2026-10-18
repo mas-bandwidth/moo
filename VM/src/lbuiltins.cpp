@@ -33,8 +33,8 @@
 #endif
 #endif
 
-// moo: the library-side sin/cos/tan and atan2/atan/asin/acos on fixed (VM/src/lmathlib.cpp) are the single
-// shared definition (docs/DESIGN.md "math library"), so a fastcall and the library give the same bits.
+// moo: the library-side trig and exp/log family on fixed (VM/src/lmathlib.cpp) are the shared definitions
+// (docs/DESIGN.md "math library"), so a fastcall and the library give the same bits.
 fixed_t moo_math_sin(fixed_t radians);
 fixed_t moo_math_cos(fixed_t radians);
 bool moo_math_tan(fixed_t radians, fixed_t* out);
@@ -49,6 +49,12 @@ fixed_t moo_math_ldexp(fixed_t a, int e);
 fixed_t moo_math_deg(fixed_t a);
 fixed_t moo_math_rad(fixed_t a);
 fixed_t moo_math_lerp(fixed_t a, fixed_t b, fixed_t t);
+fixed_t moo_math_exp(fixed_t x);
+fixed_t moo_math_sinh(fixed_t x);
+fixed_t moo_math_cosh(fixed_t x);
+fixed_t moo_math_tanh(fixed_t x);
+fixed_t moo_math_log10(fixed_t x);
+bool moo_math_log(fixed_t x, bool hasBase, fixed_t base, fixed_t* out);
 
 // luauF functions implement FASTCALL instruction that performs a direct execution of some builtin functions from the VM
 // The rule of thumb is that FASTCALL functions can not call user code, yield, fail, or reallocate stack.
@@ -145,12 +151,12 @@ static int luauF_ceil(lua_State* L, StkId res, TValue* arg0, int nresults, StkId
 }
 LUAU_FASTMATH_END
 
+// moo: cosh fastcall uses the library's shared fixed half-exponent helper (docs/DESIGN.md, "math library").
 static int luauF_cosh(lua_State* L, StkId res, TValue* arg0, int nresults, StkId args, int nparams)
 {
     if (nparams >= 1 && nresults <= 1 && ttisnumber(arg0))
     {
-        double a1 = moo_numbridgetodouble(nvalue(arg0));
-        setnvalue(res, moo_numbridgefromdouble(cosh(a1)));
+        setnvalue(res, moo_math_cosh(nvalue(arg0)));
         return 1;
     }
 
@@ -180,12 +186,12 @@ static int luauF_deg(lua_State* L, StkId res, TValue* arg0, int nresults, StkId 
     return -1;
 }
 
+// moo: exp fastcall uses the library's shared fixed exp2 scaling helper (docs/DESIGN.md, "math library").
 static int luauF_exp(lua_State* L, StkId res, TValue* arg0, int nresults, StkId args, int nparams)
 {
     if (nparams >= 1 && nresults <= 1 && ttisnumber(arg0))
     {
-        double a1 = moo_numbridgetodouble(nvalue(arg0));
-        setnvalue(res, moo_numbridgefromdouble(exp(a1)));
+        setnvalue(res, moo_math_exp(nvalue(arg0)));
         return 1;
     }
 
@@ -252,49 +258,34 @@ static int luauF_ldexp(lua_State* L, StkId res, TValue* arg0, int nresults, StkI
     return -1;
 }
 
+// moo: log10 fastcall uses the library's shared fixed log2 scaling helper (docs/DESIGN.md, "math library").
 static int luauF_log10(lua_State* L, StkId res, TValue* arg0, int nresults, StkId args, int nparams)
 {
     if (nparams >= 1 && nresults <= 1 && ttisnumber(arg0))
     {
-        double a1 = moo_numbridgetodouble(nvalue(arg0));
-        setnvalue(res, moo_numbridgefromdouble(log10(a1)));
+        if (nvalue(arg0) <= 0)
+            return -1;
+        setnvalue(res, moo_math_log10(nvalue(arg0)));
         return 1;
     }
 
     return -1;
 }
 
+// moo: log fastcall shares the library's fixed domain and base handling (docs/DESIGN.md, "math library").
 static int luauF_log(lua_State* L, StkId res, TValue* arg0, int nresults, StkId args, int nparams)
 {
     if (nparams >= 1 && nresults <= 1 && ttisnumber(arg0))
     {
-        double a1 = moo_numbridgetodouble(nvalue(arg0));
+        bool hasBase = nparams >= 2;
+        if (hasBase && !ttisnumber(args))
+            return -1;
 
-        if (nparams == 1)
-        {
-            setnvalue(res, moo_numbridgefromdouble(log(a1)));
-            return 1;
-        }
-        else if (ttisnumber(args))
-        {
-            double a2 = moo_numbridgetodouble(nvalue(args));
-
-            if (a2 == 2.0)
-            {
-                setnvalue(res, moo_numbridgefromdouble(log2(a1)));
-                return 1;
-            }
-            else if (a2 == 10.0)
-            {
-                setnvalue(res, moo_numbridgefromdouble(log10(a1)));
-                return 1;
-            }
-            else
-            {
-                setnvalue(res, moo_numbridgefromdouble(log(a1) / log(a2)));
-                return 1;
-            }
-        }
+        fixed_t out;
+        if (!moo_math_log(nvalue(arg0), hasBase, hasBase ? nvalue(args) : 0, &out))
+            return -1;
+        setnvalue(res, out);
+        return 1;
     }
 
     return -1;
@@ -416,12 +407,12 @@ static int luauF_rad(lua_State* L, StkId res, TValue* arg0, int nresults, StkId 
     return -1;
 }
 
+// moo: sinh fastcall uses the library's shared fixed half-exponent helper (docs/DESIGN.md, "math library").
 static int luauF_sinh(lua_State* L, StkId res, TValue* arg0, int nresults, StkId args, int nparams)
 {
     if (nparams >= 1 && nresults <= 1 && ttisnumber(arg0))
     {
-        double a1 = moo_numbridgetodouble(nvalue(arg0));
-        setnvalue(res, moo_numbridgefromdouble(sinh(a1)));
+        setnvalue(res, moo_math_sinh(nvalue(arg0)));
         return 1;
     }
 
@@ -453,12 +444,12 @@ static int luauF_sqrt(lua_State* L, StkId res, TValue* arg0, int nresults, StkId
 }
 LUAU_FASTMATH_END
 
+// moo: tanh fastcall uses the library's shared fixed stable ratio helper (docs/DESIGN.md, "math library").
 static int luauF_tanh(lua_State* L, StkId res, TValue* arg0, int nresults, StkId args, int nparams)
 {
     if (nparams >= 1 && nresults <= 1 && ttisnumber(arg0))
     {
-        double a1 = moo_numbridgetodouble(nvalue(arg0));
-        setnvalue(res, moo_numbridgefromdouble(tanh(a1)));
+        setnvalue(res, moo_math_tanh(nvalue(arg0)));
         return 1;
     }
 
