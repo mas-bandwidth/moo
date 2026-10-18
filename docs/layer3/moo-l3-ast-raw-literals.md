@@ -51,25 +51,31 @@ deleted; Luau's integer type is out (DESIGN.md "integer").
 - DETERMINISM.md: no sentence changes. No frozen hash or `tests/determinism/expected.txt` changes; the literal is
   now the value the run time already computed for the same decimal.
 
-## Gate at attempt 3
+## Gate at attempt 4
 
-The new cases and script are green, and every command below was run on the Linux bench with clang 21.1.8. Two suites
-carry failures that already exist at the unchanged BASE (`e2581b9f`, sprint/moo), so the all-green DONE-WHEN line is
-not met by this card alone:
+Every command below was run on the Linux bench (amd-3) with clang, at this card's head and at the unchanged BASE
+(`e2581b9f`, sprint/moo, which has not moved), and the failing cases and assertion messages were diffed. The new cases
+and script are green. Two suites carry failures that already exist at BASE, so the all-green DONE-WHEN line is not
+met by this card alone; no failure at head is new:
 
 - `tools/revendor-fixed.sh --check`: `extern/fixed matches pin 2f1ed913374a -- clean`.
 - `tools/moo-check-no-clock.sh build/libLuau.VM.a`: `references no clock`.
-- `git grep -c 'Until the moo bytecode version' Ast/src/Parser.cpp`: 0 (no match).
-- `build/Luau.Conformance`: 109/109 cases, 9143/9143 assertions.
-- `build/Luau.CLI.Test`: 113/113 cases, 461/461 assertions.
-- `build/Moo.Test`: 151/154 cases. The three failures are `MooL3Scripts` (the existing
-  `moo-l4-pow-integer-math.luau` case `9 ^ 1.5`), `MathPowFractionalStaysOnBridge` and
-  `MooPowIntVmFractionalBridge`; the last two build raw values in C++ and never parse a literal. All three fail the
-  same way at BASE.
-- `build/Luau.UnitTest`: 5146/5159 cases, 22933/22947 assertions. The 13 failing cases are
-  `fold_constants_div_by_zero`, `MooBuiltinsDoNotFold`, six `TypeFunction.user` cases, three vector cases in
-  `TypeInfer.operators`/`TypeInfer.refinements`, and two `os`-table cases; all 13 fail the same way at BASE.
+- `git grep -c 'Until the moo bytecode version' Ast/src/Parser.cpp`: 0 (no match); `git grep -c 'Until the moo'`
+  is 1 at BASE and 0 here.
+- `build/Luau.Conformance`: 109/109 cases, 9143/9143 assertions, at BASE and head.
+- `build/Luau.CLI.Test`: 113/113 cases, 461/461 assertions, at BASE and head.
+- `build/Moo.Test`: BASE 147/151 cases (44 assertions fail), head 151/154 (43 fail). The three cases that fail at
+  head fail the same way at BASE: `MooL3Scripts` (the existing `moo-l4-pow-integer-math.luau` line `9 ^ 1.5`),
+  `MathPowFractionalStaysOnBridge` and `MooPowIntVmFractionalBridge`; the last two build raw values in C++ and never
+  parse a literal. The fourth BASE failure, `MooL5SkippedCasesNameAReason` (`expected 29 doctest skip decorators,
+  found 42`), passes at head: the expected count is now the tree's 45 (BASE's 42 plus this card's three skips), and
+  every skip, the three new ones included, has its `moo:` reason on the line above.
+- `build/Luau.UnitTest`: BASE 5149/5162 cases, head 5146/5159 (the three integer-literal cases are skipped); the same
+  13 cases and 14 assertions fail at both: `fold_constants_div_by_zero`, `MooBuiltinsDoNotFold`, six
+  `TypeFunction.user` cases, three vector cases in `TypeInfer.operators`/`TypeInfer.refinements`, and two `os`-table
+  cases.
 
-Red at BASE for the largest literal, with the new case trimmed to the fields BASE has: BASE compiles
-`140737488355327.99998474121094` to raw `0` and `70368744177663.00001525878906` to `4611686018427322368`, one unit
-low. Both are exact at this card's head.
+Red at BASE, with the new C++ file trimmed to `MooLiteralRawAboveFiftyThreeBits` (BASE has no `rawValue`) and the
+new script added: BASE compiles `140737488355327.99998474121094` to raw `0` (`CHECK_EQ( 0, 9223372036854775807 )`) and
+`70368744177663.00001525878906` to `4611686018427322368`, one unit low, and the script fails with
+`moo-l3-ast-raw-literals.luau: error: moo:5: the largest literal`. All are exact at this card's head.
