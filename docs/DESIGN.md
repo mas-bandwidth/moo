@@ -4,8 +4,9 @@ moo is Luau with two changes: everything in the language is deterministic, and `
 Q48.16 fixed point. Floats and doubles are outlawed inside the VM. Everything else (syntax,
 tools, the C API) stays as close to Luau as possible.
 
-**Status.** Layers 1 and 2 are built. Layer 3 (number = Q48.16) is being built in small PRs; the
-section "Layer 3 as built" below is the state of `main`. Everything else here is design.
+**Status.** Layers 1-5 are built. The conformance record is the program-by-program matrix in
+DETERMINISM.md, "Status". The section "Layer 3 as built" below is the state of `main`.
+Everything else here is design.
 
 The determinism guarantee, and every source of non-determinism found in Luau 0.741 with its
 file and line, is in [DETERMINISM.md](DETERMINISM.md). This document says what replaces them.
@@ -23,6 +24,13 @@ file and line, is in [DETERMINISM.md](DETERMINISM.md). This document says what r
 - **The compiler** folds number arithmetic with the same `moo_number.h` operations (a constant still travels as the
   double that holds it exactly); it does not fold division by zero, `^`, or any builtin call or `math` constant.
 - **Native code generation** is excluded (below).
+- **The suite says what it skips.** Every skipped doctest case and every moved conformance
+  script states its reason with `moo:`; `tools/moo-check-skips.sh` lists them and fails when a
+  reason is missing or names a replacement that does not exist.
+- **The determinism suite runs on Windows.** The nightly builds `Moo.Test` (the determinism
+  suite and the math oracle) on `windows-latest` with MSVC and with clang-cl and runs it; the
+  job fails when either the effects hash or the state hash differs from
+  `tests/determinism/expected.txt`. No frozen hash changes.
 - **TEMPORARY bridges**, each marked in the code and each removed by a later layer 3 PR:
   - bytecode carries a double per number constant, rounded by the boundary rule at load, saturating (the bytecode
     version PR);
@@ -39,7 +47,9 @@ file and line, is in [DETERMINISM.md](DETERMINISM.md). This document says what r
   reads back to exactly the same value (`0.1 + 0.2` prints `0.3`, because both read as 19661/65536), integers with no
   fraction; `string.format`'s `%f`, `%e`, `%g`, `%E` and `%G` follow C's flags, width and precision on the exact decimal
   expansion, rounding half to even, with no libc. `tonumber` and string coercion use the literal parser, with spaces
-  and one sign around it; out of range is not a number.
+  and one sign around it; out of range is not a number. A libFuzzer target feeds arbitrary strings
+  to the parser and arbitrary raw values through the formatter and requires `parse(format(x)) == x`
+  (`fuzz/moo_arith.cpp`, `fuzz/number.cpp`, `fuzz/format.cpp`).
 - **Numeric `for` is exact** (`tla/NumericFor.tla`): `LOP_FORNPREP` computes the trip count once, in integer
   arithmetic on the raw values (`moo_numfortrips`), and keeps the iterations left in the limit's register; the index
   never steps past the limit and never saturates. `for i = 0, 1, 0.1` runs 10 times (0.1 is 6554/65536). A zero step
@@ -405,10 +415,15 @@ Each is detailed, with file and line, in [DETERMINISM.md](DETERMINISM.md):
   number, never an address.
 - **`collectgarbage`** accepts only `"collect"` and `"count"` (in allocation units); `gcinfo`
   reports allocation units.
-- **Errors and tracebacks** are deterministic strings: numbers in them go through moo's
-  formatter.
-- **Coroutines** are cooperative and already deterministic; layer 5 models them in TLA+ and
-  tests them adversarially.
+- **Errors and tracebacks** are deterministic strings. The layer 5 audit found no numeric
+  conversion specifier in the VM's error or traceback formats (only integer line and frame
+  counts), so no change was needed; `tests/determinism/errors.luau` pins every error string and
+  traceback byte for byte in the determinism suite.
+- **Coroutines** are cooperative and already deterministic. Layer 5 tests them adversarially:
+  `tests/determinism/coroutines2.luau` in the determinism suite, the conformance script
+  `tests/conformance/moo/l3/moo-l5-coroutine-programs.luau`, and the C++ cases in
+  `tests/moo/moo-l5-coroutine-programs.test.cpp`. The TLA+ model of their resume/yield/close/error
+  states is owed.
 
 ## State machines and TLA+
 
@@ -464,10 +479,16 @@ with Glenn.
 4. **math and formatting.** The math library on `fixed`; `pow`/`^`; `tostring`, `tonumber`
    and `string.format`; float bytes in buffers and `string.pack`. Checked by: the CORE-MATH
    error table, round-trip of every formatted value, and bit-exact agreement with `fixed`.
-5. **Conformance.** The Luau suite adapted for fixed; a cross-platform determinism suite that
-   runs each program on Linux gcc and clang, macOS arm64 and Windows and compares full VM state
-   hashes and effect logs, including adversarial programs (object-keyed tables, heavy GC with
-   destructors and weak tables, coroutines); bit-exact agreement with `fixed`'s C; fuzzing; and
-   the coroutine TLA+ model.
+5. **Conformance.** The Luau suite adapted for fixed; every moved or skipped upstream case states
+   its reason in a `moo:` comment and, where it names the moo test that replaces it, that test
+   resolves; `tools/moo-check-skips.sh` lists them and fails on a missing reason or a replacement
+   that does not exist. A cross-platform determinism suite that runs each program on Linux gcc and
+   clang, macOS arm64, and Windows with MSVC and clang-cl and compares full VM state hashes and
+   effect logs, including adversarial programs (object-keyed tables, heavy GC with destructors and
+   weak tables, coroutines); bit-exact agreement with `fixed`'s C; libFuzzer targets for the
+   operators and the number formatter and parser (`fuzz/moo_arith.cpp`, `fuzz/number.cpp`,
+   `fuzz/format.cpp`); and the coroutine TLA+ model. The Windows pair runs in the nightly, which
+   gates nothing: it builds and runs `Moo.Test` (the determinism suite and the math oracle) under
+   both compilers and fails when either hash differs from `tests/determinism/expected.txt`.
 6. **First adoption.** An existing Luau consumer switches from Luau to moo, and its own
    determinism checks pass.

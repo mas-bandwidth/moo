@@ -23,7 +23,8 @@ deterministic, it is removed.
 
 The conformance layer (layer 5 in [DESIGN.md](DESIGN.md)) checks the guarantee: every program
 in the determinism suite runs on each platform and compiler, and the full VM state hash and
-the effect log must match bit for bit.
+the effect log must match bit for bit. Its libFuzzer targets compare every number operator with
+`fixed`'s C and require `parse(format(x)) == x` for arbitrary input.
 
 ## Status
 
@@ -79,12 +80,14 @@ the surface without transcendentals (`library`). Measured 2026-10-17, all identi
 | program | effects | state | hulk gcc 13.3 | hulk clang 18.1 | hulk clang Debug ASan+UBSan | mini-m5-1 arm64 Apple clang 21 |
 |---|---|---|---|---|---|---|
 | coroutines | `c2101c58c9141949` | `d59008475cc0efa8` | same | same | same | same |
+| coroutines2 | `45af4a6f2428da59` | `d835a456666b53fd` | pending nightly | same | pending nightly | pending nightly |
+| errors | `f7037948e0d4bea2` | `a36df0b1b7d7553c` | pending nightly | same | pending nightly | pending nightly |
 | gcchurn | `3fb416325297900d` | `e044604535a6a1e5` | same | same | same | same |
 | library | `009401661dac79ec` | `3517c3f5eeac8dfa` | same | same | same | same |
 | objectkeys | `c33c0a917acf2ebf` | `9fac96c3362df53c` | same | same | same | same |
 
-`MOO_DETERMINISM_PRINT=1` prints the table's lines. The nightly runs it on Linux gcc, Linux clang
-and macOS arm64; CI runs it on Linux clang on every push. Floats are still the number type, so
+`MOO_DETERMINISM_PRINT=1` prints the table's lines. The nightly runs it on Linux gcc, Linux
+clang, macOS arm64 and Windows MSVC and clang-cl; CI runs it on Linux clang on every push. Floats are still the number type, so
 the suite avoids libm functions and `^`; layer 2 removes that limit.
 
 When tostring became the shortest exact round trip, `strconv.luau`'s cases that expect a double's digits were marked.
@@ -92,7 +95,8 @@ When the `for` trip count became exact, `interrupt.luau` moved (its endless loop
 `basic.luau` lost its zero-step cases. When literals became exact, `strings.luau` and `attrib.luau` moved too (literals beyond the range are compile errors),
 nine parser, linter, pretty-printer and frontend cases that assert double literals or precision lints are skipped with
 the reason beside each, and four compiler cases had their expected decimal constants updated to the Q48.16 values,
-marked `// moo:`.
+marked `// moo:`. `tools/moo-check-skips.sh` lists every doctest skip, marked early return and moved script; it
+fails when one lacks a `moo:` reason or names a replacement that does not exist.
 
 Upstream tests moo changed when number became Q48.16, and why: each moved script is a moo-specific expected file in
 `tests/conformance/moo/` (basic, buffers, math, tables, errors, events, bitwise, tpack, debug, strconv, iter, vector,
@@ -101,7 +105,8 @@ infinity, NaN or negative zero; division by zero is an error; the range is about
 tostring prints through a double until the exact formatter). The note at the end of each file states the reason for
 the whole file, and the harness keeps each file's upstream chunk name. Twenty compiler cases that asserted folding moo
 turned off are skipped in `tests/Compiler.test.cpp`, each pointing at `tests/MooCompiler.test.cpp`, which tests moo's
-folding. `MOO_CONFORMANCE_SCAN=1` makes the conformance harness's `assert` report and continue, to list every
+folding. The same audit reports eleven upstream `#if 0` blocks that predate moo and still carry their upstream ticket
+comment; they are listed for a follow-up, not counted as moo skips. `MOO_CONFORMANCE_SCAN=1` makes the conformance harness's `assert` report and continue, to list every
 failing line of a script at once.
 
 Upstream tests moo changed, and why:
@@ -376,9 +381,9 @@ refuses Luau bytecode by version, by name.
   the strings are type names, chunk names, line numbers and formatted values.
 - `VM/src/ldebug.cpp:362`, `:676`, `:692` the same for tracebacks.
 
-Deterministic once number formatting (8) and `tostring` (6) are. **Fix:** route numbers in
-messages through moo's formatter; the determinism suite compares error strings and
-tracebacks byte for byte.
+The layer 5 audit found no numeric conversion specifier in the VM's error or traceback formats
+(only integer line and frame counts), so no change was needed; `tests/determinism/errors.luau`
+pins the error strings and tracebacks byte for byte in the determinism suite.
 
 ### 21. Coroutines
 
@@ -389,9 +394,11 @@ are functions of the coroutine's state alone. The only external influences are t
 interrupt callback (`lua_callbacks(L)->interrupt`) and host functions that yield, which are
 inputs.
 
-So coroutines are deterministic once everything they compute is. **Proof owed:** a TLA+
-model of resume/yield/close/error states (layer 5), and adversarial coroutine programs in
-the determinism suite.
+So coroutines are deterministic once everything they compute is. The adversarial programs in the
+determinism suite are `coroutines` and `coroutines2` (`tests/determinism/coroutines2.luau`),
+and the conformance script and C++ cases in `tests/conformance/moo/l3/moo-l5-coroutine-programs.luau`
+and `tests/moo/moo-l5-coroutine-programs.test.cpp` pin the transitions at the C API boundary. The
+TLA+ model of resume/yield/close/error states (`tla/Coroutine.tla`) is owed.
 
 ### 22. Host-dependent limits
 
