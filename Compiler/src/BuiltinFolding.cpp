@@ -42,25 +42,7 @@ static Constant cnum(double v)
     return res;
 }
 
-static Constant cvectorf(float x, float y, float z, float w)
-{
-    Constant res = {Constant::Type_Vectorf};
-    res.valueVectorf[0] = x;
-    res.valueVectorf[1] = y;
-    res.valueVectorf[2] = z;
-    res.valueVectorf[3] = w;
-    return res;
-}
-
-static Constant cvectord(double x, double y, double z, double w)
-{
-    Constant res = {Constant::Type_Vectord};
-    res.valueVectord[0] = x;
-    res.valueVectord[1] = y;
-    res.valueVectord[2] = z;
-    res.valueVectord[3] = w;
-    return res;
-}
+// moo: the float vector is removed; no cvectorf / cvectord constant helpers (docs/DESIGN.md "vec3, quat and transform").
 
 static Constant cstring(const char* v)
 {
@@ -96,9 +78,7 @@ static Constant ctype(const Constant& c)
     case Constant::Type_Integer:
         return cstring("integer");
 
-    case Constant::Type_Vectorf:
-    case Constant::Type_Vectord:
-        return cstring("vector");
+    // moo: the float vector is removed (docs/DESIGN.md "vec3, quat and transform").
 
     case Constant::Type_String:
         return cstring("string");
@@ -127,9 +107,7 @@ static Constant ctypeof(const Constant& c)
     case Constant::Type_Integer:
         return cstring("integer");
 
-    case Constant::Type_Vectorf:
-    case Constant::Type_Vectord:
-        return cvar(); // vector can have a custom typeof name at runtime
+    // moo: the float vector is removed (docs/DESIGN.md "vec3, quat and transform").
 
     case Constant::Type_String:
         return cstring("string");
@@ -600,29 +578,7 @@ Constant foldBuiltin(AstNameTable& stringTable, int bfid, const Constant* args, 
             return cnum(round(args[0].valueNumber));
         break;
 
-    case LBF_VECTOR:
-        if (count >= 2 && args[0].type == Constant::Type_Number && args[1].type == Constant::Type_Number)
-        {
-            if (vectorDoublePrecision)
-            {
-                if (count == 2)
-                    return cvectord(args[0].valueNumber, args[1].valueNumber, 0.0, 0.0);
-                else if (count == 3 && args[2].type == Constant::Type_Number)
-                    return cvectord(args[0].valueNumber, args[1].valueNumber, args[2].valueNumber, 0.0);
-                else if (count == 4 && args[2].type == Constant::Type_Number && args[3].type == Constant::Type_Number)
-                    return cvectord(args[0].valueNumber, args[1].valueNumber, args[2].valueNumber, args[3].valueNumber);
-            }
-            else
-            {
-                if (count == 2)
-                    return cvectorf(float(args[0].valueNumber), float(args[1].valueNumber), 0.0f, 0.0f);
-                else if (count == 3 && args[2].type == Constant::Type_Number)
-                    return cvectorf(float(args[0].valueNumber), float(args[1].valueNumber), float(args[2].valueNumber), 0.0f);
-                else if (count == 4 && args[2].type == Constant::Type_Number && args[3].type == Constant::Type_Number)
-                    return cvectorf(float(args[0].valueNumber), float(args[1].valueNumber), float(args[2].valueNumber), float(args[3].valueNumber));
-            }
-        }
-        break;
+    // moo: the float vector is removed; LBF_VECTOR never folds (docs/DESIGN.md "vec3, quat and transform").
 
     case LBF_MATH_LERP:
         if (count == 3 && args[0].type == Constant::Type_Number && args[1].type == Constant::Type_Number && args[2].type == Constant::Type_Number)
