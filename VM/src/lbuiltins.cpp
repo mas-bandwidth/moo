@@ -11,6 +11,8 @@
 #include "lbuffer.h"
 #include "lvector.h"
 
+#include "fixed/fixed_math.h"
+
 #include <math.h>
 #include <string.h>
 
@@ -28,6 +30,12 @@
 #include <cpuid.h> // on MSVC this comes from intrin.h
 #endif
 #endif
+
+// moo: the library-side sin/cos/tan on fixed (VM/src/lmathlib.cpp) are the single shared definition
+// (docs/DESIGN.md "math library"), so a fastcall and the library give the same bits.
+fixed_t moo_math_sin(fixed_t radians);
+fixed_t moo_math_cos(fixed_t radians);
+bool moo_math_tan(fixed_t radians, fixed_t* out);
 
 // luauF functions implement FASTCALL instruction that performs a direct execution of some builtin functions from the VM
 // The rule of thumb is that FASTCALL functions can not call user code, yield, fail, or reallocate stack.
@@ -139,8 +147,7 @@ static int luauF_cos(lua_State* L, StkId res, TValue* arg0, int nresults, StkId 
 {
     if (nparams >= 1 && nresults <= 1 && ttisnumber(arg0))
     {
-        double a1 = moo_numbridgetodouble(nvalue(arg0));
-        setnvalue(res, moo_numbridgefromdouble(cos(a1)));
+        setnvalue(res, moo_math_cos(nvalue(arg0)));
         return 1;
     }
 
@@ -384,8 +391,7 @@ static int luauF_sin(lua_State* L, StkId res, TValue* arg0, int nresults, StkId 
 {
     if (nparams >= 1 && nresults <= 1 && ttisnumber(arg0))
     {
-        double a1 = moo_numbridgetodouble(nvalue(arg0));
-        setnvalue(res, moo_numbridgefromdouble(sin(a1)));
+        setnvalue(res, moo_math_sin(nvalue(arg0)));
         return 1;
     }
 
@@ -422,9 +428,12 @@ static int luauF_tan(lua_State* L, StkId res, TValue* arg0, int nresults, StkId 
 {
     if (nparams >= 1 && nresults <= 1 && ttisnumber(arg0))
     {
-        double a1 = moo_numbridgetodouble(nvalue(arg0));
-        setnvalue(res, moo_numbridgefromdouble(tan(a1)));
-        return 1;
+        fixed_t out;
+        if (moo_math_tan(nvalue(arg0), &out))
+        {
+            setnvalue(res, out);
+            return 1;
+        }
     }
 
     return -1;

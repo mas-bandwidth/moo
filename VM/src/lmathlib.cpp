@@ -8,6 +8,8 @@
 #include "lstate.h"
 #include "moo.h"
 
+#include "fixed/fixed_math.h"
+
 #include <limits>
 #include <math.h>
 
@@ -48,9 +50,31 @@ static int math_abs(lua_State* L)
     return 1;
 }
 
+// moo: sin, cos and tan on fixed (docs/DESIGN.md "math library"): one definition serves both the library
+// functions here and their bytecode fastcalls in lbuiltins.cpp, so both give the same bits. tan returns
+// false on a zero cosine so the library raises "division by zero" and the fastcall falls back to it.
+fixed_t moo_math_sin(fixed_t radians)
+{
+    return fixSin(radians);
+}
+
+fixed_t moo_math_cos(fixed_t radians)
+{
+    return fixCos(radians);
+}
+
+bool moo_math_tan(fixed_t radians, fixed_t* out)
+{
+    fixCosSin cs = fixComputeCosSin(radians);
+    if (cs.cosine == 0)
+        return false;
+    *out = moo_numdiv(cs.sine, cs.cosine);
+    return true;
+}
+
 static int math_sin(lua_State* L)
 {
-    lua_pushnumber(L, moo_numbridgefromdouble(sin(moo_numbridgetodouble(luaL_checknumber(L, 1)))));
+    lua_pushnumber(L, moo_math_sin(luaL_checknumber(L, 1)));
     return 1;
 }
 
@@ -62,7 +86,7 @@ static int math_sinh(lua_State* L)
 
 static int math_cos(lua_State* L)
 {
-    lua_pushnumber(L, moo_numbridgefromdouble(cos(moo_numbridgetodouble(luaL_checknumber(L, 1)))));
+    lua_pushnumber(L, moo_math_cos(luaL_checknumber(L, 1)));
     return 1;
 }
 
@@ -74,7 +98,10 @@ static int math_cosh(lua_State* L)
 
 static int math_tan(lua_State* L)
 {
-    lua_pushnumber(L, moo_numbridgefromdouble(tan(moo_numbridgetodouble(luaL_checknumber(L, 1)))));
+    fixed_t out;
+    if (!moo_math_tan(luaL_checknumber(L, 1), &out))
+        luaL_error(L, "division by zero");
+    lua_pushnumber(L, out);
     return 1;
 }
 
