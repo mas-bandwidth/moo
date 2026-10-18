@@ -570,25 +570,13 @@ static int loadsafe(
             }
 
             case LBC_CONSTANT_VECTOR:
-            {
-                float x = read<float>(data, size, offset);
-                float y = read<float>(data, size, offset);
-                float z = read<float>(data, size, offset);
-                float w = read<float>(data, size, offset);
-                (void)w;
-                setvvalue(L, &p->k[j], x, y, z, w);
-                break;
-            }
-
             case LBC_CONSTANT_VECTORD:
             {
-                double x = read<double>(data, size, offset);
-                double y = read<double>(data, size, offset);
-                double z = read<double>(data, size, offset);
-                double w = read<double>(data, size, offset);
-                (void)w;
-                setvvalue(L, &p->k[j], x, y, z, w);
-                break;
+                // moo: one number type, so moo bytecode has no vector constant (docs/DESIGN.md "vec3, quat and transform")
+                char chunkbuf[LUA_IDSIZE];
+                const char* chunkid = luaO_chunkid(chunkbuf, sizeof(chunkbuf), chunkname, strlen(chunkname));
+                lua_pushfstring(L, "%s: moo bytecode has no vector constant", chunkid);
+                return 1;
             }
 
             case LBC_CONSTANT_STRING:
