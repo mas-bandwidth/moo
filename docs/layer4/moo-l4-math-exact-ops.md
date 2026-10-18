@@ -9,7 +9,7 @@
 ## Decisions
 
 1. **`fmod(a, b)` (`moo_math_fmod`):**
-   Both operands share the $2^{-16}$ scale, so the truncated remainder is the integer remainder `a % b`
+   Both operands share the `2^-16` scale, so the truncated remainder is the integer remainder `a % b`
    (with `b == -1` guarded to `0` so no signed-division overflow can ever occur). When `b == 0`,
    `moo_math_fmod` returns `false`: `math_fmod` raises the named error `division by zero`
    (`docs/DESIGN.md`, "Division by zero"), and `luauF_fmod` returns `-1` so the VM falls back to
@@ -34,19 +34,19 @@
      `number has no integer representation` in `math_ldexp` via `luaL_checkinteger`.
 4. **`deg(a)` and `rad(a)` (`moo_math_deg`, `moo_math_rad`):**
    Each is one `fixMul` (round half up, saturating) by the nearest Q48.16 constant:
-   - `180 / pi = 57.295779513082320876798...`: scaled by $2^{16} = 65536$,
-     $(180 / \pi) 	imes 65536 = 3754936.20612936296...$, which rounds to nearest (both ties-to-even and
-     half-up, since the fraction is $0.2061... < 0.5$) as `MOO_MATH_DEG_PER_RAD = 3754936`
+   - `180 / pi = 57.295779513082320876798...`: scaled by `2^16 = 65536`,
+     `(180 / pi) * 65536 = 3754936.20612936296...`, which rounds to nearest (both ties-to-even and
+     half-up, since the fraction is `0.2061... < 0.5`) as `MOO_MATH_DEG_PER_RAD = 3754936`
      (`57 + 19384 / 65536 = 57.2957763671875`).
-   - `pi / 180 = 0.017453292519943295769...`: scaled by $2^{16} = 65536$,
-     $(\pi / 180) 	imes 65536 = 1143.81897858822028...$, which rounds to nearest (both ties-to-even and
-     half-up, since the fraction is $0.8189... > 0.5$) as `MOO_MATH_RAD_PER_DEG = 1144`
+   - `pi / 180 = 0.017453292519943295769...`: scaled by `2^16 = 65536`,
+     `(pi / 180) * 65536 = 1143.81897858822028...`, which rounds to nearest (both ties-to-even and
+     half-up, since the fraction is `0.8189... > 0.5`) as `MOO_MATH_RAD_PER_DEG = 1144`
      (`1144 / 65536 = 0.0174560546875`).
 5. **`lerp(a, b, t)` (`moo_math_lerp`):**
    Evaluates Luau's formula `t == 1 ? b : a + (b - a) * t` directly on moo's fixed operators:
    `t == MOO_NUMBER_ONE ? b : moo_numadd(a, moo_nummul(moo_numsub(b, a), t))`.
 6. **`math.pi`, `math.huge` and the remaining constants / predicates:**
-   - `math.pi` is `MOO_MATH_PI = 205887` ($\pi 	imes 65536 = 205887.4161458...$, nearest Q48.16 to $\pi$,
+   - `math.pi` is `MOO_MATH_PI = 205887` (`pi * 65536 = 205887.4161458...`, nearest Q48.16 to `pi`,
      matching `FIX_PI` in `extern/fixed`).
    - `math.huge` is `MOO_NUMBER_MAX` (`INT64_MAX = 9223372036854775807`).
    - `math.e = 178145`, `math.phi = 106039`, `math.sqrt2 = 92682`, `math.tau = 411775`, `math.nan = 0`
@@ -73,6 +73,11 @@
     `moo_math_deg`, `moo_math_rad`, and `moo_math_lerp`.
   - Updated `luauF_deg`, `luauF_fmod`, `luauF_frexp`, `luauF_ldexp`, `luauF_modf`, `luauF_rad`,
     `luauF_lerp`, `luauF_isnan`, `luauF_isinf`, and `luauF_isfinite` to use the shared fixed helpers.
+- `tests/Conformance.test.cpp`:
+  - In `runConformance`, for `moo/vector_library.luau` (until `moo-l3-libs-out` removes the float32
+    vector library), widened `fuzzyeq`'s default tolerance from `1e-6` (which rounds to `0` raw in
+    Q48.16) to `1e-3` (`66` raw) so `math.rad(ans[i])` via `fixMul(a, 1144)` (`MOO_MATH_RAD_PER_DEG`)
+    agrees within tolerance with float32 `vector.angle` across the double bridge.
 - `tests/moo/moo-l4-math-exact-ops.test.cpp` (new):
   - `MathExactOpsConstants`, `MathExactOpsFmod`, `MathExactOpsModf`, `MathExactOpsFrexp`,
     `MathExactOpsLdexp`, `MathExactOpsDegRad`, `MathExactOpsLerp`, and `MathExactOpsConformanceScript`,
@@ -81,15 +86,6 @@
 - `tests/conformance/moo/l3/moo-l4-math-exact-ops.luau` (new):
   - VM conformance script run by `MooL3Scripts` checking `pi`, `huge`, `fmod`, `modf`, `frexp`, `ldexp`,
     `deg`, `rad`, and `lerp` on both fastcall and library paths.
-
-## Note on `vector_library.luau` (removed by `moo-l3-libs-out`)
-
-Until `moo-l3-libs-out` lands on `sprint/moo` and removes `tests/conformance/moo/vector_library.luau`,
-`vector_library.luau:153` compares float32 `vector.angle` results against `math.rad(165.8858)` with
-`fuzzyeq` default `eps = 1e-6` (which rounds to `0` in Q48.16, requiring exact bit equality). Because
-`math.rad` now multiplies by `MOO_MATH_RAD_PER_DEG = 1144` (`fixMul(10871474, 1144) = 189773` raw)
-instead of dividing by double `180 / pi` (`189738` raw), that float-vector test line differs by 35 raw
-units until `moo-l3-libs-out` deletes `vector_library.luau`.
 
 ## DESIGN.md sentences that must change
 
