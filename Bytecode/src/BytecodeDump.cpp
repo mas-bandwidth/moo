@@ -1,6 +1,8 @@
 // This file is part of the Luau programming language and is licensed under MIT License; see LICENSE.txt for details
 #include "Luau/BytecodeDump.h"
 
+#include "moo_format.h"
+
 namespace Luau
 {
 namespace Bytecode
@@ -278,8 +280,13 @@ void toString(ToStringContext& ctx, BcFunction<BcVmConst>& function, const BcVmC
         append(ctx.result, "%s", data.valueBoolean ? "true" : "false");
         break;
     case BcVmConstKind::Number:
-        append(ctx.result, "%.17g", data.valueNumber);
+    {
+        // moo: the shortest decimal that reads back to the raw value (moo_format.h, docs/DESIGN.md "Number formatting")
+        char buf[40];
+        char* end = moo_numtostr(buf, data.valueNumber);
+        append(ctx.result, "%.*s", int(end - buf), buf);
         break;
+    }
     case BcVmConstKind::Vectorf:
         if (data.valueVectorf[3] == 0.0f)
             append(ctx.result, "%.9g, %.9g, %.9g", data.valueVectorf[0], data.valueVectorf[1], data.valueVectorf[2]);

@@ -1,0 +1,331 @@
+// This file is part of moo, a fork of the Luau programming language; moo's changes are licensed under MIT License; see LICENSE-moo.txt for details
+//
+// The moo bytecode version (docs/layer3/moo-l3-bytecode-version.md; docs/DESIGN.md "Literals" and "integer";
+// docs/DETERMINISM.md 19): a moo blob starts with LBC_MOO_VERSION_FLAG | the moo version, its number constants are the
+// raw Q48.16 value, and the VM refuses Luau bytecode, unknown moo versions, integer constants and out-of-domain numbers,
+// each by name.
+#include "lua.h"
+#include "lualib.h"
+
+#include "Luau/Bytecode.h"
+#include "Luau/BytecodeBuilder.h"
+#include "Luau/BytecodeGraph.h"
+
+#include "doctest.h"
+#include "MooHost.h"
+
+#include <limits>
+#include <string>
+#include <vector>
+
+TEST_SUITE_BEGIN("moo-l3-bytecode-version");
+
+namespace
+{
+
+void putWord(std::string& s, uint32_t w)
+{
+    for (int i = 0; i < 4; ++i)
+        s += char((w >> (8 * i)) & 0xff);
+}
+
+void putRaw(std::string& s, int64_t v)
+{
+    for (int i = 0; i < 8; ++i)
+        s += char((uint64_t(v) >> (8 * i)) & 0xff);
+}
+
+// The body of a hand-built chunk in the format of Luau version 9 (LBC_VERSION_TARGET at BASE), types version 3: no
+// strings, no userdata types, one proto `LOADK R0 K0; RETURN R0 1` with the one constant `constant` (its tag and bytes).
+std::string luauV9Body(const std::string& constant)
+{
+    std::string s;
+    s += char(9); // the Luau version
+    s += char(3); // types version
+    s += char(0); // string count
+    s += char(0); // userdata type remapping: end
+    s += char(1); // proto count
+
+    s += char(1); // maxstacksize
+    s += char(0); // numparams
+    s += char(0); // nups
+    s += char(0); // is_vararg
+    s += char(0); // flags
+    s += char(0); // type info size
+
+    s += char(2);                                     // sizecode
+    putWord(s, LOP_LOADK | (0 << 8) | (0 << 16));     // LOADK R0 K0
+    putWord(s, LOP_RETURN | (0 << 8) | (2 << 16));    // RETURN R0 1 (B = results + 1)
+
+    s += char(1); // sizek
+    s += constant;
+
+    s += char(0); // sizep
+    s += char(0); // linedefined
+    s += char(0); // debugname
+    s += char(0); // lineinfo
+    s += char(0); // debuginfo
+
+    s += char(0); // main proto
+    return s;
+}
+
+std::string numberConstant(int64_t raw)
+{
+    std::string c(1, char(LBC_CONSTANT_NUMBER));
+    putRaw(c, raw);
+    return c;
+}
+
+std::string mooBlob(const std::string& luauBody)
+{
+    return std::string(1, char(LBC_MOO_VERSION_FLAG | LBC_MOO_VERSION_TARGET)) + luauBody;
+}
+
+// luau_load and run: "" and the raw result on success, else the load or run error
+std::string loadAndRun(lua_State* L, const std::string& blob, int64_t* result = nullptr)
+{
+    if (luau_load(L, "=moo", blob.data(), blob.size(), 0) != 0)
+    {
+        std::string err = lua_tostring(L, -1);
+        lua_pop(L, 1);
+        return err;
+    }
+    if (lua_pcall(L, 0, 1, 0) != 0)
+    {
+        std::string err = std::string("run: ") + lua_tostring(L, -1);
+        lua_pop(L, 1);
+        return err;
+    }
+    if (result)
+        *result = lua_tonumber(L, -1);
+    lua_pop(L, 1);
+    return "";
+}
+
+// a moo blob built with BytecodeBuilder directly: one function returning the number constant with raw value k
+std::string builtBlob(int64_t k, std::string* functionData = nullptr)
+{
+    Luau::BytecodeBuilder bcb;
+    uint32_t fid = bcb.beginFunction(0);
+    int32_t kid = bcb.addConstantNumberRaw(k);
+    REQUIRE(kid == 0);
+    bcb.emitAD(LOP_LOADK, 0, int16_t(kid));
+    bcb.emitABC(LOP_RETURN, 0, 2, 0);
+    bcb.endFunction(1, 0);
+    bcb.setMainFunction(fid);
+    bcb.finalize();
+    if (functionData)
+        *functionData = bcb.getFunctionData(fid);
+    return bcb.getBytecode();
+}
+
+// splitmix64: a seeded, platform-independent sequence
+uint64_t nextRandom(uint64_t& state)
+{
+    uint64_t z = (state += 0x9e3779b97f4a7c15ull);
+    z = (z ^ (z >> 30)) * 0xbf58476d1ce4e5b9ull;
+    z = (z ^ (z >> 27)) * 0x94d049bb133111ebull;
+    return z ^ (z >> 31);
+}
+
+// 4096 raw values across the whole domain [-INT64_MAX, INT64_MAX]: the edges, then every magnitude scale
+std::vector<int64_t> seededRawValues()
+{
+    std::vector<int64_t> values = {
+        INT64_MAX, -INT64_MAX, 1, -1, 0, int64_t(1) << 37, (int64_t(1) << 37) + 1, -(int64_t(1) << 37), MOO_NUMBER_ONE, -MOO_NUMBER_ONE,
+        6554, // 0.1
+        INT64_MAX - 1, -INT64_MAX + 1, int64_t(1) << 53, (int64_t(1) << 53) + 1, int64_t(1) << 62,
+    };
+
+    uint64_t state = 1000;
+    while (values.size() < 4096)
+    {
+        uint64_t bits = nextRandom(state);
+        int shift = int(nextRandom(state) % 64);
+        int64_t v = int64_t(bits >> shift);
+        if (v == INT64_MIN)
+            continue;
+        values.push_back(v);
+    }
+    return values;
+}
+
+} // namespace
+
+// DESIGN.md "Literals": the VM refuses Luau bytecode by version, by name. The hand-built body loads as moo bytecode, so
+// the refusal is the version byte alone; every 7-bit version (each a Luau version, now or after a merge) is refused.
+TEST_CASE("MooBytecodeRefusesLuauByName")
+{
+    lua_State* L = luaL_newstate();
+    REQUIRE(L != nullptr);
+
+    std::string body = luauV9Body(numberConstant(98304)); // 1.5
+
+    int64_t result = 0;
+    CHECK(loadAndRun(L, mooBlob(body), &result) == "");
+    CHECK(result == 98304);
+
+    for (int version = 1; version <= 127; ++version)
+    {
+        std::string blob = body;
+        blob[0] = char(version);
+        std::string expected = "moo: this is Luau bytecode (version " + std::to_string(version) + "), not moo bytecode";
+        CHECK_MESSAGE(loadAndRun(L, blob) == expected, "version " << version);
+    }
+
+    // the Luau versions at BASE by name: the target, the maximum and the classes version
+    for (int version : {int(LBC_VERSION_TARGET), int(LBC_VERSION_MAX), int(LBC_VERSION_CLASSES)})
+    {
+        std::string blob = body;
+        blob[0] = char(version);
+        CHECK(loadAndRun(L, blob).find("this is Luau bytecode") != std::string::npos);
+    }
+
+    // the error blob (version 0) still carries the compiler's message
+    std::string error = std::string(1, char(0)) + ":1: some compile error";
+    CHECK(loadAndRun(L, error) == "moo:1: some compile error");
+
+    lua_close(L);
+}
+
+// Bytecode.h "moo bytecode versions": a moo version outside [LBC_MOO_VERSION_MIN, LBC_MOO_VERSION_MAX] is refused by name.
+TEST_CASE("MooBytecodeRefusesUnknownMooVersion")
+{
+    lua_State* L = luaL_newstate();
+    REQUIRE(L != nullptr);
+
+    std::string blob = mooBlob(luauV9Body(numberConstant(98304)));
+    for (int mooversion = 0; mooversion <= 127; ++mooversion)
+    {
+        if (mooversion >= LBC_MOO_VERSION_MIN && mooversion <= LBC_MOO_VERSION_MAX)
+            continue;
+        blob[0] = char(LBC_MOO_VERSION_FLAG | mooversion);
+        std::string expected = "moo: moo bytecode version mismatch (expected [1..1], got " + std::to_string(mooversion) + ")";
+        CHECK_MESSAGE(loadAndRun(L, blob) == expected, "moo version " << mooversion);
+    }
+
+    // a moo blob whose Luau format version is unknown keeps Luau's refusal
+    blob = mooBlob(luauV9Body(numberConstant(98304)));
+    blob[1] = char(2);
+    CHECK(loadAndRun(L, blob).find("bytecode version mismatch (expected [3..14], got 2)") != std::string::npos);
+
+    lua_close(L);
+}
+
+// DESIGN.md "integer": moo has one number type, so a hand-built chunk with an integer constant is refused by name.
+TEST_CASE("MooBytecodeRefusesIntegerConstant")
+{
+    lua_State* L = luaL_newstate();
+    REQUIRE(L != nullptr);
+
+    std::string constant;
+    constant += char(LBC_CONSTANT_INTEGER);
+    constant += char(0); // not negative
+    constant += char(5); // magnitude, varint
+
+    CHECK(loadAndRun(L, mooBlob(luauV9Body(constant))) == "moo: moo bytecode has no integer constant");
+
+    lua_close(L);
+}
+
+// DESIGN.md "Layer 3 as built": the domain is [-INT64_MAX, INT64_MAX] raw, so INT64_MIN is refused by name.
+TEST_CASE("MooBytecodeRefusesNumberOutsideTheDomain")
+{
+    lua_State* L = luaL_newstate();
+    REQUIRE(L != nullptr);
+
+    CHECK(loadAndRun(L, mooBlob(luauV9Body(numberConstant(INT64_MIN)))) == "moo: moo bytecode number constant out of range");
+
+    int64_t result = 0;
+    CHECK(loadAndRun(L, mooBlob(luauV9Body(numberConstant(-INT64_MAX))), &result) == "");
+    CHECK(result == -INT64_MAX);
+
+    lua_close(L);
+}
+
+// DESIGN.md "Literals": every raw value survives addConstantNumberRaw -> serialize -> luau_load bit exact, carried as
+// 8 bytes little-endian after the LBC_CONSTANT_NUMBER tag.
+TEST_CASE("MooBytecodeNumberConstantsAreRaw")
+{
+    lua_State* L = luaL_newstate();
+    REQUIRE(L != nullptr);
+
+    std::vector<int64_t> values = seededRawValues();
+    REQUIRE(values.size() == 4096);
+
+    int mismatches = 0;
+    for (int64_t k : values)
+    {
+        std::string blob = builtBlob(k);
+
+        REQUIRE(uint8_t(blob[0]) == (LBC_MOO_VERSION_FLAG | LBC_MOO_VERSION_TARGET));
+        REQUIRE(uint8_t(blob[1]) == Luau::BytecodeBuilder::getVersion());
+
+        std::string expectedBytes = numberConstant(k);
+        CHECK(blob.find(expectedBytes) != std::string::npos);
+
+        int64_t result = 0;
+        std::string err = loadAndRun(L, blob, &result);
+        if (err != "" || result != k)
+        {
+            ++mismatches;
+            CHECK_MESSAGE(false, "raw " << k << ": " << err << " got " << result);
+        }
+    }
+    CHECK(mismatches == 0);
+
+    lua_close(L);
+}
+
+// The moo-bytecode tool's reader and writer (BytecodeGraph.cpp) carry the raw value, so a round trip is bit exact.
+TEST_CASE("MooBytecodeGraphRoundTripIsRaw")
+{
+    for (int64_t k : seededRawValues())
+    {
+        std::string functionData;
+        std::string blob = builtBlob(k, &functionData);
+
+        std::vector<std::string_view> strings;
+        std::optional<Luau::Bytecode::CompTimeBcFunction> fn = Luau::Bytecode::fromFunctionBytecode(functionData, strings);
+        REQUIRE(fn);
+        REQUIRE(fn->constants.size() == 1);
+        REQUIRE(fn->constants[0].kind == Luau::Bytecode::BcVmConstKind::Number);
+        CHECK(fn->constants[0].valueNumber == k);
+
+        Luau::BytecodeBuilder rebuilt;
+        Luau::Bytecode::toFunctionBytecode(rebuilt, *fn);
+        CHECK(rebuilt.getFunctionData(0) == functionData);
+    }
+}
+
+// DESIGN.md "Boundary": addConstantNumber(double), kept for the compiler's callers, converts once by the boundary rule,
+// ties to even, saturating, NaN to 0.
+TEST_CASE("MooBytecodeDoubleConstantsConvertByTheBoundaryRule")
+{
+    using Luau::BytecodeBuilder;
+    CHECK(BytecodeBuilder::mooNumberFromDouble(1.5) == 98304);
+    CHECK(BytecodeBuilder::mooNumberFromDouble(-1.0) == -65536);
+    CHECK(BytecodeBuilder::mooNumberFromDouble(0.1) == 6554);
+    CHECK(BytecodeBuilder::mooNumberFromDouble(-0.0) == 0);
+    CHECK(BytecodeBuilder::mooNumberFromDouble(137438953472.0) == (int64_t(1) << 53));
+    CHECK(BytecodeBuilder::mooNumberFromDouble(1.0 / 131072.0) == 0);        // half a unit, ties to even
+    CHECK(BytecodeBuilder::mooNumberFromDouble(3.0 / 131072.0) == 2);        // one and a half units, ties to even
+    CHECK(BytecodeBuilder::mooNumberFromDouble(1e300) == INT64_MAX);
+    CHECK(BytecodeBuilder::mooNumberFromDouble(-1e300) == -INT64_MAX);
+    CHECK(BytecodeBuilder::mooNumberFromDouble(std::numeric_limits<double>::infinity()) == INT64_MAX);
+    CHECK(BytecodeBuilder::mooNumberFromDouble(-std::numeric_limits<double>::infinity()) == -INT64_MAX);
+    CHECK(BytecodeBuilder::mooNumberFromDouble(std::numeric_limits<double>::quiet_NaN()) == 0);
+
+    // the same rule as the C API boundary, on the seeded doubles the old loader rounded
+    uint64_t state = 1000;
+    for (int i = 0; i < 4096; ++i)
+    {
+        double d = double(int64_t(nextRandom(state) >> 20)) / 65536.0 / double(1 + (i % 7));
+        int64_t viaApi = 0;
+        REQUIRE(moo_fromdouble(d, &viaApi) == MOO_NUMBER_OK);
+        CHECK(BytecodeBuilder::mooNumberFromDouble(d) == viaApi);
+    }
+}
+
+TEST_SUITE_END();

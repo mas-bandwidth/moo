@@ -332,6 +332,31 @@ static int loadsafe(
         return 1;
     }
 
+    // moo: the VM loads only moo bytecode and refuses Luau bytecode by name (docs/DESIGN.md "Literals"; Bytecode.h,
+    // "moo bytecode versions"; docs/layer3/moo-l3-bytecode-version.md)
+    if ((version & LBC_MOO_VERSION_FLAG) == 0)
+    {
+        char chunkbuf[LUA_IDSIZE];
+        const char* chunkid = luaO_chunkid(chunkbuf, sizeof(chunkbuf), chunkname, strlen(chunkname));
+        lua_pushfstring(L, "%s: this is Luau bytecode (version %d), not moo bytecode", chunkid, version);
+        return 1;
+    }
+
+    int mooversion = version & ~LBC_MOO_VERSION_FLAG;
+
+    if (mooversion < LBC_MOO_VERSION_MIN || mooversion > LBC_MOO_VERSION_MAX)
+    {
+        char chunkbuf[LUA_IDSIZE];
+        const char* chunkid = luaO_chunkid(chunkbuf, sizeof(chunkbuf), chunkname, strlen(chunkname));
+        lua_pushfstring(
+            L, "%s: moo bytecode version mismatch (expected [%d..%d], got %d)", chunkid, LBC_MOO_VERSION_MIN, LBC_MOO_VERSION_MAX, mooversion
+        );
+        return 1;
+    }
+
+    // moo: the Luau version whose format the rest of the moo blob follows
+    version = read<uint8_t>(data, size, offset);
+
     if ((version < LBC_VERSION_MIN || version > LBC_VERSION_MAX) && version != LBC_VERSION_CLASSES)
     {
         char chunkbuf[LUA_IDSIZE];
@@ -519,10 +544,20 @@ static int loadsafe(
 
             case LBC_CONSTANT_NUMBER:
             {
-                double v = read<double>(data, size, offset);
-                // moo: TEMPORARY until the moo bytecode version carries the raw Q48.16 value: the compiler's
-                // double, rounded once to the nearest number, ties to even, saturating
-                setnvalue(&p->k[j], moo_numbridgefromdouble(v));
+                // moo: the raw Q48.16 value, 8 bytes little-endian (docs/DESIGN.md "Literals"); INT64_MIN is outside
+                // the number's domain [-INT64_MAX, INT64_MAX] (DESIGN.md "Layer 3 as built") and is refused by name
+                uint64_t bits = 0;
+                for (int b = 0; b < 8; ++b)
+                    bits |= uint64_t(read<uint8_t>(data, size, offset)) << (8 * b);
+                int64_t v = int64_t(bits);
+                if (v < MOO_NUMBER_MIN)
+                {
+                    char chunkbuf[LUA_IDSIZE];
+                    const char* chunkid = luaO_chunkid(chunkbuf, sizeof(chunkbuf), chunkname, strlen(chunkname));
+                    lua_pushfstring(L, "%s: moo bytecode number constant out of range", chunkid);
+                    return 1;
+                }
+                setnvalue(&p->k[j], v);
                 break;
             }
 
@@ -659,10 +694,11 @@ static int loadsafe(
 
             case LBC_CONSTANT_INTEGER:
             {
-                bool isNegative = read<uint8_t>(data, size, offset);
-                uint64_t magnitude = readVarInt64(data, size, offset);
-                setlvalue(&p->k[j], isNegative ? (int64_t)(~magnitude + 1) : (int64_t)magnitude);
-                break;
+                // moo: one number type, so moo bytecode has no integer constant (docs/DESIGN.md "integer")
+                char chunkbuf[LUA_IDSIZE];
+                const char* chunkid = luaO_chunkid(chunkbuf, sizeof(chunkbuf), chunkname, strlen(chunkname));
+                lua_pushfstring(L, "%s: moo bytecode has no integer constant", chunkid);
+                return 1;
             }
 
             default:
