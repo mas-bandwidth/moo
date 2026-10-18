@@ -11,6 +11,8 @@
 #include "lbuffer.h"
 #include "lvector.h"
 
+#include "moo_pow.h"
+
 #include "fixed/fixed_math.h"
 
 #include <math.h>
@@ -360,8 +362,30 @@ static int luauF_pow(lua_State* L, StkId res, TValue* arg0, int nresults, StkId 
 {
     if (nparams >= 2 && nresults <= 1 && ttisnumber(arg0) && ttisnumber(args))
     {
-        double a1 = moo_numbridgetodouble(nvalue(arg0));
-        double a2 = moo_numbridgetodouble(nvalue(args));
+        fixed_t base = nvalue(arg0);
+        fixed_t exponent = nvalue(args);
+
+        // moo: an integer-valued exponent is exact, rounded once (docs/DESIGN.md, "math library",
+        // "pow and ^"), through the same moo_pow_int as math_pow. The fastcall never raises: division by
+        // zero, and saturation in a checked build, return -1 so the library path raises the named error.
+        if (moo_numisinteger(exponent))
+        {
+            fixed_t out;
+            int status = moo_pow_int(base, exponent >> MOO_NUMBER_FRACTION_BITS, &out);
+
+            if (status == MOO_POW_DIVISION_BY_ZERO)
+                return -1;
+#if MOO_OVERFLOW_ERRORS
+            if (status == MOO_POW_SATURATED)
+                return -1;
+#endif
+            setnvalue(res, out);
+            return 1;
+        }
+
+        // moo: a fractional exponent stays on the libm bridge until moo-l4-pow-fractional
+        double a1 = moo_numbridgetodouble(base);
+        double a2 = moo_numbridgetodouble(exponent);
         setnvalue(res, moo_numbridgefromdouble(pow(a1, a2)));
         return 1;
     }

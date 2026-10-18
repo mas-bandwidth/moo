@@ -8,6 +8,8 @@
 #include "lstate.h"
 #include "moo.h"
 
+#include "moo_pow.h"
+
 #include "fixed/fixed_math.h"
 
 #include <limits>
@@ -206,7 +208,29 @@ static int math_sqrt(lua_State* L)
 
 static int math_pow(lua_State* L)
 {
-    lua_pushnumber(L, moo_numbridgefromdouble(pow(moo_numbridgetodouble(luaL_checknumber(L, 1)), moo_numbridgetodouble(luaL_checknumber(L, 2)))));
+    fixed_t base = luaL_checknumber(L, 1);
+    fixed_t exponent = luaL_checknumber(L, 2);
+
+    // moo: an integer-valued exponent is exact, rounded once (docs/DESIGN.md, "math library", "pow and ^"):
+    // moo_pow_int (Common/include/moo_pow.h) reports saturation and 0 ^ negative, which this raises.
+    if (moo_numisinteger(exponent))
+    {
+        fixed_t out;
+        int status = moo_pow_int(base, exponent >> MOO_NUMBER_FRACTION_BITS, &out);
+
+        if (status == MOO_POW_DIVISION_BY_ZERO)
+            luaL_error(L, "division by zero");
+#if MOO_OVERFLOW_ERRORS
+        if (status == MOO_POW_SATURATED)
+            luaL_error(L, "number overflow in '^'");
+#endif
+        lua_pushnumber(L, out);
+        return 1;
+    }
+
+    // moo: a fractional exponent stays on the libm bridge until moo-l4-pow-fractional (docs/DESIGN.md,
+    // "Layer 3 as built", TEMPORARY bridges)
+    lua_pushnumber(L, moo_numbridgefromdouble(pow(moo_numbridgetodouble(base), moo_numbridgetodouble(exponent))));
     return 1;
 }
 
