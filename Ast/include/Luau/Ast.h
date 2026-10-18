@@ -5,6 +5,9 @@
 #include "Luau/Location.h"
 #include "Luau/Variant.h"
 
+// moo: fixed_t, the raw Q48.16 value of a number literal (docs/DESIGN.md "Literals")
+#include "moo_number.h"
+
 #include <iterator>
 #include <optional>
 #include <functional>
@@ -354,11 +357,19 @@ class AstExprConstantNumber : public AstExpr
 public:
     LUAU_RTTI(AstExprConstantNumber)
 
+    // moo: a tool that builds a number node from a double gets the boundary rule's raw value; the parser passes
+    // moo_numparse's exact raw value to the four-argument form (docs/DESIGN.md "Literals")
     AstExprConstantNumber(const Location& location, double value, ConstantNumberParseResult parseResult = ConstantNumberParseResult::Ok);
+    AstExprConstantNumber(
+        const Location& location, double value, fixed_t rawValue, ConstantNumberParseResult parseResult = ConstantNumberParseResult::Ok
+    );
 
     void visit(AstVisitor* visitor) override;
 
     double value;
+    // moo: the exact raw Q48.16 value moo_numparse produced; `value` stays the nearest double for the analyzer and
+    // tools, which never depend on the representation (docs/DESIGN.md "Analyzer", "Literals")
+    fixed_t rawValue;
     ConstantNumberParseResult parseResult;
 };
 

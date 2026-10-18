@@ -160,9 +160,21 @@ void AstExprConstantBool::visit(AstVisitor* visitor)
     visitor->visit(this);
 }
 
+// moo: a node built by a tool from a double takes the boundary rule's raw value (docs/DESIGN.md "Literals")
 AstExprConstantNumber::AstExprConstantNumber(const Location& location, double value, ConstantNumberParseResult parseResult)
     : AstExpr(ClassIndex(), location)
     , value(value)
+    , rawValue(moo_numbridgefromdouble(value))
+    , parseResult(parseResult)
+{
+}
+
+AstExprConstantNumber::AstExprConstantNumber(
+    const Location& location, double value, fixed_t rawValue, ConstantNumberParseResult parseResult
+)
+    : AstExpr(ClassIndex(), location)
+    , value(value)
+    , rawValue(rawValue)
     , parseResult(parseResult)
 {
 }

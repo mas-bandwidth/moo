@@ -3948,62 +3948,11 @@ AstExpr* Parser::parseAssertionExpr()
         return expr;
 }
 
-static ConstantNumberParseResult parseInteger64(int64_t& result, const char* data, int base)
-{
-    LUAU_ASSERT(base == 2 || base == 10 || base == 16);
-
-    char* end = nullptr;
-
-    if (base == 10)
-    {
-        result = strtoll(data, &end, 10);
-
-        if (end == data || *end != 'i' || end[1] != '\0')
-            return ConstantNumberParseResult::Malformed;
-
-        if (((result == LLONG_MIN) || (result == LLONG_MAX)) && (errno == ERANGE))
-        {
-            // 'errno' might have been set before we called 'strtoll', but we don't want the overhead of resetting a TLS variable on each call
-            // so we only reset it when we get a result that might be an out-of-range error and parse again to make sure
-            errno = 0;
-            result = strtoll(data, &end, 10);
-
-            if (errno == ERANGE)
-                return ConstantNumberParseResult::IntOverflow;
-        }
-    }
-    else
-    {
-        if (base == 2 && data[0] == '0' && (data[1] == 'b' || data[1] == 'B'))
-            return ConstantNumberParseResult::Malformed;
-
-        // hex and binary literals represent bit patterns covering the full uint64 range
-        unsigned long long u = strtoull(data, &end, base);
-
-        if (end == data || *end != 'i' || end[1] != '\0')
-            return ConstantNumberParseResult::Malformed;
-
-        if ((u == ULLONG_MAX) && (errno == ERANGE))
-        {
-            // 'errno' might have been set before we called 'strtoull', but we don't want the overhead of resetting a TLS variable on each call
-            // so we only reset it when we get a result that might be an out-of-range error and parse again to make sure
-            errno = 0;
-            u = strtoull(data, &end, base);
-
-            if (errno == ERANGE)
-                return base == 2 ? ConstantNumberParseResult::BinOverflow : ConstantNumberParseResult::HexOverflow;
-        }
-
-        result = (int64_t)u;
-    }
-
-    return ConstantNumberParseResult::Ok;
-}
-
 // moo: a number literal is the exact rational it denotes, rounded once to the nearest Q48.16 value, ties to even, with
-// no libc (moo_parse.h, docs/DESIGN.md "Literals"). Hexadecimal and binary literals are integers. Until the moo
-// bytecode version carries raw Q48.16 constants, the AST holds the double that holds the value, exactly below 2^37.
-static ConstantNumberParseResult parseDouble(double& result, const char* data)
+// no libc (moo_parse.h, docs/DESIGN.md "Literals"). The AST carries that exact raw value over the whole range, and
+// the nearest double to it for the analyzer and tools (docs/DESIGN.md "Analyzer"). Hexadecimal and binary literals
+// are integers.
+static ConstantNumberParseResult parseDouble(double& result, fixed_t& rawResult, const char* data)
 {
     fixed_t raw = 0;
     switch (moo_numparse(data, &raw))
@@ -4014,9 +3963,11 @@ static ConstantNumberParseResult parseDouble(double& result, const char* data)
         return ConstantNumberParseResult::OutOfRange;
     case MOO_PARSE_BELOW_RESOLUTION:
         result = 0;
+        rawResult = 0;
         return ConstantNumberParseResult::BelowResolution;
     default:
         result = double(raw) * (1.0 / 65536.0);
+        rawResult = raw;
         return ConstantNumberParseResult::Ok;
     }
 }
@@ -5085,32 +5036,16 @@ AstExpr* Parser::parseNumber()
 
     if (FFlag::LuauIntegerType2 && (scratchData.back() == 'i'))
     {
-        int64_t value = 0;
-        ConstantNumberParseResult result;
-        if ((strncmp(scratchData.c_str(), "0x", 2) == 0) || (strncmp(scratchData.c_str(), "0X", 2) == 0))
-            result = parseInteger64(value, scratchData.c_str(), 16); // pass in '0x' prefix, it's handled by strtoll
-        else if ((strncmp(scratchData.c_str(), "0b", 2) == 0) || (strncmp(scratchData.c_str(), "0B", 2) == 0))
-            result = parseInteger64(value, scratchData.c_str() + 2, 2);
-        else
-            result = parseInteger64(value, scratchData.c_str(), 10);
-
+        // moo: moo has one number type and no integer type (docs/DESIGN.md "integer"), so a Luau integer literal is
+        // refused by name and no AstExprConstantInteger is built
         nextLexeme();
-
-        if (result == ConstantNumberParseResult::Malformed)
-            return reportExprError(start, {}, "Malformed integer");
-
-        if (result != ConstantNumberParseResult::Ok)
-            return reportExprError(start, {}, "Integer overflow");
-
-        AstExprConstantInteger* node = allocator.alloc<AstExprConstantInteger>(start, value, result);
-        if (options.storeCstData)
-            cstNodeMap[node] = allocator.alloc<CstExprConstantInteger>(sourceData);
-        return node;
+        return reportExprError(start, {}, "moo has no integer type");
     }
     else
     {
         double value = 0;
-        ConstantNumberParseResult result = parseDouble(value, scratchData.c_str());
+        fixed_t raw = 0;
+        ConstantNumberParseResult result = parseDouble(value, raw, scratchData.c_str());
         nextLexeme();
 
         if (result == ConstantNumberParseResult::Malformed)
@@ -5120,7 +5055,7 @@ AstExpr* Parser::parseNumber()
         if (result == ConstantNumberParseResult::OutOfRange)
             return reportExprError(start, {}, "Number literal out of range");
 
-        AstExprConstantNumber* node = allocator.alloc<AstExprConstantNumber>(start, value, result);
+        AstExprConstantNumber* node = allocator.alloc<AstExprConstantNumber>(start, value, raw, result);
         if (options.storeCstData)
             cstNodeMap[node] = allocator.alloc<CstExprConstantNumber>(sourceData);
         return node;
