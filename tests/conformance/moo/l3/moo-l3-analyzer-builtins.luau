@@ -1,9 +1,9 @@
 -- moo: samples the analyzer's builtin seam (docs/DESIGN.md "Analyzer"). The analyzer's definitions
 -- drop os, vector and integer; moo-analyze reports vector.create as an unknown global (DONE-WHEN).
--- The VM side pinned here is that os and integer are absent while vector is still opened at this
--- base, so types.luau ignores _G.vector until the VM removal lands.
+-- The VM side pinned here is that os, vector and integer are all absent; moo-l3-libs-out removed
+-- luaopen_vector, so types.luau no longer ignores _G.vector.
 assert(rawget(_G, "os") == nil, "os must not be a global")
 assert(rawget(_G, "integer") == nil, "integer must not be a global")
-assert(type(rawget(_G, "vector")) == "table", "the VM still opens vector at this base")
+assert(rawget(_G, "vector") == nil, "vector must not be a global")
 
 return "OK"

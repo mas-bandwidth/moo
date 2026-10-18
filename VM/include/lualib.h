@@ -147,7 +147,7 @@ LUALIB_API int luaopen_math(lua_State* L);
 LUALIB_API int luaopen_debug(lua_State* L);
 
 #define LUA_VECLIBNAME "vector"
-LUALIB_API int luaopen_vector(lua_State* L);
+// moo: the float vector library is out (layer 3); the name stays defined so upstream merges stay mechanical.
 
 #define LUA_INTLIBNAME "integer"
 LUALIB_API int luaopen_integer(lua_State* L);
