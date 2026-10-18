@@ -12,11 +12,10 @@ folded constant is bit-identical to the run time's result by construction. The f
   - `#include "moo_pow.h"` (the header is header-only, so no build registry changes).
   - `mooFold` gains `case AstExprBinary::Pow:`. When the exponent `b` is integer-valued
     (`moo_numisinteger(b)`), it calls `moo_pow_int(a, b >> MOO_NUMBER_FRACTION_BITS, &r)` once:
-    - `MOO_POW_OK` folds with `mooResult`;
-    - `MOO_POW_SATURATED` folds in release only, through the same `mooResult`. That helper declines a raw
-      value a double cannot hold exactly, so a saturated constant (at `INT64_MAX` raw or above) is not
-      emitted; the run time's saturating value is unchanged. Under `#if MOO_OVERFLOW_ERRORS` it is not
-      folded, because the run time raises `number overflow in '^'`;
+    - `MOO_POW_OK` folds with `mooResult`, which stores the raw Q48.16 `fixed_t` directly
+      (`ConstantFolding.cpp:37-41`);
+    - `MOO_POW_SATURATED` is never folded, in release or checked builds, so the run time's saturating
+      value, and its `number overflow in '^'` error in a checked build, are unchanged;
     - `MOO_POW_DIVISION_BY_ZERO` is never folded, so `0 ^ negative` still raises `division by zero` at run
       time;
     - a fractional exponent stays unfolded.
@@ -28,8 +27,10 @@ folded constant is bit-identical to the run time's result by construction. The f
     `return 10 ^ 2` compile with no `POWK`, the bytecode dump holds `moo_pow_int`'s raw result, and the
     value the chunk returns is that same raw result. That pins the folded constant to the function rather
     than to a second computation.
-  - `MooFoldPowIntLeavesDivisionByZeroAndFractionalUnfolded`: `return 0 ^ -1` and `return 2 ^ 0.5` still
-    compile to `POWK`.
+    - `MooFoldPowIntLeavesDivisionByZeroAndFractionalUnfolded`: `return 0 ^ -1` and `return 2 ^ 0.5` still
+      compile to `POWK`.
+    - `MooFoldPowIntLeavesSaturationUnfolded`: `return 10 ^ 100000` (moo_pow_int reports
+      `MOO_POW_SATURATED`) still compiles to `POWK`.
 - `tests/MooCompiler.test.cpp` is changed: `MooFoldArithIsFixedPoint`'s pin of `10 ^ 2` as `POWK`
   becomes `LOADN R0 100`, because the design note requires that case to change in this card and the file is
   in this card's PATHS. Its header comment likewise notes that `^` with an integer exponent folds through
@@ -51,15 +52,11 @@ constant cannot differ from the run time's bits, which is the point of folding f
 
 "Layer 3 as built", "The compiler" (the exact sentence at BASE):
 
-> - **The compiler** folds number arithmetic with the same `moo_number.h` operations (a constant still travels as the
->   double that holds it exactly); it does not fold division by zero, `^`, or any builtin call or `math` constant.
-
-Replace with:
-
-> - **The compiler** folds number arithmetic with the same `moo_number.h` operations (a constant still travels as the
->   double that holds it exactly); it does not fold division by zero, `0 ^ negative`, `^` with a
->   fractional exponent, any builtin call, or any `math` constant. An integer-valued `^` folds through
->   `moo_pow_int`; `math.pow` remains a builtin call and is not folded.
+> - **The compiler** folds number arithmetic with the same `moo_number.h` operations (a constant is the raw Q48.16
+>   value, and a folded constant is the exact value the same expression computes at run time, at every magnitude);
+>   it does not fold division by zero, `0 ^ negative`, `^` with a fractional exponent, any builtin call, or any
+>   `math` constant. An integer-valued `^` folds through `moo_pow_int`; `math.pow` remains a builtin call and is
+>   not folded.
 
 This states the implemented boundary: only integer-valued `^` folds through `moo_pow_int`; builtin calls,
 including `math.pow`, stay runtime calls.

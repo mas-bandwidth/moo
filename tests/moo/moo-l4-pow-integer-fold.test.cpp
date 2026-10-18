@@ -117,4 +117,13 @@ TEST_CASE("MooFoldPowIntLeavesDivisionByZeroAndFractionalUnfolded")
     CHECK_MESSAGE(contains(fractional, "POWK"), "2 ^ 0.5 must not fold:\n" << fractional);
 }
 
+// DESIGN.md "Overflow" and "Layer 3 as built", "The compiler": a power that saturates (moo_pow_int returns
+// MOO_POW_SATURATED) is never folded, in release or checked builds, so the run time's saturating value and its
+// "number overflow in '^'" error in a checked build are unchanged.
+TEST_CASE("MooFoldPowIntLeavesSaturationUnfolded")
+{
+    std::string saturating = compileDump("return 10 ^ 100000");
+    CHECK_MESSAGE(contains(saturating, "POWK"), "10 ^ 100000 must not fold:\n" << saturating);
+}
+
 TEST_SUITE_END();
