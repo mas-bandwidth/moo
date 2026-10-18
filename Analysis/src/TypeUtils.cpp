@@ -36,9 +36,21 @@ bool occursCheck(TypeId needle, TypeId haystack)
     if (needle == haystack)
         return true;
     else if (auto ut = get<UnionType>(haystack))
-        return std::any_of(begin(ut), end(ut), checkHaystack);
+    {
+        // moo: Clang 21 -Wpass-failed on libstdc++ 15 unroll pragma in std::__find_if over TypeIterator
+        for (TypeId ty : ut)
+            if (checkHaystack(ty))
+                return true;
+        return false;
+    }
     else if (auto it = get<IntersectionType>(haystack))
-        return std::any_of(begin(it), end(it), checkHaystack);
+    {
+        // moo: same Clang 21 loop-unroll pragma issue on libstdc++ 15 std::__find_if over TypeIterator
+        for (TypeId ty : it)
+            if (checkHaystack(ty))
+                return true;
+        return false;
+    }
 
     return false;
 }
