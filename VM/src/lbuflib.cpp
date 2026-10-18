@@ -3,6 +3,7 @@
 
 #include "lcommon.h"
 #include "lbuffer.h"
+#include "moo.h"
 
 #if defined(LUAU_BIG_ENDIAN)
 #include <endian.h>
@@ -166,7 +167,18 @@ static int buffer_readfp(lua_State* L)
     memcpy(&val, (char*)buf + offset, sizeof(T));
 #endif
 
-    lua_pushnumber(L, moo_numbridgefromdouble(double(val))); // TEMPORARY until the exact float boundary rule for buffers
+    // moo: the exact float boundary rule (docs/DESIGN.md "Boundary", "Layer 3 as built"; DETERMINISM.md 18):
+    // moo_numfromdouble decodes the stored IEEE bits to Q48.16, ties to even; a NaN, infinity or out-of-range
+    // value is a named error, never silently mapped.
+    int64_t out = 0;
+    int status = moo_numfromdouble(double(val), &out);
+    if (status == MOO_NUMBER_NAN)
+        luaL_error(L, "buffer float is NaN");
+    if (status == MOO_NUMBER_INFINITE)
+        luaL_error(L, "buffer float is infinite");
+    if (status == MOO_NUMBER_OUT_OF_RANGE)
+        luaL_error(L, "buffer float out of number range");
+    lua_pushnumber(L, out);
     return 1;
 }
 
@@ -176,12 +188,19 @@ static int buffer_writefp(lua_State* L)
     size_t len = 0;
     void* buf = luaL_checkbuffer(L, 1, &len);
     int offset = luaL_checkinteger(L, 2);
-    double value = moo_numbridgetodouble(luaL_checknumber(L, 3)); // TEMPORARY until the exact float boundary rule
+    fixed_t raw = luaL_checknumber(L, 3);
 
     if (isoutofbounds(offset, len, sizeof(T)))
         luaL_error(L, "buffer access out of bounds");
 
-    T val = T(value);
+    // moo: the exact float boundary rule (docs/DESIGN.md "Boundary", "Layer 3 as built"; DETERMINISM.md 18):
+    // moo_numtofloatbits / moo_numtodoublebits store the nearest IEEE bits, ties to even, with no float or
+    // double arithmetic.
+    StorageType val;
+    if (sizeof(T) == sizeof(float))
+        val = StorageType(moo_numtofloatbits(raw));
+    else
+        val = StorageType(moo_numtodoublebits(raw));
 
 #if defined(LUAU_BIG_ENDIAN)
     static_assert(sizeof(T) == sizeof(StorageType), "type size must match to reinterpret data");
