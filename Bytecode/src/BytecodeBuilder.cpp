@@ -61,16 +61,6 @@ static void writeInt(std::string& ss, int value)
     ss.append(reinterpret_cast<const char*>(&value), sizeof(value));
 }
 
-static void writeFloat(std::string& ss, float value)
-{
-    ss.append(reinterpret_cast<const char*>(&value), sizeof(value));
-}
-
-static void writeDouble(std::string& ss, double value)
-{
-    ss.append(reinterpret_cast<const char*>(&value), sizeof(value));
-}
-
 // moo: the raw Q48.16 value, 8 bytes little-endian, by integer stores (docs/DESIGN.md "Literals")
 static void writeRawNumber(std::string& ss, int64_t value)
 {
@@ -988,33 +978,9 @@ void BytecodeBuilder::writeFunction(std::string& ss, uint32_t id, uint8_t flags,
             }
             break;
 
-        case Constant::Type_Vectorf:
-            writeByte(ss, LBC_CONSTANT_VECTOR);
-            writeFloat(ss, c.valueVectorf[0]);
-            writeFloat(ss, c.valueVectorf[1]);
-            writeFloat(ss, c.valueVectorf[2]);
-            writeFloat(ss, c.valueVectorf[3]);
-            break;
-
-        case Constant::Type_Vectord:
-            if (FFlag::LuauCompileEmitVectorDouble)
-            {
-                writeByte(ss, LBC_CONSTANT_VECTORD);
-                writeDouble(ss, c.valueVectord[0]);
-                writeDouble(ss, c.valueVectord[1]);
-                writeDouble(ss, c.valueVectord[2]);
-                writeDouble(ss, c.valueVectord[3]);
-            }
-            else
-            {
-                writeByte(ss, LBC_CONSTANT_VECTOR);
-                writeFloat(ss, float(c.valueVectord[0]));
-                writeFloat(ss, float(c.valueVectord[1]));
-                writeFloat(ss, float(c.valueVectord[2]));
-                writeFloat(ss, float(c.valueVectord[3]));
-            }
-            break;
-
+        // moo: no vector constant (docs/DESIGN.md "vec3, quat and transform"): a Type_Vectorf or Type_Vectord
+        // constant falls through to the default and is never written. The compiler stops producing such constants in
+        // moo-l3-vector-compiler-out.
         case Constant::Type_String:
             writeByte(ss, LBC_CONSTANT_STRING);
             writeVarInt(ss, c.valueString);
