@@ -228,8 +228,13 @@ int luaL_checkinteger(lua_State* L, int narg)
 {
     int isnum;
     int d = lua_tointegerx(L, narg, &isnum);
+    // moo: DESIGN.md "Exact integers": a number with fraction bits is the named error, not a type error.
     if (!isnum)
-        tag_error(L, narg, LUA_TNUMBER);
+    {
+        if (!lua_isnumber(L, narg))
+            tag_error(L, narg, LUA_TNUMBER);
+        luaL_argerror(L, narg, "number has no integer representation");
+    }
     return d;
 }
 
@@ -254,8 +259,13 @@ unsigned luaL_checkunsigned(lua_State* L, int narg)
 {
     int isnum;
     unsigned d = lua_tounsignedx(L, narg, &isnum);
+    // moo: DESIGN.md "Exact integers": a fraction is the named error for unsigned arguments too.
     if (!isnum)
-        tag_error(L, narg, LUA_TNUMBER);
+    {
+        if (!lua_isnumber(L, narg))
+            tag_error(L, narg, LUA_TNUMBER);
+        luaL_argerror(L, narg, "number has no integer representation");
+    }
     return d;
 }
 

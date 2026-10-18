@@ -435,8 +435,16 @@ int lua_tointegerx(lua_State* L, int idx, int* isnum)
     const TValue* o = index2addr(L, idx);
     if (tonumber(o, &n))
     {
-        int res;
         lua_Number num = nvalue(o);
+        // moo: DESIGN.md "Exact integers": an integer-valued number has no fraction bits (Lua 5.3's rule);
+        // a fraction is not a conversion, so *isnum stays 0 and the caller names the error.
+        if (!moo_numisinteger(num))
+        {
+            if (isnum)
+                *isnum = 0;
+            return 0;
+        }
+        int res;
         luai_num2int(res, num);
         if (isnum)
             *isnum = 1;
@@ -456,8 +464,15 @@ unsigned lua_tounsignedx(lua_State* L, int idx, int* isnum)
     const TValue* o = index2addr(L, idx);
     if (tonumber(o, &n))
     {
-        unsigned res;
         lua_Number num = nvalue(o);
+        // moo: DESIGN.md "Exact integers": a fraction is not an unsigned integer either.
+        if (!moo_numisinteger(num))
+        {
+            if (isnum)
+                *isnum = 0;
+            return 0;
+        }
+        unsigned res;
         luai_num2unsigned(res, num);
         if (isnum)
             *isnum = 1;

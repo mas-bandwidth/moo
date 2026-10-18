@@ -1,4 +1,5 @@
 -- This file is part of moo, a fork of the Luau programming language; moo's changes are licensed under MIT License; see LICENSE-moo.txt for details
+-- moo: layer 3 removes the script-visible vector library; the compiler and VM vector halves remain separate.
 print('testing the float vector library is out')
 
 -- layer 3b: the float32 vector library, type and bytecode constant are each refused by name (docs/DESIGN.md)

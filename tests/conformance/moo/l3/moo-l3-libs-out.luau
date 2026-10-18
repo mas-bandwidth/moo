@@ -1,4 +1,5 @@
 -- This file is part of moo, a fork of the Luau programming language; moo's changes are licensed under MIT License; see LICENSE-moo.txt for details
+-- moo: layer 3 removes script-visible vector and integer libraries from luaL_openlibs.
 -- moo-l3-libs-out: luaL_openlibs opens no vector and no integer library (docs/DESIGN.md, "Layer 3 as built").
 print('testing no vector and no integer library')
 

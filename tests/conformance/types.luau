@@ -11,12 +11,7 @@ local ignore =
 	-- what follows is a set of mismatches that hopefully eventually will go down to 0
 	"_G.require", -- need to move to Roblox type defs
 
-	-- moo: the VM has no os library (docs/DETERMINISM.md, 9). The analyzer's builtin
-	-- definitions still declare it until they drop os, vector and integer together.
-	"_G.os",
-	-- moo: the VM has no vector library (docs/DESIGN.md, "Layer 3 as built"); its builtin
-	-- definition remains until the analyzer drops it (moo-l3-libs-out).
-	"_G.vector",
+	-- moo: both analyzer and luaL_openlibs omit vector after moo-l3-libs-out (docs/DESIGN.md, "Layer 3 as built").
 }
 
 function verify(real, rtti, path)

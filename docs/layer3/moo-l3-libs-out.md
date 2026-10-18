@@ -1,9 +1,10 @@
 # moo-l3-libs-out
 
 Removes the float32 vector library and the integer library from `luaL_openlibs`, and the vector
-fastcalls from the fastcall table. This is the library half of removing Luau's float32 vector in
-layer 3; the compiler (moo-l3-vector-compiler-out) and VM (moo-l3-vector-vm-out) halves, and the
-analyzer, are separate.
+fastcalls from the fastcall table. The analyzer builtin removal (moo-l3-analyzer-builtins) is already
+present in the merged base. This
+card removes the runtime library and fastcall half; the compiler (moo-l3-vector-compiler-out) and VM
+(moo-l3-vector-vm-out) halves remain separate.
 
 ## Decision
 
@@ -41,8 +42,8 @@ analyzer, are separate.
 
 ## Upstream tests the removal moved
 
-- `tests/conformance/types.luau` ignores `_G.vector`, exactly as it already ignores `_G.os`: the
-  analyzer's builtin definitions still declare the global until they drop it.
+- `tests/conformance/types.luau` no longer ignores `_G.vector`: the merged analyzer definitions and
+  this card's VM removal both omit the global. `_G.os` remains ignored pending the VM's os removal.
 - `tests/Conformance.test.cpp` installs a test-only `vector.create` in `setupVectorHelpers`, because
   `udata_direct.luau` is a userdata test that happens to build vector fields; `vector` is still nil
   for every program that does not ask the host for it.

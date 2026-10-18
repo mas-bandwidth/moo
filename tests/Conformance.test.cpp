@@ -338,6 +338,18 @@ static StateRef runConformance(
 
     stream.close();
 
+    // moo: math.rad is fixMul(a, 1144) (MOO_MATH_RAD_PER_DEG = 1144, nearest Q48.16 of pi/180;
+    // docs/DESIGN.md "math library"), which can differ by up to 35 raw units from float32 vector.angle
+    // across the double bridge; in Q48.16 the default 1e-6 tolerance of moo/vector_library.luau's fuzzyeq
+    // rounds to 0, so widen it to 1e-3 (66 raw).
+    if (strcmp(name, "moo/vector_library.luau") == 0)
+    {
+        const std::string from = "eps or 1e-6";
+        size_t pos = source.find(from);
+        if (pos != std::string::npos)
+            source.replace(pos, from.size(), "eps or 1e-3");
+    }
+
     if (!initialLuaState)
         initialLuaState = luaL_newstate();
     StateRef globalState(initialLuaState, lua_close);
@@ -4596,7 +4608,8 @@ TEST_CASE("Native")
     );
 }
 
-TEST_CASE("NativeIntegerSpills")
+// moo: skipped; its integer constant is now refused by the loader by name, "moo bytecode has no integer constant" (docs/DESIGN.md "integer"). Owner: card moo-l3-ast-raw-literals, which refuses the integer literal at compile time.
+TEST_CASE("NativeIntegerSpills" * doctest::skip())
 {
     ScopedFastFlag integerType{FFlag::LuauIntegerType2, true};
 

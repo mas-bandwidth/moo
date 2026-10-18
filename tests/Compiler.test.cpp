@@ -1549,11 +1549,12 @@ TEST_CASE("AndOrChainCodegen")
         or Enum.Material.Sandstone
     )";
 
+    // moo: the constant prints as the shortest decimal that reads back to its raw Q48.16 value (moo_format.h)
     CHECK_EQ("\n" + compileFunction0(source), R"(
 GETIMPORT R2 2 [verticalGradientTurbulence]
 SUBRK R1 K0 [1] R2
 GETIMPORT R3 5 [waterLevel]
-ADDK R2 R3 K3 [0.0149993896484375]
+ADDK R2 R3 K3 [0.015]
 JUMPIFNOTLT R1 R2 L0
 GETIMPORT R0 9 [Enum.Material.Sand]
 JUMPIF R0 L2
@@ -1819,7 +1820,7 @@ RETURN R0 1
 )");
 }
 
-// moo: skipped; it asserts folding moo changed on purpose (builtins, pow, vectors do not fold). See tests/MooCompiler.test.cpp
+// moo: the float vector is removed (DESIGN.md "vec3, quat and transform")
 TEST_CASE("ConstantFoldVectorArith" * doctest::skip())
 {
     CHECK_EQ("\n" + compileFunction("local n = 2; local a, b = vector.create(1, 2, 3), vector.create(2, 4, 8); return a + b", 0, 2), R"(
@@ -1885,7 +1886,7 @@ RETURN R0 1
 )");
 }
 
-// moo: skipped; it asserts folding moo changed on purpose (builtins, pow, vectors do not fold). See tests/MooCompiler.test.cpp
+// moo: the float vector is removed (DESIGN.md "vec3, quat and transform")
 TEST_CASE("ConstantFoldVectorArith4Wide" * doctest::skip())
 {
     CHECK_EQ("\n" + compileFunction("local n = 2; local a, b = vector.create(1, 2, 3, 4), vector.create(2, 4, 8, 1); return a + b", 0, 2), R"(
@@ -1940,7 +1941,7 @@ RETURN R0 1
 )");
 }
 
-// moo: skipped; it asserts folding moo changed on purpose (builtins, pow, vectors do not fold). See tests/MooCompiler.test.cpp
+// moo: the float vector is removed (DESIGN.md "vec3, quat and transform")
 TEST_CASE("ConstantFoldVectorCompare" * doctest::skip())
 {
     ScopedFastFlag luauCompileNoFoldVectorEqW{FFlag::LuauCompileNoFoldVectorEqW, true};
@@ -1973,7 +1974,7 @@ L3: RETURN R0 2
 )");
 }
 
-// moo: skipped; it asserts folding moo changed on purpose (builtins, pow, vectors do not fold). See tests/MooCompiler.test.cpp
+// moo: the float vector is removed (DESIGN.md "vec3, quat and transform")
 TEST_CASE("ConstantFoldVectorComponents" * doctest::skip())
 {
     CHECK_EQ(
@@ -2493,12 +2494,13 @@ TEST_CASE("LoopContinueUntil")
     ScopedFastFlag emitCallFb{FFlag::LuauEmitCallFeedback, true};
 
     // it's valid to use locals defined inside the loop in until expression if they're defined before continue
+    // moo: the constant prints as the shortest decimal that reads back to its raw Q48.16 value (moo_format.h)
     CHECK_EQ("\n" + compileFunction0("repeat local r = math.random() if r > 0.5 then continue end r = r + 0.3 until r < 0.5"), R"(
 L0: GETIMPORT R0 2 [math.random]
 CALL R0 0 1
 LOADK R1 K3 [0.5]
 JUMPIFLT R1 R0 L1
-ADDK R0 R0 K4 [0.3000030517578125]
+ADDK R0 R0 K4 [0.3]
 L1: LOADK R1 K3 [0.5]
 JUMPIFLT R0 R1 L2
 JUMPBACK L0
@@ -2531,6 +2533,7 @@ until rr < 0.5
 
     // but it's okay if continue is inside a non-repeat..until loop, or inside a loop that doesn't use the local (here `continue` just terminates
     // inner loop)
+    // moo: the constant prints as the shortest decimal that reads back to its raw Q48.16 value (moo_format.h)
     CHECK_EQ(
         "\n" +
             compileFunction0("repeat local r = math.random() repeat if r > 0.5 then continue end r = r - 0.1 until true r = r + 0.3 until r < 0.5"),
@@ -2539,8 +2542,8 @@ L0: GETIMPORT R0 2 [math.random]
 CALL R0 0 1
 LOADK R1 K3 [0.5]
 JUMPIFLT R1 R0 L1
-SUBK R0 R0 K4 [0.100006103515625]
-L1: ADDK R0 R0 K5 [0.3000030517578125]
+SUBK R0 R0 K4 [0.1]
+L1: ADDK R0 R0 K5 [0.3]
 LOADK R1 K3 [0.5]
 JUMPIFLT R0 R1 L2
 JUMPBACK L0
@@ -2549,6 +2552,7 @@ L2: RETURN R0 0
     );
 
     // and it's also okay to use a local defined in the until expression as long as it's inside a function!
+    // moo: the constant prints as the shortest decimal that reads back to its raw Q48.16 value (moo_format.h)
     CHECK_EQ(
         "\n" + compileFunction(
                    "repeat local r = math.random() if r > 0.5 then continue end r = r + 0.3 until (function() local a = r return a < 0.5 end)()", 1
@@ -2558,7 +2562,7 @@ L0: GETIMPORT R0 2 [math.random]
 CALL R0 0 1
 LOADK R1 K3 [0.5]
 JUMPIFLT R1 R0 L1
-ADDK R0 R0 K4 [0.3000030517578125]
+ADDK R0 R0 K4 [0.3]
 L1: NEWCLOSURE R1 P0
 CAPTURE REF R0
 CALL R1 0 1
@@ -2595,6 +2599,7 @@ until (function() return rr end)() < 0.5
     }
 
     // unless that upvalue is from an outer scope
+    // moo: the constant prints as the shortest decimal that reads back to its raw Q48.16 value (moo_format.h)
     CHECK_EQ(
         "\n" + compileFunction0(
                    "local stop = false stop = true function test() repeat local r = math.random() if r > 0.5 then "
@@ -2605,7 +2610,7 @@ L0: GETIMPORT R0 2 [math.random]
 CALLFB R0 0 1 [0]
 LOADK R1 K3 [0.5]
 JUMPIFLT R1 R0 L1
-ADDK R0 R0 K4 [0.3000030517578125]
+ADDK R0 R0 K4 [0.3]
 L1: GETUPVAL R1 U0
 JUMPIF R1 L2
 LOADK R1 K3 [0.5]
@@ -2616,6 +2621,7 @@ L2: RETURN R0 0
     );
 
     // including upvalue references from a function expression
+    // moo: the constant prints as the shortest decimal that reads back to its raw Q48.16 value (moo_format.h)
     CHECK_EQ(
         "\n" + compileFunction(
                    "local stop = false stop = true function test() repeat local r = math.random() if r > 0.5 then continue "
@@ -2627,7 +2633,7 @@ L0: GETIMPORT R0 2 [math.random]
 CALLFB R0 0 1 [0]
 LOADK R1 K3 [0.5]
 JUMPIFLT R1 R0 L1
-ADDK R0 R0 K4 [0.3000030517578125]
+ADDK R0 R0 K4 [0.3]
 L1: NEWCLOSURE R1 P0
 CAPTURE UPVAL U0
 CAPTURE REF R0
@@ -3027,6 +3033,7 @@ RETURN R3 1
     );
 
     // sometimes we need to compute a boolean; this uses LOADB with an offset
+    // moo: the constant prints as the shortest decimal that reads back to its raw Q48.16 value (moo_format.h)
     CHECK_EQ(
         "\n" + compileFunction(
                    R"(
@@ -3038,11 +3045,11 @@ end
                ),
         R"(
 LOADB R2 0
-MULK R4 R1 K1 [0.399993896484375]
+MULK R4 R1 K1 [0.4]
 SUBRK R3 K0 [0.5] R4
 JUMPIFNOTLT R3 R0 L1
 LOADK R4 K0 [0.5]
-MULK R5 R1 K1 [0.399993896484375]
+MULK R5 R1 K1 [0.4]
 ADD R3 R4 R5
 JUMPIFLT R0 R3 L0
 LOADB R2 0 +1
@@ -3052,6 +3059,7 @@ L1: RETURN R2 1
     );
 
     // sometimes we need to compute a boolean; this uses LOADB with an offset for the last op, note that first op is compiled better
+    // moo: the constant prints as the shortest decimal that reads back to its raw Q48.16 value (moo_format.h)
     CHECK_EQ(
         "\n" + compileFunction(
                    R"(
@@ -3063,11 +3071,11 @@ end
                ),
         R"(
 LOADB R2 1
-MULK R4 R1 K1 [0.399993896484375]
+MULK R4 R1 K1 [0.4]
 SUBRK R3 K0 [0.5] R4
 JUMPIFLT R0 R3 L1
 LOADK R4 K0 [0.5]
-MULK R5 R1 K1 [0.399993896484375]
+MULK R5 R1 K1 [0.4]
 ADD R3 R4 R5
 JUMPIFLT R3 R0 L0
 LOADB R2 0 +1
@@ -4881,8 +4889,9 @@ LOADN R0 0
 RETURN R0 1
 )");
 
+    // moo: a number has no negative zero (docs/DESIGN.md "Representation"), so -0 is the raw value 0 and prints 0
     CHECK_EQ("\n" + compileFunction0("return -0"), R"(
-LOADK R0 K0 [-0]
+LOADK R0 K0 [0]
 RETURN R0 1
 )");
 }
@@ -6080,7 +6089,8 @@ RETURN R0 4
 )");
 }
 
-TEST_CASE("VectorFastCall")
+// moo: the float vector is removed (DESIGN.md "vec3, quat and transform")
+TEST_CASE("VectorFastCall" * doctest::skip())
 {
     const char* source = "return Vector3.new(1, 2, 3)";
 
@@ -6102,7 +6112,8 @@ L0: RETURN R0 -1
 )");
 }
 
-TEST_CASE("VectorFastCall3")
+// moo: the float vector is removed (DESIGN.md "vec3, quat and transform")
+TEST_CASE("VectorFastCall3" * doctest::skip())
 {
     const char* source = R"(
 local a, b, c = ...
@@ -6128,7 +6139,7 @@ L0: RETURN R3 -1
 )");
 }
 
-// moo: skipped; it asserts folding moo changed on purpose (builtins, pow, vectors do not fold). See tests/MooCompiler.test.cpp
+// moo: the float vector is removed (DESIGN.md "vec3, quat and transform")
 TEST_CASE("VectorConstants" * doctest::skip())
 {
     CHECK_EQ("\n" + compileFunction("return vector.create(1, 2)", 0, 2, 0), R"(
@@ -6173,7 +6184,7 @@ RETURN R0 1
 )");
 }
 
-// moo: skipped; it asserts folding moo changed on purpose (builtins, pow, vectors do not fold). See tests/MooCompiler.test.cpp
+// moo: the float vector is removed (DESIGN.md "vec3, quat and transform")
 TEST_CASE("VectorConstantFields" * doctest::skip())
 {
     CHECK_EQ("\n" + compileFunction("return vector.one, vector.zero", 0, 2), R"(
@@ -6505,6 +6516,7 @@ L1: RETURN R0 0
     );
 
     // can't unroll loops with bounds that might be imprecise (non-integer)
+    // moo: the constant prints as the shortest decimal that reads back to its raw Q48.16 value (moo_format.h)
     CHECK_EQ(
         "\n" + compileFunction(
                    R"(
@@ -6517,7 +6529,7 @@ end
         R"(
 LOADN R2 1
 LOADN R0 2
-LOADK R1 K0 [0.100006103515625]
+LOADK R1 K0 [0.1]
 FORNPREP R0 L1
 L0: FORNLOOP R0 L0
 L1: RETURN R0 0
@@ -13413,7 +13425,7 @@ RETURN R3 1
     );
 }
 
-// moo: skipped; it asserts folding moo changed on purpose (builtins, pow, vectors do not fold). See tests/MooCompiler.test.cpp
+// moo: the float vector is removed (DESIGN.md "vec3, quat and transform")
 TEST_CASE("VectorOptionsDefault" * doctest::skip())
 {
     Luau::BytecodeBuilder bcb;
@@ -13433,7 +13445,7 @@ RETURN R0 1
     );
 }
 
-// moo: skipped; it asserts folding moo changed on purpose (builtins, pow, vectors do not fold). See tests/MooCompiler.test.cpp
+// moo: the float vector is removed (DESIGN.md "vec3, quat and transform")
 TEST_CASE("VectorOptionsDoubleUnsupported" * doctest::skip())
 {
     // Until flag is enabled, bytecode is the same for vectors of any precision
@@ -13485,7 +13497,7 @@ RETURN R0 1
     CHECK(bytecode1 == bytecode2);
 }
 
-// moo: skipped; it asserts folding moo changed on purpose (builtins, pow, vectors do not fold). See tests/MooCompiler.test.cpp
+// moo: the float vector is removed (DESIGN.md "vec3, quat and transform")
 TEST_CASE("VectorOptionsDouble" * doctest::skip())
 {
     ScopedFastFlag luauCompileEmitVectorDouble{FFlag::LuauCompileEmitVectorDouble, true};
