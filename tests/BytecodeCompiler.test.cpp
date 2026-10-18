@@ -96,7 +96,7 @@ struct BytecodeCompilerFixture
     {
         std::string bytecode = bcb.getBytecode();
         const char* data = bytecode.data();
-        size_t offset = 2; // skip versions
+        size_t offset = 3; // moo: skip the 3-byte moo header (moo version, Luau version, types version); docs/layer3/moo-l3-bytecode-version.md
         std::vector<std::string> result;
         uint32_t stringsCount = readVarInt(data, offset);
         for (uint32_t i = 0; i < stringsCount; i++)
