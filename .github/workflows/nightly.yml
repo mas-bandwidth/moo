@@ -80,16 +80,24 @@ jobs:
           ! build/moo --codegen tests/conformance/assert.luau
           ! build/moo --jit-inliner tests/conformance/assert.luau
 
-  windows-msvc:
-    name: windows-msvc
+  windows:
+    name: ${{ matrix.name }}
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     runs-on: windows-latest
     timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: windows-msvc
+            toolset: ""
+          - name: windows-clang-cl
+            toolset: "-T ClangCL"
     steps:
       - uses: actions/checkout@v4
 
       - name: configure
-        run: cmake -S . -B build -A x64 -DLUAU_WERROR=OFF
+        run: cmake -S . -B build -A x64 ${{ matrix.toolset }} -DLUAU_WERROR=OFF
 
       - name: build
         run: cmake --build build --config RelWithDebInfo --parallel 4 --target Moo.Test Luau.Conformance Luau.UnitTest
