@@ -346,7 +346,8 @@ bb_1 (exit):
     );
 }
 
-TEST_CASE("sccp_nan_compare_check1")
+// moo: skipped; moo numbers have no NaN, so this NaN constant cannot exist (docs/DESIGN.md "number"). Owner: card moo-l3-bytecode-graph-fixed, which moves Sccp folding onto raw Q48.16.
+TEST_CASE("sccp_nan_compare_check1" * doctest::skip())
 {
     BcFunction<BcVmConst> func;
     BcOp entry = func.entryBlock = func.addBlock();
@@ -390,7 +391,8 @@ bb_3 (exit):
     );
 }
 
-TEST_CASE("sccp_nan_compare_check2")
+// moo: skipped; moo numbers have no NaN, so this NaN constant cannot exist (docs/DESIGN.md "number"). Owner: card moo-l3-bytecode-graph-fixed, which moves Sccp folding onto raw Q48.16.
+TEST_CASE("sccp_nan_compare_check2" * doctest::skip())
 {
     BcFunction<BcVmConst> func;
     BcOp entry = func.entryBlock = func.addBlock();
@@ -434,7 +436,8 @@ bb_3 (exit):
     );
 }
 
-TEST_CASE("sccp_nan_compare_check3")
+// moo: skipped; moo numbers have no NaN, so this NaN constant cannot exist (docs/DESIGN.md "number"). Owner: card moo-l3-bytecode-graph-fixed, which moves Sccp folding onto raw Q48.16.
+TEST_CASE("sccp_nan_compare_check3" * doctest::skip())
 {
     BcFunction<BcVmConst> func;
     BcOp entry = func.entryBlock = func.addBlock();
