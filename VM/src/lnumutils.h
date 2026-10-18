@@ -134,7 +134,8 @@ inline double luai_lerpd(double a, double b, double t)
     return (t == 1.0) ? b : a + (b - a) * t;
 }
 
-// moo: toward zero, saturating at the int range (no undefined float-to-int cast)
+// moo: exact-integer check and toward-zero saturation at the int range (see docs/DESIGN.md "Exact integers")
+#define luai_numisint(d) moo_numisinteger(d)
 #define luai_num2int(i, d) ((i) = (int)moo_numclampint(moo_numtrunc(d)))
 
 #define luai_num2long(i, d) ((i) = moo_numtrunc(d))
