@@ -210,14 +210,20 @@ TEST_CASE("MooOverflowFloorDiv")
         "9223372036854710272"});
 }
 
-// '^' is the libm bridge and not checked yet (moo-l4-pow-integer): 2 ^ 47 saturates in both builds
-TEST_CASE("MooOverflowPowUncheckedBridge")
+// '^' with an integer exponent is checked through moo_pow_int's status (moo-l4-pow-integer-vm):
+// 2 ^ 47 saturates in release and raises in a checked build; 2 ^ 46 is inside
+TEST_CASE("MooOverflowPowInteger")
 {
     for (int level = 0; level <= 2; ++level)
     {
         CAPTURE(level);
+#if MOO_OVERFLOW_ERRORS
+        CHECK(runAt(runtime("^", "131072", "3080192"), level) == "error: moo:1: number overflow in '^'");
+        CHECK(runAt("return moo_test.raw(2 ^ 47)", level) == "error: moo:1: number overflow in '^'");
+#else
         CHECK(runAt(runtime("^", "131072", "3080192"), level) == kMax);
         CHECK(runAt("return moo_test.raw(2 ^ 47)", level) == kMax);
+#endif
         CHECK(runAt(runtime("^", "131072", "3014656"), level) == "4611686018427387904");
     }
 }

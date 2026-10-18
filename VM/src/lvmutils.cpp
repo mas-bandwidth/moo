@@ -674,17 +674,25 @@ void luaV_doarithimpl(lua_State* L, StkId ra, const TValue* rb, const TValue* rc
     {
         lua_Number nb = nvalue(b), nc = nvalue(c);
 
+        // moo: ^ with an integer exponent is one moo_pow_int call; its status decides the named errors
+        // (docs/DESIGN.md, "Overflow" and "Division by zero"). A fractional exponent stays on the bridge.
+        bool powInteger = op == TM_POW && moo_numisinteger(nc);
+        fixed_t powValue = 0;
+        int powStatus = MOO_POW_OK;
+        if (powInteger)
+            powStatus = moo_pow_int(nb, nc >> MOO_NUMBER_FRACTION_BITS, &powValue);
+
         // moo: named, never infinity or NaN (docs/DESIGN.md, "Division by zero")
-        if ((op == TM_DIV || op == TM_IDIV || op == TM_MOD) && nc == 0)
+        if (((op == TM_DIV || op == TM_IDIV || op == TM_MOD) && nc == 0) || (powInteger && powStatus == MOO_POW_DIVISION_BY_ZERO))
             luaG_runerror(L, "division by zero");
 
 #if MOO_OVERFLOW_ERRORS
         // moo: a checked build stops with the named error where release saturates (docs/DESIGN.md, "Overflow")
         if ((op == TM_ADD && luai_numaddsat(nb, nc)) || (op == TM_SUB && luai_numsubsat(nb, nc)) ||
             (op == TM_MUL && luai_nummulsat(nb, nc)) || (op == TM_DIV && luai_numdivsat(nb, nc)) ||
-            (op == TM_IDIV && luai_numidivsat(nb, nc)))
+            (op == TM_IDIV && luai_numidivsat(nb, nc)) || (powInteger && powStatus == MOO_POW_SATURATED))
             luaG_runerror(L, "number overflow in '%s'",
-                op == TM_ADD ? "+" : op == TM_SUB ? "-" : op == TM_MUL ? "*" : op == TM_DIV ? "/" : "//");
+                op == TM_ADD ? "+" : op == TM_SUB ? "-" : op == TM_MUL ? "*" : op == TM_DIV ? "/" : op == TM_POW ? "^" : "//");
 #endif
 
         switch (op)
@@ -708,7 +716,7 @@ void luaV_doarithimpl(lua_State* L, StkId ra, const TValue* rb, const TValue* rc
             setnvalue(ra, luai_nummod(nb, nc));
             break;
         case TM_POW:
-            setnvalue(ra, luai_numpow(nb, nc));
+            setnvalue(ra, powInteger ? powValue : luai_numpow(nb, nc));
             break;
         case TM_UNM:
             setnvalue(ra, luai_numunm(nb));

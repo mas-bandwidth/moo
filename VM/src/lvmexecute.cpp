@@ -2063,7 +2063,27 @@ reentry:
                 // fast-path
                 if (ttisnumber(rb) && ttisnumber(rc))
                 {
-                    setnvalue(ra, luai_numpow(nvalue(rb), nvalue(rc)));
+                    // moo: ^ with an integer exponent is one moo_pow_int call; its status decides the named
+                    // errors (docs/DESIGN.md, "Overflow" and "Division by zero"). A fractional exponent stays
+                    // on the bridge.
+                    fixed_t nb = nvalue(rb), nc = nvalue(rc);
+                    if (moo_numisinteger(nc))
+                    {
+                        fixed_t r = 0;
+                        int status = moo_pow_int(nb, nc >> MOO_NUMBER_FRACTION_BITS, &r);
+#if MOO_OVERFLOW_ERRORS
+                        if (status == MOO_POW_SATURATED || status == MOO_POW_DIVISION_BY_ZERO)
+#else
+                        if (status == MOO_POW_DIVISION_BY_ZERO)
+#endif
+                        {
+                            VM_PROTECT(luaV_doarithimpl<TM_POW>(L, ra, rb, rc));
+                            VM_NEXT();
+                        }
+                        setnvalue(ra, r);
+                        VM_NEXT();
+                    }
+                    setnvalue(ra, luai_numpow(nb, nc));
                     VM_NEXT();
                 }
                 else
@@ -2299,7 +2319,27 @@ reentry:
                 // fast-path
                 if (ttisnumber(rb))
                 {
-                    setnvalue(ra, luai_numpow(nvalue(rb), nvalue(kv)));
+                    // moo: ^ with an integer exponent is one moo_pow_int call; its status decides the named
+                    // errors (docs/DESIGN.md, "Overflow" and "Division by zero"). A fractional exponent stays
+                    // on the bridge.
+                    fixed_t nb = nvalue(rb), nc = nvalue(kv);
+                    if (moo_numisinteger(nc))
+                    {
+                        fixed_t r = 0;
+                        int status = moo_pow_int(nb, nc >> MOO_NUMBER_FRACTION_BITS, &r);
+#if MOO_OVERFLOW_ERRORS
+                        if (status == MOO_POW_SATURATED || status == MOO_POW_DIVISION_BY_ZERO)
+#else
+                        if (status == MOO_POW_DIVISION_BY_ZERO)
+#endif
+                        {
+                            VM_PROTECT(luaV_doarithimpl<TM_POW>(L, ra, rb, kv));
+                            VM_NEXT();
+                        }
+                        setnvalue(ra, r);
+                        VM_NEXT();
+                    }
+                    setnvalue(ra, luai_numpow(nb, nc));
                     VM_NEXT();
                 }
                 else
