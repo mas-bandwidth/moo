@@ -315,7 +315,7 @@ TEST_CASE("MooL5SkippedCasesNameAReason")
             checkReferences(root, record, reference, failures);
     }
 
-    // moo: base has 42 skip decorators; the eleven named analyzer removals raise it to 53.
+    // moo: the exact current base has 42 named upstream skips; this card adds eleven Analyzer skips, for 53.
     CHECK_MESSAGE(doctestSkips == 53, "expected 53 doctest skip decorators, found " << doctestSkips);
     CHECK_MESSAGE(earlyReturns == 2, "expected 2 marked early returns, found " << earlyReturns);
     CHECK_MESSAGE(unmarkedIfZero == 11, "expected 11 unmarked upstream #if 0 blocks, found " << unmarkedIfZero);

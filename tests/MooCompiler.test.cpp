@@ -66,7 +66,7 @@ TEST_CASE("MooBuiltinsDoNotFold")
     CHECK(has(mooCompile0("return string.char(65)"), "FASTCALL"));
     CHECK(has(mooCompile0("return math.pi"), "GETIMPORT"));
     CHECK(has(mooCompile0("return math.huge"), "GETIMPORT"));
-    // moo: vector is removed, so vector.create is imported as an unknown global (DESIGN.md "vec3, quat and transform").
+    // moo: vector is not a compiler builtin; vector.create is imported as an unknown global (DESIGN.md "Analyzer"; docs/layer3/moo-l3-vector-compiler-out.md).
     CHECK(has(mooCompile0("return vector.create(1, 2, 3)"), "GETIMPORT"));
 }
 
