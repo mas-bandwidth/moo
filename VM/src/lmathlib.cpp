@@ -50,9 +50,11 @@ static int math_abs(lua_State* L)
     return 1;
 }
 
-// moo: sin, cos and tan on fixed (docs/DESIGN.md "math library"): one definition serves both the library
-// functions here and their bytecode fastcalls in lbuiltins.cpp, so both give the same bits. tan returns
-// false on a zero cosine so the library raises "division by zero" and the fastcall falls back to it.
+// moo: sin, cos, tan, atan2, atan, asin and acos on fixed (docs/DESIGN.md "math library"): one definition
+// serves both the library functions here and their bytecode fastcalls in lbuiltins.cpp, so both give the
+// same bits. tan returns false on a zero cosine so the library raises "division by zero" and the fastcall
+// falls back to it; asin and acos return false when |x| > 1 so the library raises "math.asin domain" /
+// "math.acos domain" and the fastcall falls back to it.
 fixed_t moo_math_sin(fixed_t radians)
 {
     return fixSin(radians);
@@ -69,6 +71,32 @@ bool moo_math_tan(fixed_t radians, fixed_t* out)
     if (cs.cosine == 0)
         return false;
     *out = moo_numdiv(cs.sine, cs.cosine);
+    return true;
+}
+
+fixed_t moo_math_atan2(fixed_t y, fixed_t x)
+{
+    return fixAtan2(y, x);
+}
+
+fixed_t moo_math_atan(fixed_t x)
+{
+    return fixAtan2(x, MOO_NUMBER_ONE);
+}
+
+bool moo_math_asin(fixed_t x, fixed_t* out)
+{
+    if (x < -MOO_NUMBER_ONE || x > MOO_NUMBER_ONE)
+        return false;
+    *out = fixAtan2(x, fixSqrt(MOO_NUMBER_ONE - fixMul(x, x)));
+    return true;
+}
+
+bool moo_math_acos(fixed_t x, fixed_t* out)
+{
+    if (x < -MOO_NUMBER_ONE || x > MOO_NUMBER_ONE)
+        return false;
+    *out = fixAtan2(fixSqrt(MOO_NUMBER_ONE - fixMul(x, x)), x);
     return true;
 }
 
@@ -113,25 +141,33 @@ static int math_tanh(lua_State* L)
 
 static int math_asin(lua_State* L)
 {
-    lua_pushnumber(L, moo_numbridgefromdouble(asin(moo_numbridgetodouble(luaL_checknumber(L, 1)))));
+    fixed_t out;
+    if (!moo_math_asin(luaL_checknumber(L, 1), &out))
+        luaL_error(L, "math.asin domain");
+    lua_pushnumber(L, out);
     return 1;
 }
 
 static int math_acos(lua_State* L)
 {
-    lua_pushnumber(L, moo_numbridgefromdouble(acos(moo_numbridgetodouble(luaL_checknumber(L, 1)))));
+    fixed_t out;
+    if (!moo_math_acos(luaL_checknumber(L, 1), &out))
+        luaL_error(L, "math.acos domain");
+    lua_pushnumber(L, out);
     return 1;
 }
 
 static int math_atan(lua_State* L)
 {
-    lua_pushnumber(L, moo_numbridgefromdouble(atan(moo_numbridgetodouble(luaL_checknumber(L, 1)))));
+    lua_pushnumber(L, moo_math_atan(luaL_checknumber(L, 1)));
     return 1;
 }
 
 static int math_atan2(lua_State* L)
 {
-    lua_pushnumber(L, moo_numbridgefromdouble(atan2(moo_numbridgetodouble(luaL_checknumber(L, 1)), moo_numbridgetodouble(luaL_checknumber(L, 2)))));
+    fixed_t y = luaL_checknumber(L, 1);
+    fixed_t x = luaL_checknumber(L, 2);
+    lua_pushnumber(L, moo_math_atan2(y, x));
     return 1;
 }
 

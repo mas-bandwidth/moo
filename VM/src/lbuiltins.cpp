@@ -31,11 +31,15 @@
 #endif
 #endif
 
-// moo: the library-side sin/cos/tan on fixed (VM/src/lmathlib.cpp) are the single shared definition
-// (docs/DESIGN.md "math library"), so a fastcall and the library give the same bits.
+// moo: the library-side sin/cos/tan and atan2/atan/asin/acos on fixed (VM/src/lmathlib.cpp) are the single
+// shared definition (docs/DESIGN.md "math library"), so a fastcall and the library give the same bits.
 fixed_t moo_math_sin(fixed_t radians);
 fixed_t moo_math_cos(fixed_t radians);
 bool moo_math_tan(fixed_t radians, fixed_t* out);
+fixed_t moo_math_atan2(fixed_t y, fixed_t x);
+fixed_t moo_math_atan(fixed_t x);
+bool moo_math_asin(fixed_t x, fixed_t* out);
+bool moo_math_acos(fixed_t x, fixed_t* out);
 
 // luauF functions implement FASTCALL instruction that performs a direct execution of some builtin functions from the VM
 // The rule of thumb is that FASTCALL functions can not call user code, yield, fail, or reallocate stack.
@@ -72,8 +76,10 @@ static int luauF_acos(lua_State* L, StkId res, TValue* arg0, int nresults, StkId
 {
     if (nparams >= 1 && nresults <= 1 && ttisnumber(arg0))
     {
-        double a1 = moo_numbridgetodouble(nvalue(arg0));
-        setnvalue(res, moo_numbridgefromdouble(acos(a1)));
+        fixed_t out;
+        if (!moo_math_acos(nvalue(arg0), &out))
+            return -1;
+        setnvalue(res, out);
         return 1;
     }
 
@@ -84,8 +90,10 @@ static int luauF_asin(lua_State* L, StkId res, TValue* arg0, int nresults, StkId
 {
     if (nparams >= 1 && nresults <= 1 && ttisnumber(arg0))
     {
-        double a1 = moo_numbridgetodouble(nvalue(arg0));
-        setnvalue(res, moo_numbridgefromdouble(asin(a1)));
+        fixed_t out;
+        if (!moo_math_asin(nvalue(arg0), &out))
+            return -1;
+        setnvalue(res, out);
         return 1;
     }
 
@@ -96,9 +104,7 @@ static int luauF_atan2(lua_State* L, StkId res, TValue* arg0, int nresults, StkI
 {
     if (nparams >= 2 && nresults <= 1 && ttisnumber(arg0) && ttisnumber(args))
     {
-        double a1 = moo_numbridgetodouble(nvalue(arg0));
-        double a2 = moo_numbridgetodouble(nvalue(args));
-        setnvalue(res, moo_numbridgefromdouble(atan2(a1, a2)));
+        setnvalue(res, moo_math_atan2(nvalue(arg0), nvalue(args)));
         return 1;
     }
 
@@ -109,8 +115,7 @@ static int luauF_atan(lua_State* L, StkId res, TValue* arg0, int nresults, StkId
 {
     if (nparams >= 1 && nresults <= 1 && ttisnumber(arg0))
     {
-        double a1 = moo_numbridgetodouble(nvalue(arg0));
-        setnvalue(res, moo_numbridgefromdouble(atan(a1)));
+        setnvalue(res, moo_math_atan(nvalue(arg0)));
         return 1;
     }
 
