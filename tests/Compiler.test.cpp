@@ -4889,9 +4889,10 @@ LOADN R0 0
 RETURN R0 1
 )");
 
-    // moo: a number has no negative zero (docs/DESIGN.md "Representation"), so -0 is the raw value 0 and prints 0
+    // moo: a number has no negative zero (docs/DESIGN.md "Representation"), so -0 is the raw value 0, an integer
+    // constant that fits the short LOADN encoding (docs/DESIGN.md "Layer 3 as built", "The compiler")
     CHECK_EQ("\n" + compileFunction0("return -0"), R"(
-LOADK R0 K0 [0]
+LOADN R0 0
 RETURN R0 1
 )");
 }

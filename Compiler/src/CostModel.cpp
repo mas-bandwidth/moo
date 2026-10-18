@@ -8,6 +8,8 @@
 #include "ConstantFolding.h"
 #include "Utils.h"
 
+#include "moo_number.h"
+
 #include <limits.h>
 
 namespace Luau
@@ -398,7 +400,9 @@ struct CostVisitor : AstVisitor
         {
             if (constant->type == Constant::Type_Number)
             {
-                result = constant->valueNumber;
+                // moo: the constant is the raw Q48.16 value; the fixed->double bridge is the boundary rule, exact for
+                // the small integers the trip count cares about (docs/DESIGN.md "Layer 3 as built", "The compiler")
+                result = moo_numbridgetodouble(constant->valueNumber);
                 return true;
             }
         }

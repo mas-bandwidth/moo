@@ -23,21 +23,20 @@ namespace Compile
 constexpr size_t kConstantFoldStringLimit = 4096;
 
 // moo: number constants fold with the VM's own operations (moo_number.h), so a folded constant and the same
-// computation at run time are the same bits. Until the moo bytecode version carries raw Q48.16 constants, a
-// constant travels as the double that holds its value exactly: each operand is rounded by the VM's boundary
-// rule (as the VM does when it loads it), and a result a double cannot hold exactly (2^37 and above) is not
-// folded. Division by zero is not folded: the VM raises the named error at run time.
+// computation at run time are the same bits. A number constant is the raw Q48.16 value: the operands are read
+// raw, and every in-range result folds, with no double in the path (docs/DESIGN.md "Layer 3 as built",
+// "The compiler"). Division by zero is not folded: the VM raises the named error at run time.
 static bool mooOperands(const Constant& la, const Constant& ra, fixed_t* a, fixed_t* b)
 {
-    return moo_numfromdouble(la.valueNumber, a) == 0 && moo_numfromdouble(ra.valueNumber, b) == 0;
+    *a = la.valueNumber;
+    *b = ra.valueNumber;
+    return true;
 }
 
 static bool mooResult(Constant& result, fixed_t r)
 {
-    if (r >= (int64_t(1) << 53) || r <= -(int64_t(1) << 53))
-        return false;
     result.type = Constant::Type_Number;
-    result.valueNumber = double(r) * (1.0 / 65536.0);
+    result.valueNumber = r;
     return true;
 }
 
@@ -134,10 +133,8 @@ static bool constantsEqual(const Constant& la, const Constant& ra)
 
     case Constant::Type_Number:
     {
-        // moo: equal as numbers, after the boundary rule
-        fixed_t a, b;
-        return ra.type == Constant::Type_Number && moo_numfromdouble(la.valueNumber, &a) == 0 && moo_numfromdouble(ra.valueNumber, &b) == 0 &&
-               a == b;
+        // moo: equal as raw Q48.16 values (docs/DESIGN.md "Layer 3 as built", "The compiler")
+        return ra.type == Constant::Type_Number && la.valueNumber == ra.valueNumber;
     }
 
     // moo: the float vector is removed (docs/DESIGN.md "vec3, quat and transform").
@@ -177,7 +174,7 @@ static void foldUnary(Constant& result, AstExprUnary::Op op, const Constant& arg
         if (arg.type == Constant::Type_Number)
         {
             result.type = Constant::Type_Number;
-            result.valueNumber = -arg.valueNumber;
+            result.valueNumber = moo_numunm(arg.valueNumber);
         }
         // moo: the float vector is removed; unary minus never folds a vector (docs/DESIGN.md "vec3, quat and transform").
         break;
@@ -186,7 +183,7 @@ static void foldUnary(Constant& result, AstExprUnary::Op op, const Constant& arg
         if (arg.type == Constant::Type_String)
         {
             result.type = Constant::Type_Number;
-            result.valueNumber = double(arg.stringLength);
+            result.valueNumber = moo_numfromint(int64_t(arg.stringLength));
         }
         break;
 
@@ -206,63 +203,8 @@ static void foldBinary(Constant& result, AstExprBinary::Op op, const Constant& l
 
     switch (op)
     {
-    // moo: the float vector is removed; binary operations never fold a vector (docs/DESIGN.md "vec3, quat and transform").
-    case AstExprBinary::Add:
-        if (la.type == Constant::Type_Number && ra.type == Constant::Type_Number)
-        {
-            result.type = Constant::Type_Number;
-            result.valueNumber = la.valueNumber + ra.valueNumber;
-        }
-        break;
-
-    case AstExprBinary::Sub:
-        if (la.type == Constant::Type_Number && ra.type == Constant::Type_Number)
-        {
-            result.type = Constant::Type_Number;
-            result.valueNumber = la.valueNumber - ra.valueNumber;
-        }
-        break;
-
-    case AstExprBinary::Mul:
-        if (la.type == Constant::Type_Number && ra.type == Constant::Type_Number)
-        {
-            result.type = Constant::Type_Number;
-            result.valueNumber = la.valueNumber * ra.valueNumber;
-        }
-        break;
-
-    case AstExprBinary::Div:
-        if (la.type == Constant::Type_Number && ra.type == Constant::Type_Number)
-        {
-            result.type = Constant::Type_Number;
-            result.valueNumber = la.valueNumber / ra.valueNumber;
-        }
-        break;
-
-    case AstExprBinary::FloorDiv:
-        if (la.type == Constant::Type_Number && ra.type == Constant::Type_Number)
-        {
-            result.type = Constant::Type_Number;
-            result.valueNumber = floor(la.valueNumber / ra.valueNumber);
-        }
-        break;
-
-    case AstExprBinary::Mod:
-        if (la.type == Constant::Type_Number && ra.type == Constant::Type_Number)
-        {
-            result.type = Constant::Type_Number;
-            result.valueNumber = la.valueNumber - floor(la.valueNumber / ra.valueNumber) * ra.valueNumber;
-        }
-        break;
-
-    case AstExprBinary::Pow:
-        if (la.type == Constant::Type_Number && ra.type == Constant::Type_Number)
-        {
-            result.type = Constant::Type_Number;
-            result.valueNumber = pow(la.valueNumber, ra.valueNumber);
-        }
-        break;
-
+    // moo: the float vector is removed, and number arithmetic folds only through mooFold above; binary operations
+    // never fold a vector (docs/DESIGN.md "vec3, quat and transform").
     case AstExprBinary::Concat:
         if (la.type == Constant::Type_String && ra.type == Constant::Type_String && la.stringLength + ra.stringLength <= kConstantFoldStringLimit)
         {
@@ -297,38 +239,6 @@ static void foldBinary(Constant& result, AstExprBinary::Op op, const Constant& l
         {
             result.type = Constant::Type_Boolean;
             result.valueBoolean = constantsEqual(la, ra);
-        }
-        break;
-
-    case AstExprBinary::CompareLt:
-        if (la.type == Constant::Type_Number && ra.type == Constant::Type_Number)
-        {
-            result.type = Constant::Type_Boolean;
-            result.valueBoolean = la.valueNumber < ra.valueNumber;
-        }
-        break;
-
-    case AstExprBinary::CompareLe:
-        if (la.type == Constant::Type_Number && ra.type == Constant::Type_Number)
-        {
-            result.type = Constant::Type_Boolean;
-            result.valueBoolean = la.valueNumber <= ra.valueNumber;
-        }
-        break;
-
-    case AstExprBinary::CompareGt:
-        if (la.type == Constant::Type_Number && ra.type == Constant::Type_Number)
-        {
-            result.type = Constant::Type_Boolean;
-            result.valueBoolean = la.valueNumber > ra.valueNumber;
-        }
-        break;
-
-    case AstExprBinary::CompareGe:
-        if (la.type == Constant::Type_Number && ra.type == Constant::Type_Number)
-        {
-            result.type = Constant::Type_Boolean;
-            result.valueBoolean = la.valueNumber >= ra.valueNumber;
         }
         break;
 
@@ -623,8 +533,14 @@ struct ConstantVisitor : AstVisitor
         }
         else if (AstExprConstantNumber* expr = node->as<AstExprConstantNumber>())
         {
+            // moo: the AST still hands the compiler a double; convert it once by the boundary rule (docs/DESIGN.md
+            // "Literals"), the next card (moo-l3-ast-raw-literals) removes it.
             result.type = Constant::Type_Number;
-            result.valueNumber = expr->value;
+            // moo: LUAU_ASSERT discards its argument in release, so the conversion runs here, outside the assert
+            fixed_t raw = 0;
+            int status = moo_numfromdouble(expr->value, &raw);
+            LUAU_ASSERT(status == 0);
+            result.valueNumber = raw;
         }
         else if (AstExprConstantInteger* expr = node->as<AstExprConstantInteger>())
         {
