@@ -678,6 +678,15 @@ void luaV_doarithimpl(lua_State* L, StkId ra, const TValue* rb, const TValue* rc
         if ((op == TM_DIV || op == TM_IDIV || op == TM_MOD) && nc == 0)
             luaG_runerror(L, "division by zero");
 
+#if MOO_OVERFLOW_ERRORS
+        // moo: a checked build stops with the named error where release saturates (docs/DESIGN.md, "Overflow")
+        if ((op == TM_ADD && luai_numaddsat(nb, nc)) || (op == TM_SUB && luai_numsubsat(nb, nc)) ||
+            (op == TM_MUL && luai_nummulsat(nb, nc)) || (op == TM_DIV && luai_numdivsat(nb, nc)) ||
+            (op == TM_IDIV && luai_numidivsat(nb, nc)))
+            luaG_runerror(L, "number overflow in '%s'",
+                op == TM_ADD ? "+" : op == TM_SUB ? "-" : op == TM_MUL ? "*" : op == TM_DIV ? "/" : "//");
+#endif
+
         switch (op)
         {
         case TM_ADD:
