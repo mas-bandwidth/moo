@@ -291,6 +291,8 @@ static int buffer_readbits(lua_State* L)
 {
     size_t len = 0;
     void* buf = luaL_checkbuffer(L, 1, &len);
+    // moo: DESIGN.md "Exact integers": a buffer offset is integer-valued, or the named error.
+    luaL_checkinteger(L, 2);
     int64_t bitoffset = moo_numtrunc(luaL_checknumber(L, 2));
     int bitcount = luaL_checkinteger(L, 3);
 
@@ -326,6 +328,8 @@ static int buffer_writebits(lua_State* L)
 {
     size_t len = 0;
     void* buf = luaL_checkbuffer(L, 1, &len);
+    // moo: DESIGN.md "Exact integers": a buffer offset is integer-valued, or the named error.
+    luaL_checkinteger(L, 2);
     int64_t bitoffset = moo_numtrunc(luaL_checknumber(L, 2));
     int bitcount = luaL_checkinteger(L, 3);
     unsigned value = luaL_checkunsigned(L, 4);
