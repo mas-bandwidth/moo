@@ -1003,14 +1003,25 @@ static int str_format(lua_State* L)
             {
             case 'c':
             {
-                int count = snprintf(buff, sizeof(buff), form, (int)moo_numclampint(moo_numtrunc(luaL_checknumber(L, arg))));
+                // moo: DESIGN.md "Exact integers": %c takes an integer-valued number, through luaL_checkinteger.
+                int count = snprintf(buff, sizeof(buff), form, luaL_checkinteger(L, arg));
                 luaL_addlstring(&b, buff, count);
                 continue; // skip the 'luaL_addlstring' at the end
             }
             case 'd':
             case 'i':
             {
-                long long value = lua_isinteger64(L, arg) ? luaL_checkinteger64(L, arg) : moo_numtrunc(luaL_checknumber(L, arg));
+                long long value;
+                if (lua_isinteger64(L, arg))
+                {
+                    value = luaL_checkinteger64(L, arg);
+                }
+                else
+                {
+                    // moo: DESIGN.md "Exact integers": %d and %i take an integer-valued number, not a truncation.
+                    luaL_checkinteger(L, arg);
+                    value = moo_numtrunc(luaL_checknumber(L, arg));
+                }
                 addInt64Format(form, formatIndicator, formatItemSize);
                 snprintf(buff, sizeof(buff), form, value);
                 break;
@@ -1027,6 +1038,8 @@ static int str_format(lua_State* L)
                 }
                 else
                 {
+                    // moo: DESIGN.md "Exact integers": %o, %u, %x and %X take an integer-valued number.
+                    luaL_checkunsigned(L, arg);
                     v = (uint64_t)moo_numtrunc(luaL_checknumber(L, arg)); // moo: toward zero, modulo 2^64
                 }
                 addInt64Format(form, formatIndicator, formatItemSize);
@@ -1534,6 +1547,8 @@ static int str_pack(lua_State* L)
         {
         case Kint:
         { // signed integers
+            // moo: DESIGN.md "Exact integers": an integer format takes an integer-valued number.
+            luaL_checkinteger(L, arg);
             long long n = (long long)moo_numtrunc(luaL_checknumber(L, arg));
             if (size < SZINT)
             { // need overflow check?
@@ -1545,6 +1560,8 @@ static int str_pack(lua_State* L)
         }
         case Kuint:
         { // unsigned integers
+            // moo: DESIGN.md "Exact integers": an integer format takes an integer-valued number.
+            luaL_checkunsigned(L, arg);
             long long n = (long long)moo_numtrunc(luaL_checknumber(L, arg));
             if (size < SZINT) // need overflow check?
                 luaL_argcheck(L, (unsigned long long)n < ((unsigned long long)1 << (size * NB)), arg, "unsigned overflow");
