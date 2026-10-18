@@ -772,6 +772,9 @@ enum LuauBuiltinFunction
     // buffer.readinteger / buffer.writeinteger (int64_t)
     LBF_BUFFER_READINTEGER,
     LBF_BUFFER_WRITEINTEGER,
+
+    // moo: math.noise uses the fixed shared library implementation (DESIGN.md "math library")
+    LBF_MATH_NOISE,
 };
 
 // Capture type, used in LOP_CAPTURE

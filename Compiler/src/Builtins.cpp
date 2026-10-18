@@ -165,6 +165,9 @@ static int getBuiltinFunctionId(const Builtin& builtin, const CompileOptions& op
             return LBF_MATH_ROUND;
         if (builtin.method == "lerp")
             return LBF_MATH_LERP;
+        // moo: compile math.noise to its fixed shared-path fastcall (DESIGN.md "math library")
+        if (builtin.method == "noise")
+            return LBF_MATH_NOISE;
         if (builtin.method == "isnan")
             return LBF_MATH_ISNAN;
         if (builtin.method == "isinf")
@@ -638,6 +641,8 @@ BuiltinInfo getBuiltinInfo(int bfid)
 
     case LBF_MATH_LERP:
         return {3, 1, BuiltinInfo::Flag_NoneSafe};
+    case LBF_MATH_NOISE:
+        return {-1, 1, BuiltinInfo::Flag_NoneSafe};
     case LBF_MATH_ISNAN:
         return {1, 1, BuiltinInfo::Flag_NoneSafe};
     case LBF_MATH_ISINF:
