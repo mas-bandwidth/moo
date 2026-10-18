@@ -25,8 +25,17 @@ and the harness found no mismatch.
     - **vm**: the VM on register operands. A script `R[i] = A[i] OP B[i]` reads operand tables the host filled
       through the C API, so nothing folds;
     - **fold**: the compiler, on `(lit) OP (lit)` with both operands written as exact decimal literals;
-    - **k-right** and **k-left**: `A[i] OP (lit)` and `(lit) OP B[i]`, which reach the K-operand opcodes (`ADDK`,
-      `SUBRK`, `DIVRK` and the rest).
+    - **k-right**: `A[i] OP (lit)`, which compiles to the K-operand opcodes `ADDK`, `SUBK`, `MULK`, `DIVK`, `IDIVK` and
+      `MODK` for the arithmetic operators;
+    - **k-left**: `(lit) OP B[i]`, which compiles to `SUBRK` and `DIVRK` for `-` and `/`. Luau has no left-constant
+      form for the other operators, so for them, and for the comparisons on both k paths, the constant is loaded into
+      a register and the register opcode runs.
+
+    Each literal path runs only when the operands it writes as literals are exact (decision 1): fold needs both,
+    k-right only b, k-left only a. So the K opcodes also see register operands at the ends of the range, for example
+    `MAX + 1 raw` through `ADDK`. The literal expressions are compiled in chunks of 64 pairs, at most 3 constants
+    per pair, so every constant index stays within the 8 bits a K opcode encodes. Past 255 the compiler would
+    quietly fall back to a constant load and the register opcode.
 
     For `/`, `//` and `%` with a zero divisor, the oracle has no answer: its precondition excludes that case. There,
     each path runs alone (`checkZero`) and must raise `division by zero`. The direct path is not run, because
@@ -34,6 +43,13 @@ and the harness found no mismatch.
   - `MooOracleNegativeControlCatchesOneUnit` plants a one-raw-unit error in `*` on the moo side: one unit too many on
     every fixMul rounding tie. The test requires the harness to go red, print the mismatch, and stop at the tenth.
     The same pairs with the real `*` must agree.
+  - `MooOracleNegativeControlCoversEveryPath` corrupts every value of one path by one raw unit (vm, fold, k-right,
+    k-left in turn, on `-`) and requires a mismatch each time. A harness that ran a path but stopped comparing it
+    would fail here.
+  - `MooOracleLiteralPathsFoldAndReachKOpcodes` dumps the bytecode of a full 64-pair chunk of the harness's own
+    literal source. Every k-right entry must be its K opcode, and every k-left entry of `-` and `/` must be `SUBRK`
+    or `DIVRK`. The fold entries alone, for all 13 operators, must leave no arithmetic, comparison or jump opcode:
+    they folded. Raising the chunk size past the 8-bit constant index fails this case.
   - `MooOracleLiteralsAndGenerator` pins the harness's own pieces. The literal text it writes reads back to the exact
     raw value, and its PCG32 gives the reference generator's first outputs (seed 42, stream 54).
 - `tests/conformance/moo/l3/moo-l3-oracle-harness.luau` (new): checks the same rules from inside a script, run by
@@ -58,24 +74,27 @@ and the harness found no mismatch.
 
   The crossing includes the ties of `fixMul`, where the dropped bits are exactly half: an odd raw times 0.5, or 1.5
   times one raw.
-- **Random pairs**: `MOO_ORACLE_N` of them (default 2^16), from PCG32 with a fixed seed (`0x6d6f6f2d6f72636c`, stream 3),
+- **Random pairs**: `MOO_ORACLE_N` of them (default 2^16; anything but a positive decimal count is a test failure, so a
+  mistyped nightly cannot quietly check fewer), from PCG32 with a fixed seed (`0x6d6f6f2d6f72636c`, stream 3),
   so every run checks the same pairs. Each operand is drawn one of four ways, with equal odds: anywhere in the whole
   domain; below 2^24 raw; any bit width from 1 to 63; or an edge value moved by up to 8 raw units, saturated into the
   domain.
 
 ## Output
 
-On a mismatch the harness prints one line. The line gives the operator, both operands as raw hex and decimal, the
-oracle's value and every path's value. The harness stops after 10 mismatches. A run prints three summary lines, for
+On a mismatch the harness prints one line. The line gives the operator, both operands as raw hex (the int64 in two's
+complement) and decimal, the oracle's value and every path's value. The harness stops after 10 mismatches. A run prints three summary lines, for
 example at the default N:
 
 ```
-moo-oracle pairs=68345 edge=2809 random=65536 seed=0x6d6f6f2d6f72636c zero-divisors=3198 literal-skipped=481693
-moo-oracle paths direct=885287 vm=888485 fold=406792 k-right=362475 k-left=361380
+moo-oracle pairs=68345 edge=2809 random=65536 seed=0x6d6f6f2d6f72636c zero-divisors=3198 literal-skipped=1032982
+moo-oracle paths direct=885287 vm=888485 fold=406792 k-right=542952 k-left=544944
 moo-oracle checked=888485 operators=13 mismatches=0
 ```
 
-`checked` counts operator-and-pair cases, and each case can run up to five paths. `MooOracleEveryOperator` takes
+`checked` counts operator-and-pair cases, and each case can run up to five paths. `literal-skipped` counts the
+literal paths (fold, k-right, k-left) not run because an operand they write as a literal is 2^53 raw or above. The
+last line is the summary the brief names; the first two say what it covered. `MooOracleEveryOperator` takes
 3.2 s at the default N (amd-1, clang 21, RelWithDebInfo). The time comes from doctest's own `--duration=true`, not
 from a clock in the test, because unit tests use no real time. The nightly runs it as
 `MOO_ORACLE_N=16777216 build/Moo.Test -ts=moo-oracle`.
@@ -94,9 +113,13 @@ from a clock in the test, because unit tests use no real time. The nightly runs 
    operands therefore never reaches the K-operand opcodes, and the opcodes with one constant operand (`ADDK`,
    `SUBRK`, `DIVRK`, `IDIVK`, `MODK`) are separate VM code from the register opcodes. The literal batch checks them
    too, for the cost of compiling two more expressions per pair.
-3. **The negative control lives in the suite.** It is a reversed witness that runs on every push, so a harness that
+3. **The negative controls live in the suite.** It is a reversed witness that runs on every push, so a harness that
    stopped comparing (for example, after a refactor) fails the push gate. The DONE-WHEN throwaway (making
    `moo_numadd` wrap) was also run once by hand. It printed 10 `op=+` mismatches, then the edit was reverted.
+4. **Release saturation is what is checked.** DESIGN.md "Overflow" says debug builds raise `number overflow in '*'`
+   (and so on) instead of saturating. That is not built: no VM code raises it. When it lands, the saturation edges
+   of this harness will raise in a debug build, and the harness must then expect the named error there. The
+   conformance text below says "release" for that reason.
 
 ## What DESIGN.md and DETERMINISM.md must say (for moo-l3-conformance)
 
@@ -112,15 +135,16 @@ from a clock in the test, because unit tests use no real time. The nightly runs 
   and edge operands (the `moo-oracle` suite, below "Conformance (layer 3)")."
 - DESIGN.md: a new section "### Conformance (layer 3)" before "### Conformance (layer 3b)":
 
-  > Bit-exact against `fixed`'s own C at the pin, built with `FIX_SATURATE` as moo builds it: `fixMul` and `fixDiv` for
+  > Bit-exact, in a release build, against `fixed`'s own C at the pin, built with `FIX_SATURATE` as moo builds it: `fixMul` and `fixDiv` for
   > `*` and `/`, and for `+ - // %`, unary `-` and the comparisons a second definition from the table in "Semantics",
-  > written in fixed's 128-bit arithmetic (`tests/moo/moo_oracle_fixed.c`). Every operator runs four ways: on
+  > written in fixed's 128-bit arithmetic (`tests/moo/moo_oracle_fixed.c`); the comparisons are the table's int64 compares. Every operator runs four ways: on
   > `moo_number.h`, in the VM on operands passed through the C API, folded by the compiler from literals, and in the
   > K-operand opcodes. All four must give the oracle's bits, and `/ // %` by zero must raise `division by zero` on
   > every path. The operands are an edge set crossed with itself: zero, one raw unit, 0.5, 1, every fraction bit, the
   > ties of `fixMul`, 2^31, 2^32, 2^47 and 2^48 raw, the saturation edges of `*` and `//`, and the ends of the range.
   > To these are added PCG32 pairs with a fixed seed, 2^16 on every push and 2^24 in the nightly. A planted one-unit
-  > error in `*` must turn the suite red (`MooOracleNegativeControlCatchesOneUnit`).
+  > error in `*`, and a one-unit error on any one of the VM, fold and K paths, must turn the suite red, and a bytecode
+  > dump pins that the literal paths fold and reach the K opcodes.
 
 - DETERMINISM.md "Status", row 7: "**partly**: `+ - * / // %` are fixed's integer arithmetic, and the compiler folds
   with the same functions;" becomes "**partly**: `+ - * / // %` are fixed's integer arithmetic, and the compiler folds

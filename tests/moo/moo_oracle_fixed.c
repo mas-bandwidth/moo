@@ -4,8 +4,9 @@
 // own translation unit with FIX_SATURATE as moo builds it (CMakeLists.txt, Moo.Fixed), and called through extern "C".
 // `*` and `/` are fixMul and fixDiv themselves. The operations moo defines on top of fixed (docs/DESIGN.md
 // "Semantics": saturating + - and unary -, floor division, floor remainder, comparisons) are written again here from
-// that table's definitions, in fixed's 128-bit arithmetic (fixed_int128.h), and never call moo_number.h: a result
-// is computed exactly in 128 bits and then saturated into the domain, where moo_number.h uses 64-bit range checks.
+// that table's definitions and never call moo_number.h. The arithmetic ones are in fixed's 128-bit arithmetic
+// (fixed_int128.h): a result is computed exactly in 128 bits and then saturated into the domain, where moo_number.h
+// uses 64-bit range checks. The comparisons are the table's int64 compares.
 #include "fixed/fixed.h"
 
 #ifndef FIX_SATURATE

@@ -14,6 +14,7 @@
 
 #include "moo_number.h"
 
+#include "Luau/BytecodeBuilder.h"
 #include "Luau/Compiler.h"
 
 #include "doctest.h"
@@ -198,9 +199,12 @@ int64_t mooOracleRandomOperand(MooOraclePcg32& rng, const std::vector<int64_t>& 
 uint64_t mooOracleRandomCount()
 {
     const char* text = getenv("MOO_ORACLE_N");
-    if (text && *text)
-        return strtoull(text, nullptr, 10);
-    return uint64_t(1) << 16;
+    if (!text || !*text)
+        return uint64_t(1) << 16;
+    char* end = nullptr;
+    unsigned long long n = strtoull(text, &end, 10);
+    REQUIRE_MESSAGE((*end == 0 && n > 0 && text[0] != '-'), "MOO_ORACLE_N must be a positive decimal count, not '" << text << "'");
+    return uint64_t(n);
 }
 
 // the exact decimal literal of a raw value: r / 2^16 has at most 16 fraction digits (10^16 / 2^16 = 5^16), and the
@@ -224,8 +228,50 @@ bool mooOracleLiteralExact(int64_t r)
 std::string mooOracleHex(int64_t r)
 {
     char buffer[32];
-    snprintf(buffer, sizeof(buffer), "%s0x%llx", r < 0 ? "-" : "", (unsigned long long)(r < 0 ? uint64_t(0) - uint64_t(r) : uint64_t(r)));
+    snprintf(buffer, sizeof(buffer), "0x%016llx", (unsigned long long)uint64_t(r)); // the raw int64, two's complement
     return buffer;
+}
+
+enum MooOraclePath
+{
+    MooPathDirect,
+    MooPathVm,
+    MooPathFold,
+    MooPathKRight,
+    MooPathKLeft,
+    MooPathCount,
+};
+
+const char* const kMooOraclePathNames[MooPathCount] = {"direct", "vm", "fold", "k-right", "k-left"};
+
+// The literal paths of one batch. fold needs both operands as exact literals, k-right only b, k-left only a; each
+// entry is one expression of a returned table. Pairs go in chunks of kMooOracleLiteralChunk, so a chunk holds at most
+// 3 constants per pair (the two operands and the folded result) and every constant index stays within the 8 bits a
+// K-operand opcode (ADDK, SUBRK, ...) encodes; past 255 the compiler would load the constant into a register instead.
+const size_t kMooOracleLiteralChunk = 64;
+
+struct MooOracleEntry
+{
+    size_t pair;
+    int path; // MooPathFold, MooPathKRight or MooPathKLeft
+    std::string text;
+};
+
+// the expression `x OP y` (or `-x`) in source
+std::string mooOracleExpression(const char* sym, bool unary, const std::string& x, const std::string& y)
+{
+    if (unary)
+        return "-" + x;
+    return x + " " + sym + " " + y;
+}
+
+// the source of one chunk: `local A, B = ...` and a table of the entries in [begin, end)
+std::string mooOracleLiteralSource(const std::vector<MooOracleEntry>& entries, size_t begin, size_t end)
+{
+    std::string source = "local A, B = ...\nreturn {\n";
+    for (size_t e = begin; e < end; ++e)
+        source += entries[e].text + ",\n";
+    return source + "}\n";
 }
 
 // one path's result for one pair
@@ -255,18 +301,6 @@ struct MooOracleOutcome
     }
 };
 
-enum MooOraclePath
-{
-    MooPathDirect,
-    MooPathVm,
-    MooPathFold,
-    MooPathKRight,
-    MooPathKLeft,
-    MooPathCount,
-};
-
-const char* const kMooOraclePathNames[MooPathCount] = {"direct", "vm", "fold", "k-right", "k-left"};
-
 struct MooOracleHarness
 {
     lua_State* L = nullptr;
@@ -277,6 +311,7 @@ struct MooOracleHarness
     uint64_t zeroDivisors = 0;
     int mismatches = 0;
     uint64_t pathRuns[MooPathCount] = {};
+    int corruptPath = -1; // the negative control: one raw unit (or the boolean) wrong on this path's every value
 
     MooOracleHarness()
     {
@@ -341,12 +376,34 @@ struct MooOracleHarness
         return out;
     }
 
-    // the expression `x OP y` (or `-x`) in source
     static std::string expression(const MooOracleOp& op, const std::string& x, const std::string& y)
     {
-        if (op.kind == MooOracleUnary)
-            return "-" + x;
-        return x + " " + op.sym + " " + y;
+        return mooOracleExpression(op.sym, op.kind == MooOracleUnary, x, y);
+    }
+
+    // the literal entries of a batch, each path gated on the operands it writes as literals
+    std::vector<MooOracleEntry> literalEntries(const MooOracleOp& op, const std::vector<int64_t>& a, const std::vector<int64_t>& b)
+    {
+        std::vector<MooOracleEntry> entries;
+        bool unary = op.kind == MooOracleUnary;
+        for (size_t i = 0; i < a.size(); ++i)
+        {
+            bool exactA = mooOracleLiteralExact(a[i]);
+            bool exactB = unary || mooOracleLiteralExact(b[i]);
+            std::string la = mooOracleLiteral(a[i]);
+            std::string lb = mooOracleLiteral(b[i]);
+            std::string index = std::to_string(i + 1);
+            int paths = unary ? 1 : 3;
+            int written = 0;
+            if (exactA && exactB)
+                entries.push_back({i, MooPathFold, expression(op, la, lb)}), written++;
+            if (!unary && exactB)
+                entries.push_back({i, MooPathKRight, expression(op, "A[" + index + "]", lb)}), written++;
+            if (!unary && exactA)
+                entries.push_back({i, MooPathKLeft, expression(op, la, "B[" + index + "]")}), written++;
+            literalSkipped += uint64_t(paths - written);
+        }
+        return entries;
     }
 
     void pushArray(const std::vector<int64_t>& values)
@@ -465,53 +522,32 @@ struct MooOracleHarness
         }
         lua_pop(L, 1);
 
-        // fold and k: the operands as literals, three entries per pair (both literal, then right, then left)
-        std::vector<size_t> literal;
-        std::string source = "local A, B = ...\nreturn {\n";
-        for (size_t i = 0; i < n; ++i)
+        // fold and k: the operands as literals, in chunks of kMooOracleLiteralChunk pairs
+        std::vector<MooOracleEntry> entries = literalEntries(op, a, b);
+        for (size_t begin = 0; begin < entries.size();)
         {
-            if (!mooOracleLiteralExact(a[i]) || (op.kind != MooOracleUnary && !mooOracleLiteralExact(b[i])))
-            {
-                literalSkipped += 1;
-                continue;
-            }
-            std::string la = mooOracleLiteral(a[i]);
-            std::string lb = mooOracleLiteral(b[i]);
-            std::string index = std::to_string(i + 1);
-            source += expression(op, la, lb) + ",\n";
-            if (op.kind != MooOracleUnary)
-            {
-                source += expression(op, "A[" + index + "]", lb) + ",\n";
-                source += expression(op, la, "B[" + index + "]") + ",\n";
-            }
-            literal.push_back(i);
-        }
-        source += "}\n";
+            size_t end = begin;
+            while (end < entries.size() && entries[end].pair < entries[begin].pair + kMooOracleLiteralChunk)
+                ++end;
 
-        if (!literal.empty())
-        {
-            load(source);
+            load(mooOracleLiteralSource(entries, begin, end));
             pushArray(a);
             pushArray(b);
             REQUIRE_MESSAGE(lua_pcall(L, 2, 1, 0) == 0, "moo-oracle: literal batch: " << (lua_isstring(L, -1) ? lua_tostring(L, -1) : "?"));
-            int per = op.kind == MooOracleUnary ? 1 : 3;
-            for (size_t j = 0; j < literal.size(); ++j)
+            for (size_t e = begin; e < end; ++e)
             {
-                size_t i = literal[j];
-                lua_rawgeti(L, -1, int(j * per + 1));
-                fold[i] = read(op, -1);
+                lua_rawgeti(L, -1, int(e - begin + 1));
+                MooOracleOutcome got = read(op, -1);
                 lua_pop(L, 1);
-                if (per == 3)
-                {
-                    lua_rawgeti(L, -1, int(j * per + 2));
-                    kRight[i] = read(op, -1);
-                    lua_pop(L, 1);
-                    lua_rawgeti(L, -1, int(j * per + 3));
-                    kLeft[i] = read(op, -1);
-                    lua_pop(L, 1);
-                }
+                if (entries[e].path == MooPathFold)
+                    fold[entries[e].pair] = got;
+                else if (entries[e].path == MooPathKRight)
+                    kRight[entries[e].pair] = got;
+                else
+                    kLeft[entries[e].pair] = got;
             }
             lua_pop(L, 1);
+            begin = end;
         }
 
         for (size_t i = 0; i < n && !stopped(); ++i)
@@ -523,6 +559,11 @@ struct MooOracleHarness
             paths[MooPathFold] = fold[i];
             paths[MooPathKRight] = kRight[i];
             paths[MooPathKLeft] = kLeft[i];
+            if (corruptPath >= 0 && paths[corruptPath].state == MooOracleOutcome::Value)
+            {
+                int64_t& v = paths[corruptPath].value;
+                v = op.kind == MooOracleCompare ? (v ^ 1) : (v < MOO_NUMBER_MAX ? v + 1 : v - 1);
+            }
             compare(op, a[i], b[i], paths);
         }
     }
@@ -627,6 +668,122 @@ TEST_CASE("MooOracleNegativeControlCatchesOneUnit")
     clean.checkAll(kMooOracleOps + mul, 1, as, bs);
     CHECK(clean.mismatches == 0);
     CHECK(clean.checked == uint64_t(as.size()));
+}
+
+// The negative control on the other paths: one raw unit wrong on every value of one path (vm, fold, k-right or
+// k-left) must turn the harness red, so a harness that ran a path but stopped comparing it would fail here.
+TEST_CASE("MooOracleNegativeControlCoversEveryPath")
+{
+    int sub = -1;
+    for (int k = 0; k < kMooOracleOpCount; ++k)
+        if (strcmp(kMooOracleOps[k].sym, "-") == 0)
+            sub = k;
+    REQUIRE(sub >= 0);
+
+    std::vector<int64_t> as, bs;
+    mooOracleEdgePairs(as, bs);
+
+    const int paths[] = {MooPathVm, MooPathFold, MooPathKRight, MooPathKLeft};
+    for (int path : paths)
+    {
+        MooOracleHarness harness;
+        harness.label = "moo-oracle negative-control (expected)";
+        harness.limit = 1;
+        harness.corruptPath = path;
+        harness.checkAll(kMooOracleOps + sub, 1, as, bs);
+        CHECK_MESSAGE(harness.mismatches == 1, "path " << kMooOraclePathNames[path]);
+    }
+}
+
+// the lines of a dump whose first word is opcode
+int mooOracleCountOpcode(const std::string& dump, const char* opcode)
+{
+    int count = 0;
+    size_t start = 0;
+    std::string word = std::string(opcode) + " ";
+    while (start < dump.size())
+    {
+        size_t end = dump.find('\n', start);
+        if (end == std::string::npos)
+            end = dump.size();
+        if (dump.compare(start, word.size(), word) == 0)
+            count++;
+        start = end + 1;
+    }
+    return count;
+}
+
+std::string mooOracleDump(const std::string& source)
+{
+    Luau::BytecodeBuilder bcb;
+    bcb.setDumpFlags(Luau::BytecodeBuilder::Dump_Code);
+    Luau::compileOrThrow(bcb, source);
+    return bcb.dumpEverything();
+}
+
+// The literal paths test what they say: a full chunk of the harness's own literal source folds every fold entry
+// (no arithmetic or comparison opcode is left for it) and compiles every k entry with a constant operand to the
+// K-operand opcode, up to the chunk's last pair.
+TEST_CASE("MooOracleLiteralPathsFoldAndReachKOpcodes")
+{
+    std::vector<int64_t> a, b;
+    std::vector<int64_t> edges = mooOracleEdges();
+    MooOraclePcg32 rng(kMooOracleSeed, kMooOracleStream);
+    while (a.size() < kMooOracleLiteralChunk)
+    {
+        int64_t x = int64_t(rng.next64() >> 34) - (int64_t(1) << 29); // below 2^29 raw: every result is below 2^53, so it folds
+        int64_t y = int64_t(rng.next64() >> 34) - (int64_t(1) << 29);
+        if (y != 0)
+            a.push_back(x), b.push_back(y);
+    }
+
+    // the K opcode each operator's k-right (and, where Luau has one, k-left) entries compile to
+    struct
+    {
+        const char* sym;
+        const char* right;
+        const char* left;
+    } kOps[] = {
+        {"+", "ADDK", nullptr},
+        {"-", "SUBK", "SUBRK"},
+        {"*", "MULK", nullptr},
+        {"/", "DIVK", "DIVRK"},
+        {"//", "IDIVK", nullptr},
+        {"%", "MODK", nullptr},
+    };
+
+    for (const auto& k : kOps)
+    {
+        const MooOracleOp* op = nullptr;
+        for (const MooOracleOp& o : kMooOracleOps)
+            if (strcmp(o.sym, k.sym) == 0)
+                op = &o;
+        REQUIRE(op);
+
+        MooOracleHarness harness;
+        std::vector<MooOracleEntry> entries = harness.literalEntries(*op, a, b);
+        REQUIRE(entries.size() == 3 * kMooOracleLiteralChunk);
+        std::string dump = mooOracleDump(mooOracleLiteralSource(entries, 0, entries.size()));
+        CHECK_MESSAGE(mooOracleCountOpcode(dump, k.right) == int(kMooOracleLiteralChunk), k.sym << "\n" << dump);
+        if (k.left)
+            CHECK_MESSAGE(mooOracleCountOpcode(dump, k.left) == int(kMooOracleLiteralChunk), k.sym << "\n" << dump);
+    }
+
+    // fold: the fold entries alone compile to constants, for every operator
+    const char* const kRuntime[] = {"ADD", "SUB", "MUL", "DIV", "IDIV", "MOD", "ADDK", "SUBK", "MULK", "DIVK", "IDIVK", "MODK", "SUBRK",
+        "DIVRK", "MINUS", "JUMPIFLT", "JUMPIFLE", "JUMPIFNOTLT", "JUMPIFNOTLE", "JUMPIFEQ", "JUMPIFNOTEQ", "JUMPXEQKN"};
+    for (const MooOracleOp& op : kMooOracleOps)
+    {
+        MooOracleHarness harness;
+        std::vector<MooOracleEntry> all = harness.literalEntries(op, a, b), fold;
+        for (const MooOracleEntry& e : all)
+            if (e.path == MooPathFold)
+                fold.push_back(e);
+        REQUIRE(fold.size() == kMooOracleLiteralChunk);
+        std::string dump = mooOracleDump(mooOracleLiteralSource(fold, 0, fold.size()));
+        for (const char* name : kRuntime)
+            CHECK_MESSAGE(mooOracleCountOpcode(dump, name) == 0, op.sym << " left " << name << " unfolded\n" << dump);
+    }
 }
 
 // The harness's own pieces: the literal text is exact, and the PCG32 stream is the reference one.

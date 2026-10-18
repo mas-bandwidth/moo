@@ -16,7 +16,8 @@ local MAX = rt("9223372036854775807")
 local MIN = rt("-9223372036854775807")
 local u = rt("1") -- one raw unit
 
--- the folded and the run-time result agree, operator by operator (fold first, then the VM on the same raws)
+-- the folded and the run-time result agree, operator by operator (literals first, then the VM on the same raws;
+-- that literal expressions like these fold is pinned by MooOracleLiteralPathsFoldAndReachKOpcodes)
 assert(raw(1.5 + 0.25) == raw(rt("98304") + rt("16384")))
 assert(raw(1.5 - 0.25) == raw(rt("98304") - rt("16384")))
 assert(raw(1.5 * 0.25) == raw(rt("98304") * rt("16384")))
