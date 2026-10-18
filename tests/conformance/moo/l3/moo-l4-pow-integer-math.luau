@@ -48,8 +48,9 @@ for n = -8, 8 do
     end
 end
 
--- A fractional exponent stays on the libm bridge: 4 ^ 0.5 is 2, and 9 ^ 1.5 is 27.
+-- moo: a fractional exponent is fixPow: 4 ^ 0.5 is exact, and 9 ^ 1.5 is 1769466 as fixPow computes it.
 assert(rawPow(moo_test.fromraw("262144"), 0.5) == "131072", "4 ^ 0.5")
-assert(rawPow(moo_test.fromraw("589824"), 1.5) == "1769472", "9 ^ 1.5")
+-- moo: fixPow's value is pinned in moo-l4-pow-fractional.luau; 27 (1769472) was the libm bridge's.
+assert(rawPow(moo_test.fromraw("589824"), 1.5) == "1769466", "9 ^ 1.5")
 
 return "OK"
