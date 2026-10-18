@@ -11,11 +11,13 @@
 #include "fixed/fixed.h"
 
 #include "doctest.h"
+#include "MooHost.h" // moo: mooRun, mooRunFile and the moo_test helpers are shared with tests/moo
 
 #include <stdlib.h>
 #include <string.h>
 
 #include <algorithm>
+#include <filesystem>
 #include <fstream>
 #include <sstream>
 #include <string>
@@ -43,42 +45,6 @@ struct MooState
     MooState(const MooState&) = delete;
     MooState& operator=(const MooState&) = delete;
 };
-
-// Compiles and runs source as a chunk; returns its first result as a string, or "error: " and the message.
-std::string mooRun(lua_State* L, const char* source)
-{
-    size_t size = 0;
-    char* bytecode = luau_compile(source, strlen(source), nullptr, &size);
-    int status = luau_load(L, "=moo", bytecode, size, 0);
-    free(bytecode);
-
-    if (status == 0)
-        status = lua_pcall(L, 0, 1, 0);
-
-    std::string result;
-    if (status != 0)
-        result = std::string("error: ") + (lua_isstring(L, -1) ? lua_tostring(L, -1) : "?");
-    else
-        result = luaL_tolstring(L, -1, nullptr), lua_pop(L, 1);
-
-    lua_pop(L, 1);
-    return result;
-}
-
-// Runs a moo-specific expected-behaviour file from tests/conformance/moo; it returns "OK".
-std::string mooRunFile(lua_State* L, const char* name)
-{
-#ifdef LUAU_CONFORMANCE_SOURCE_DIR
-    std::string path = std::string(LUAU_CONFORMANCE_SOURCE_DIR) + "/moo/" + name;
-    std::ifstream file(path, std::ios::binary);
-    std::stringstream source;
-    source << file.rdbuf();
-    REQUIRE_MESSAGE(file.good(), "cannot read " << path);
-    return mooRun(L, source.str().c_str());
-#else
-    return "OK";
-#endif
-}
 
 const char* const kRandomSequence = R"(
     local t = {}
@@ -243,6 +209,37 @@ TEST_CASE("DateTime")
     MooState s;
     CHECK(mooRunFile(s.L, "datetime.luau") == "OK");
 }
+
+#ifdef LUAU_CONFORMANCE_SOURCE_DIR
+// DESIGN.md "Layer 3 as built": each layer 3 script pins one rule in tests/conformance/moo/l3; the
+// moo_test helpers let it see the raw Q48.16 value, the compiler's bytecode and luau_load's result.
+TEST_CASE("MooL3Scripts")
+{
+    std::filesystem::path directory = std::filesystem::path(LUAU_CONFORMANCE_SOURCE_DIR) / "moo" / "l3";
+
+    std::vector<std::string> names;
+    for (const std::filesystem::directory_entry& entry : std::filesystem::directory_iterator(directory))
+        if (entry.is_regular_file() && entry.path().extension() == ".luau")
+            names.push_back(entry.path().filename().string());
+
+    REQUIRE_MESSAGE(!names.empty(), "no scripts in " << directory);
+    std::sort(names.begin(), names.end());
+
+    for (const std::string& name : names)
+    {
+        MooState s;
+        mooOpenTestHelpers(s.L);
+
+        std::ifstream file(directory / name, std::ios::binary);
+        REQUIRE_MESSAGE(file.good(), "cannot read " << name);
+        std::stringstream source;
+        source << file.rdbuf();
+
+        std::string result = mooRun(s.L, source.str().c_str());
+        CHECK_MESSAGE(result == "OK", name << ": " << result);
+    }
+}
+#endif
 
 // DETERMINISM.md 10: math.random starts from a constant seed, never an address or a clock.
 TEST_CASE("RandomDefaultSeedIsConstant")
