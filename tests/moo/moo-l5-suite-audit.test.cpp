@@ -273,9 +273,9 @@ void checkReferences(const fs::path& root, const SkipRecord& record, const std::
 
 TEST_SUITE_BEGIN("moo-l5-suite-audit");
 
-// DESIGN.md "Layers", layer 5: every skipped doctest case names its reason. DETERMINISM.md
-// "Status" lists the nine parser/linter/pretty-printer/frontend cases and the twenty compiler
-// cases moo skips; the two codegen early returns are marked the same way.
+// DESIGN.md "Layers", layer 5: every skipped doctest case names its reason. The current base
+// has 42 doctest skips; this card adds eleven analyzer removals. The codegen early returns are
+// marked the same way.
 TEST_CASE("MooL5SkippedCasesNameAReason")
 {
     fs::path root = mooRoot();
@@ -315,7 +315,8 @@ TEST_CASE("MooL5SkippedCasesNameAReason")
             checkReferences(root, record, reference, failures);
     }
 
-    CHECK_MESSAGE(doctestSkips == 29, "expected 29 doctest skip decorators, found " << doctestSkips);
+    // moo: base has 42 skip decorators; the eleven named analyzer removals raise it to 53.
+    CHECK_MESSAGE(doctestSkips == 53, "expected 53 doctest skip decorators, found " << doctestSkips);
     CHECK_MESSAGE(earlyReturns == 2, "expected 2 marked early returns, found " << earlyReturns);
     CHECK_MESSAGE(unmarkedIfZero == 11, "expected 11 unmarked upstream #if 0 blocks, found " << unmarkedIfZero);
     for (const std::string& failure : failures)

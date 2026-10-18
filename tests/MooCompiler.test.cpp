@@ -66,7 +66,8 @@ TEST_CASE("MooBuiltinsDoNotFold")
     CHECK(has(mooCompile0("return string.char(65)"), "FASTCALL"));
     CHECK(has(mooCompile0("return math.pi"), "GETIMPORT"));
     CHECK(has(mooCompile0("return math.huge"), "GETIMPORT"));
-    CHECK(has(mooCompile0("return vector.create(1, 2, 3)"), "FASTCALL"));
+    // moo: vector is removed, so vector.create is imported as an unknown global (DESIGN.md "vec3, quat and transform").
+    CHECK(has(mooCompile0("return vector.create(1, 2, 3)"), "GETIMPORT"));
 }
 
 // DESIGN.md "Literals": a literal beyond the range is a compile error, and the constant is the exact rational
