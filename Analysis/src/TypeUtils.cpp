@@ -45,7 +45,7 @@ bool occursCheck(TypeId needle, TypeId haystack)
     }
     else if (auto it = get<IntersectionType>(haystack))
     {
-        // moo: Clang 21 -Wpass-failed on libstdc++ 15 unroll pragma in std::__find_if over TypeIterator
+        // moo: same Clang 21 loop-unroll pragma issue on libstdc++ 15 std::__find_if over TypeIterator
         for (TypeId ty : it)
             if (checkHaystack(ty))
                 return true;
