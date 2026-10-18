@@ -76,17 +76,28 @@ collectable kind with deletes and rehash (`objectkeys`), allocation churn with w
 values, weak both and userdata destructors in five size classes (`gcchurn`), coroutines
 (generators, yields across `pcall`, errors, close, wrap, nesting: `coroutines`, and the
 adversarial transitions and refusals in `coroutines2`), every error string and traceback
-(`errors`), and the rest of the surface without transcendentals (`library`). Measured
-2026-10-17; Linux gcc and clang re-run 2026-10-19, all identical:
+(`errors`), and the rest of the surface without transcendentals (`library`). The latest full
+nightly-workflow matrix was coordinator-dispatched [run 39176151564](https://github.com/mas-bandwidth/moo/actions/runs/39176151564),
+created 2026-10-18 23:21:11Z at head `291f70d6a80c9ecc9a1999fcd84bf82688978fe1`. TLC and the
+math-oracle job passed. Linux gcc, Linux clang, macOS arm64 and Windows clang-cl built and ran
+`Moo.Test`; no determinism-hash mismatch was reported, though each full test step failed at the
+unrelated `moo-l4-pow-integer-math.luau:53` case (`9 ^ 1.5`). Windows MSVC failed to build at
+`tests/moo/moo-l4-math-exact-ops.test.cpp` (C2059), before its tests ran. The hash cells therefore
+record completed comparisons on the four test-running platforms, and `pending nightly` where no
+current comparison ran. The sanitizer configuration is not in the scheduled matrix and remains
+pending. Conformance, unit and CLI steps were skipped after the failed `Moo.Test` steps. The earlier
+scheduled [run 39107758768](https://github.com/mas-bandwidth/moo/actions/runs/39107758768), created
+2026-10-18 07:27:59Z at head `8317486459d8b67e2b4a4f4685e31141d3ee941b`, passed the four programs
+then present on Linux gcc, Linux clang, macOS arm64 and Windows MSVC; that Windows job took 8m23s.
 
 | program | effects | state | hulk gcc 13.3 | hulk clang 18.1 | hulk clang Debug ASan+UBSan | mini-m5-1 arm64 Apple clang 21 | windows-msvc | windows-clang-cl |
 |---|---|---|---|---|---|---|---|---|
-| coroutines | `c2101c58c9141949` | `d81a1f4ae7546667` | same | same | same | same | pending nightly | pending nightly |
-| coroutines2 | `45af4a6f2428da59` | `d835a456666b53fd` | same | same | pending nightly | pending nightly | pending nightly | pending nightly |
-| errors | `f7037948e0d4bea2` | `a36df0b1b7d7553c` | same | same | pending nightly | pending nightly | pending nightly | pending nightly |
-| gcchurn | `3fb416325297900d` | `190fe5a4371020c2` | same | same | same | same | pending nightly | pending nightly |
-| library | `009401661dac79ec` | `66d1c7cf8da050e5` | same | same | same | same | pending nightly | pending nightly |
-| objectkeys | `c33c0a917acf2ebf` | `4d2f33e10754ac67` | same | same | same | same | pending nightly | pending nightly |
+| coroutines | `c2101c58c9141949` | `d81a1f4ae7546667` | same | same | pending nightly | same | pending nightly | same |
+| coroutines2 | `45af4a6f2428da59` | `d835a456666b53fd` | same | same | pending nightly | same | pending nightly | same |
+| errors | `f7037948e0d4bea2` | `a36df0b1b7d7553c` | same | same | pending nightly | same | pending nightly | same |
+| gcchurn | `3fb416325297900d` | `190fe5a4371020c2` | same | same | pending nightly | same | pending nightly | same |
+| library | `009401661dac79ec` | `66d1c7cf8da050e5` | same | same | pending nightly | same | pending nightly | same |
+| objectkeys | `c33c0a917acf2ebf` | `4d2f33e10754ac67` | same | same | pending nightly | same | pending nightly | same |
 
 `MOO_DETERMINISM_PRINT=1` prints the table's lines. The nightly runs it on Linux gcc, Linux
 clang, macOS arm64 and Windows MSVC and clang-cl; CI runs it on Linux clang on every push. Floats are still the number type, so
@@ -98,7 +109,9 @@ When the `for` trip count became exact, `interrupt.luau` moved (its endless loop
 nine parser, linter, pretty-printer and frontend cases that assert double literals or precision lints are skipped with
 the reason beside each, and four compiler cases had their expected decimal constants updated to the Q48.16 values,
 marked `// moo:`. `tools/moo-check-skips.sh` lists every doctest skip, marked early return and moved script; it
-fails when one lacks a `moo:` reason or names a replacement that does not exist.
+fails when one lacks a `moo:` reason or names a replacement that does not exist. At this tree it lists 100 records:
+42 doctest skips, 2 marked early returns, 11 `#if 0` blocks and 45 moved scripts. Its 11 findings are the
+pre-existing upstream `#if 0` blocks listed above; they are not moo-created skips.
 
 Upstream tests moo changed when number became Q48.16, and why: each moved script is a moo-specific expected file in
 `tests/conformance/moo/` (basic, buffers, math, tables, errors, events, bitwise, tpack, debug, strconv, iter, vector,
