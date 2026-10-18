@@ -150,7 +150,8 @@ TEST_CASE("sccp_phi_filters_dead_predecessor")
     auto it = sccp.state.opConstness.find(phi0);
     REQUIRE(it != nullptr);
     CHECK(it->kind == Constness::Constant);
-    CHECK(impl.asNumber(it->constant.value()) == 42.0);
+    // moo: asNumber is the raw Q48.16 value, so 42.0 is 42 << 16 (moo_number.h)
+    CHECK(impl.asNumber(it->constant.value()) == moo_numfromint(42));
 
     sccp.rewrite();
 
