@@ -214,7 +214,8 @@ TEST_CASE_FIXTURE(BuiltinsFixture, "builtin_tables_sealed")
     CHECK_EQ(bit32t->state, TableState::Sealed);
 }
 
-TEST_CASE_FIXTURE(BuiltinsFixture, "lua_51_exported_globals_all_exist")
+// moo: os is not a moo builtin (DESIGN.md "Analyzer")
+TEST_CASE_FIXTURE(BuiltinsFixture, "lua_51_exported_globals_all_exist" * doctest::skip())
 {
     // Extracted from lua5.1
     CheckResult result = check(R"(
@@ -509,7 +510,8 @@ TEST_CASE_FIXTURE(BuiltinsFixture, "getfenv")
     LUAU_REQUIRE_NO_ERRORS(check("getfenv(1)"));
 }
 
-TEST_CASE_FIXTURE(BuiltinsFixture, "os_time_takes_optional_date_table")
+// moo: os is not a moo builtin (DESIGN.md "Analyzer")
+TEST_CASE_FIXTURE(BuiltinsFixture, "os_time_takes_optional_date_table" * doctest::skip())
 {
     CheckResult result = check(R"(
         local n1 = os.time()
@@ -1930,7 +1932,8 @@ TEST_CASE_FIXTURE(BuiltinsFixture, "pairs_with_refined_any")
     CHECK_EQ(toString(requireTypeAtPosition(Position{7, 23})), "nil");
 }
 
-TEST_CASE_FIXTURE(BuiltinsFixture, "vector_lerp_should_not_crash")
+// moo: vector is not a moo builtin (DESIGN.md "Analyzer")
+TEST_CASE_FIXTURE(BuiltinsFixture, "vector_lerp_should_not_crash" * doctest::skip())
 {
     LUAU_REQUIRE_NO_ERRORS(check(R"(
         local function half(x: number, y: number, z: number): vector

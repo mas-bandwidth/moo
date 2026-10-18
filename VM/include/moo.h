@@ -36,3 +36,8 @@ LUA_API int moo_fromfloat(float x, int64_t* out);
 
 // The double nearest to the number, ties to even: exact for magnitudes below 2^37.
 LUA_API double moo_todouble(int64_t n);
+
+// The float nearest to the number, ties to even, as the C float whose bits are the nearest
+// binary32 bit pattern (docs/DESIGN.md, "Boundary"). Every number is finite in float, so there is
+// no overflow case. buffer.writef32 and string.pack("f") encode by the same rule.
+LUA_API float moo_tofloat(int64_t n);
