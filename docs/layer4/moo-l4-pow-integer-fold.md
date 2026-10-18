@@ -57,12 +57,11 @@ Replace with:
 
 > - **The compiler** folds number arithmetic with the same `moo_number.h` operations (a constant still travels as the
 >   double that holds it exactly); it does not fold division by zero, `0 ^ negative`, `^` with a
->   fractional exponent, or any other builtin call or `math` constant; `^` and `math.pow` with an integer
->   exponent fold through `moo_pow_int`.
+>   fractional exponent, any builtin call, or any `math` constant. An integer-valued `^` folds through
+>   `moo_pow_int`; `math.pow` remains a builtin call and is not folded.
 
-(The `math.pow` phrase is the design note's wording; `BuiltinFolding.cpp` still folds no builtin at all,
-so in this tree `math.pow` stays unfolded and the phrase describes the fold path if builtin folding
-returns.)
+This states the implemented boundary: only integer-valued `^` folds through `moo_pow_int`; builtin calls,
+including `math.pow`, stay runtime calls.
 
 ## DETERMINISM.md sentences that must change
 
@@ -75,15 +74,16 @@ compile-time folding", is made stale by this card. At BASE it reads:
 >   arguments), `Compiler/src/ConstantFolding.cpp:366` (`//`) and `:466` (`^`). So the
 >   bytecode itself depends on the platform that compiled it.
 
-The `ConstantFolding.cpp:366` (`//`) and `:466` (`^`) references are already stale in the fixed-point tree
-(`//` goes through `moo_numidiv`), and `^` now has no libm fold at all: an integer exponent folds through
-`moo_pow_int`, a fractional exponent does not fold. Replace the compiler bullet with:
+The `ConstantFolding.cpp:366` (`//`) and `:466` (`^`) references are stale in the fixed-point tree
+(`//` goes through `moo_numidiv`). Integer-valued `^` folds through `moo_pow_int`; fractional `^` and
+`0 ^ negative` remain runtime operations. `BuiltinFolding.cpp` returns before its math-folding switch, so
+`math.pow` and the other builtin calls remain runtime calls. Replace the compiler bullet with:
 
-> - **The compiler folds constants with the build machine's libm**:
->   `Compiler/src/BuiltinFolding.cpp:160-301` and `:595` (every `math.*` call with constant
->   arguments, today disabled by its early return). `^` with an integer exponent folds through
->   `moo_pow_int`; `^` with a fractional exponent does not fold. So the bytecode itself depends on
->   the platform that compiled it for the builtin calls.
+> - **The compiler does not fold builtin calls or their libm results**: `Compiler/src/BuiltinFolding.cpp`
+>   returns before its `math.*` folding switch, so `math.pow` and other builtin calls remain runtime calls.
+>   `Compiler/src/ConstantFolding.cpp` folds `^` only for an integer-valued exponent, through `moo_pow_int`;
+>   fractional exponents and `0 ^ negative` stay unfolded. `//` uses `moo_numidiv`. The compiler therefore
+>   emits no libm-derived builtin constants, and its folded integer powers are platform-independent.
 
 ## Not done
 
