@@ -25,8 +25,9 @@ folded constant is bit-identical to the run time's result by construction. The f
     `foldBinary` returns after `mooFold` for two number constants, so it is left as it is.
 - NEW `tests/moo/moo-l4-pow-integer-fold.test.cpp`, suite `moo-l4-pow-integer-fold` in `Moo.Test`:
   - `MooFoldPowIntFoldsToPowInt`: `return 3 ^ 4`, `return 2 ^ -3`, `return 1.5 ^ 7` and
-    `return 10 ^ 2` compile with no `POWK`, and the value the chunk returns is `moo_pow_int`'s raw
-    result. That pins the folded constant to the function rather than to a second computation.
+    `return 10 ^ 2` compile with no `POWK`, the bytecode dump holds `moo_pow_int`'s raw result, and the
+    value the chunk returns is that same raw result. That pins the folded constant to the function rather
+    than to a second computation.
   - `MooFoldPowIntLeavesDivisionByZeroAndFractionalUnfolded`: `return 0 ^ -1` and `return 2 ^ 0.5` still
     compile to `POWK`.
 - `tests/MooCompiler.test.cpp` is changed: `MooFoldArithIsFixedPoint`'s pin of `10 ^ 2` as `POWK`

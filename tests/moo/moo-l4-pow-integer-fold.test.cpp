@@ -5,6 +5,7 @@
 // moo_pow_int (Common/include/moo_pow.h), so a folded constant is bit-identical to the run time's result. A
 // fractional exponent stays unfolded, and 0 ^ negative is never folded because the run time raises
 // "division by zero". One test per file: tests/moo/*.test.cpp is built into Moo.Test by the CMake glob.
+#include "moo_format.h"
 #include "moo_pow.h"
 
 #include "lua.h"
@@ -35,6 +36,20 @@ std::string compileDump(const char* source)
 bool contains(const std::string& text, const char* needle)
 {
     return text.find(needle) != std::string::npos;
+}
+
+// The dump prints an integer-valued number in the int16 range as LOADN's scaled immediate, and any other number as
+// moo_numtostr's shortest decimal (BytecodeBuilder::dumpConstant, docs/DESIGN.md "Number formatting"). Either text
+// reads back to the raw value, so the dump holds the folded raw when it holds that text.
+bool dumpHoldsRaw(const std::string& dump, fixed_t raw)
+{
+    int64_t i = 0;
+    if (moo_numisinteger(raw) && (i = moo_numtrunc(raw)) >= -32768 && i <= 32767)
+        return contains(dump, ("LOADN R0 " + std::to_string(i)).c_str());
+
+    char buffer[40];
+    char* end = moo_numtostr(buffer, raw);
+    return contains(dump, ("[" + std::string(buffer, end) + "]").c_str());
 }
 
 // Compiles and runs source; returns the result's raw Q48.16 value as a decimal string, or "error: ...".
@@ -83,10 +98,11 @@ TEST_CASE("MooFoldPowIntFoldsToPowInt")
         fixed_t expected = 0;
         REQUIRE_MESSAGE(moo_pow_int(c.base, c.exponent, &expected) == MOO_POW_OK, c.source);
 
+        std::string raw = std::to_string(static_cast<long long>(expected));
         std::string dump = compileDump(c.source);
         CHECK_MESSAGE(!contains(dump, "POWK"), c.source << " was not folded:\n" << dump);
-        CHECK_MESSAGE(runRaw(c.source) == std::to_string(static_cast<long long>(expected)),
-            c.source << " is not moo_pow_int's raw result " << expected << ":\n" << dump);
+        CHECK_MESSAGE(dumpHoldsRaw(dump, expected), c.source << " bytecode does not hold raw " << raw << ":\n" << dump);
+        CHECK_MESSAGE(runRaw(c.source) == raw, c.source << " is not moo_pow_int's raw result " << raw << ":\n" << dump);
     }
 }
 
