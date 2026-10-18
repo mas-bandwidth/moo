@@ -99,11 +99,14 @@ The steps the proof relies on:
   spot-checks the argument: bases 65534, 65535, 65537 and 65538, with exponents `+-(2^k - 1 .. 2^k + 1)`
   for `k` = 22..62 (past 2,135,042), are all decided at the edge.
 
-The cheap version (`MooPowIntCertainSampled`, 0.3 s) runs in every `Moo.Test`. It takes one exponent in
-4096 from 14 to past 2,135,042, every exponent 14..20, and the spot-check above. The full proof does
-**not** run in the DONE-WHEN gate: it is `doctest::skip()` (25 s of CPU, 1.8 s on 16 threads). This card
-ran it by hand on both compilers. A change to `moo_pow.h` must rerun it, and a nightly job should run it.
-Run it with `build/Moo.Test -ts=moo-l4-pow-integer-design -tc=MooPowIntCertainEverywhere --no-skip`.
+By default, `MooPowIntCertainEverywhere` walks one exponent in 4096 from 14 to past 2,135,042 (0.3 s).
+`MooPowIntCertainSampled` adds every exponent 14..20 and the spot-check above. Both run in every
+`Moo.Test`. The whole proof (25 s of CPU, 1.8 s on 16 threads) runs only with `MOO_POW_PROOF=1`, the way
+`MOO_ORACLE_N` and `MOO_FORMAT_N` widen their cases. It is not a `doctest::skip()`, so the layer 5 skip
+audit (`MooL5SkippedCasesNameAReason`) is unchanged. The DONE-WHEN gate runs the sampled form only; this
+card ran the full proof by hand on both compilers. A change to `moo_pow.h` must rerun it, and a nightly job
+should run it:
+`MOO_POW_PROOF=1 build/Moo.Test -ts=moo-l4-pow-integer-design -tc=MooPowIntCertainEverywhere`.
 
 **So the bound is half a raw unit.** Every result in range is correctly rounded, ties to even. That is
 tighter than DESIGN.md's target of "under one raw unit". No CORE-MATH comparison is needed for integer
@@ -190,7 +193,8 @@ value would compute the power twice in a checked build, so the VM card branches 
     edges with their signs, and the exact edges `MAX ^ 1` and `MIN ^ 1` that are not saturation.
   - `MooPowIntRoundsOnceTiesToEven`: the exact tie `1.5 ^ 17`, the tie to 0 `0.5 ^ 17`, and the
     reciprocals that round where `fixDiv` truncates.
-  - `MooPowIntCertainSampled` (every run) and `MooPowIntCertainEverywhere` (skipped, the proof).
+  - `MooPowIntCertainEverywhere` (sampled by default, the whole proof with `MOO_POW_PROOF=1`) and
+    `MooPowIntCertainSampled` (every exponent 14..20, and exponents near `2^22`..`2^62`).
   - `MooPowIntFrozenHash`: the bits, pinned.
 - NEW this note.
 - No VM, library, compiler or `moo_number.h` change. Today `^` and `math.pow` still use the libm bridge
