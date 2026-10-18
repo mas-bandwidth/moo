@@ -216,11 +216,13 @@ static int luauF_frexp(lua_State* L, StkId res, TValue* arg0, int nresults, StkI
 
 static int luauF_ldexp(lua_State* L, StkId res, TValue* arg0, int nresults, StkId args, int nparams)
 {
-    if (nparams >= 2 && nresults <= 1 && ttisnumber(arg0) && ttisnumber(args))
+    // moo: refuse non-integer exponent so fallback raises (see docs/DESIGN.md "Exact integers")
+    if (nparams >= 2 && nresults <= 1 && ttisnumber(arg0) && ttisnumber(args) && luai_numisint(nvalue(args)))
     {
         double a1 = moo_numbridgetodouble(nvalue(arg0));
-        double a2 = moo_numbridgetodouble(nvalue(args));
-        setnvalue(res, moo_numbridgefromdouble(ldexp(a1, int(a2))));
+        int e;
+        luai_num2int(e, nvalue(args));
+        setnvalue(res, moo_numbridgefromdouble(ldexp(a1, e)));
         return 1;
     }
 
@@ -437,6 +439,10 @@ static int luauF_arshift(lua_State* L, StkId res, TValue* arg0, int nresults, St
         lua_Number a1 = nvalue(arg0);
         lua_Number a2 = nvalue(args);
 
+        // moo: refuse non-integer arguments so fallback raises (see docs/DESIGN.md "Exact integers")
+        if (!luai_numisint(a1) || !luai_numisint(a2))
+            return -1;
+
         unsigned u;
         luai_num2unsigned(u, a1);
         int s = int(moo_numclampint(moo_numtrunc(a2)));
@@ -464,6 +470,10 @@ static int luauF_band(lua_State* L, StkId res, TValue* arg0, int nresults, StkId
         lua_Number a1 = nvalue(arg0);
         lua_Number a2 = nvalue(args);
 
+        // moo: refuse non-integer arguments so fallback raises (see docs/DESIGN.md "Exact integers")
+        if (!luai_numisint(a1) || !luai_numisint(a2))
+            return -1;
+
         unsigned u1, u2;
         luai_num2unsigned(u1, a1);
         luai_num2unsigned(u2, a2);
@@ -476,6 +486,8 @@ static int luauF_band(lua_State* L, StkId res, TValue* arg0, int nresults, StkId
                 return -1;
 
             lua_Number a = nvalue(args + (i - 2));
+            if (!luai_numisint(a))
+                return -1;
             unsigned u;
             luai_num2unsigned(u, a);
 
@@ -494,6 +506,11 @@ static int luauF_bnot(lua_State* L, StkId res, TValue* arg0, int nresults, StkId
     if (nparams >= 1 && nresults <= 1 && ttisnumber(arg0))
     {
         lua_Number a1 = nvalue(arg0);
+
+        // moo: refuse non-integer argument so fallback raises (see docs/DESIGN.md "Exact integers")
+        if (!luai_numisint(a1))
+            return -1;
+
         unsigned u;
         luai_num2unsigned(u, a1);
 
@@ -513,6 +530,10 @@ static int luauF_bor(lua_State* L, StkId res, TValue* arg0, int nresults, StkId 
         lua_Number a1 = nvalue(arg0);
         lua_Number a2 = nvalue(args);
 
+        // moo: refuse non-integer arguments so fallback raises (see docs/DESIGN.md "Exact integers")
+        if (!luai_numisint(a1) || !luai_numisint(a2))
+            return -1;
+
         unsigned u1, u2;
         luai_num2unsigned(u1, a1);
         luai_num2unsigned(u2, a2);
@@ -525,6 +546,8 @@ static int luauF_bor(lua_State* L, StkId res, TValue* arg0, int nresults, StkId 
                 return -1;
 
             lua_Number a = nvalue(args + (i - 2));
+            if (!luai_numisint(a))
+                return -1;
             unsigned u;
             luai_num2unsigned(u, a);
 
@@ -545,6 +568,10 @@ static int luauF_bxor(lua_State* L, StkId res, TValue* arg0, int nresults, StkId
         lua_Number a1 = nvalue(arg0);
         lua_Number a2 = nvalue(args);
 
+        // moo: refuse non-integer arguments so fallback raises (see docs/DESIGN.md "Exact integers")
+        if (!luai_numisint(a1) || !luai_numisint(a2))
+            return -1;
+
         unsigned u1, u2;
         luai_num2unsigned(u1, a1);
         luai_num2unsigned(u2, a2);
@@ -557,6 +584,8 @@ static int luauF_bxor(lua_State* L, StkId res, TValue* arg0, int nresults, StkId
                 return -1;
 
             lua_Number a = nvalue(args + (i - 2));
+            if (!luai_numisint(a))
+                return -1;
             unsigned u;
             luai_num2unsigned(u, a);
 
@@ -577,6 +606,10 @@ static int luauF_btest(lua_State* L, StkId res, TValue* arg0, int nresults, StkI
         lua_Number a1 = nvalue(arg0);
         lua_Number a2 = nvalue(args);
 
+        // moo: refuse non-integer arguments so fallback raises (see docs/DESIGN.md "Exact integers")
+        if (!luai_numisint(a1) || !luai_numisint(a2))
+            return -1;
+
         unsigned u1, u2;
         luai_num2unsigned(u1, a1);
         luai_num2unsigned(u2, a2);
@@ -589,6 +622,8 @@ static int luauF_btest(lua_State* L, StkId res, TValue* arg0, int nresults, StkI
                 return -1;
 
             lua_Number a = nvalue(args + (i - 2));
+            if (!luai_numisint(a))
+                return -1;
             unsigned u;
             luai_num2unsigned(u, a);
 
@@ -609,6 +644,10 @@ static int luauF_extract(lua_State* L, StkId res, TValue* arg0, int nresults, St
         lua_Number a1 = nvalue(arg0);
         lua_Number a2 = nvalue(args);
 
+        // moo: refuse non-integer arguments so fallback raises (see docs/DESIGN.md "Exact integers")
+        if (!luai_numisint(a1) || !luai_numisint(a2))
+            return -1;
+
         unsigned n;
         luai_num2unsigned(n, a1);
         int f = int(moo_numclampint(moo_numtrunc(a2)));
@@ -627,6 +666,8 @@ static int luauF_extract(lua_State* L, StkId res, TValue* arg0, int nresults, St
         else if (ttisnumber(args + 1))
         {
             lua_Number a3 = nvalue(args + 1);
+            if (!luai_numisint(a3))
+                return -1;
             int w = int(moo_numclampint(moo_numtrunc(a3)));
 
             if (f >= 0 && w > 0 && f + w <= 32)
@@ -649,6 +690,10 @@ static int luauF_lrotate(lua_State* L, StkId res, TValue* arg0, int nresults, St
     {
         lua_Number a1 = nvalue(arg0);
         lua_Number a2 = nvalue(args);
+
+        // moo: refuse non-integer arguments so fallback raises (see docs/DESIGN.md "Exact integers")
+        if (!luai_numisint(a1) || !luai_numisint(a2))
+            return -1;
 
         unsigned u;
         luai_num2unsigned(u, a1);
@@ -674,6 +719,10 @@ static int luauF_lshift(lua_State* L, StkId res, TValue* arg0, int nresults, Stk
     {
         lua_Number a1 = nvalue(arg0);
         lua_Number a2 = nvalue(args);
+
+        // moo: refuse non-integer arguments so fallback raises (see docs/DESIGN.md "Exact integers")
+        if (!luai_numisint(a1) || !luai_numisint(a2))
+            return -1;
 
         unsigned u;
         luai_num2unsigned(u, a1);
@@ -701,6 +750,10 @@ static int luauF_replace(lua_State* L, StkId res, TValue* arg0, int nresults, St
         lua_Number a2 = nvalue(args);
         lua_Number a3 = nvalue(args + 1);
 
+        // moo: refuse non-integer arguments so fallback raises (see docs/DESIGN.md "Exact integers")
+        if (!luai_numisint(a1) || !luai_numisint(a2) || !luai_numisint(a3))
+            return -1;
+
         unsigned n, v;
         luai_num2unsigned(n, a1);
         luai_num2unsigned(v, a2);
@@ -720,6 +773,8 @@ static int luauF_replace(lua_State* L, StkId res, TValue* arg0, int nresults, St
         else if (ttisnumber(args + 2))
         {
             lua_Number a4 = nvalue(args + 2);
+            if (!luai_numisint(a4))
+                return -1;
             int w = int(moo_numclampint(moo_numtrunc(a4)));
 
             if (f >= 0 && w > 0 && f + w <= 32)
@@ -742,6 +797,10 @@ static int luauF_rrotate(lua_State* L, StkId res, TValue* arg0, int nresults, St
     {
         lua_Number a1 = nvalue(arg0);
         lua_Number a2 = nvalue(args);
+
+        // moo: refuse non-integer arguments so fallback raises (see docs/DESIGN.md "Exact integers")
+        if (!luai_numisint(a1) || !luai_numisint(a2))
+            return -1;
 
         unsigned u;
         luai_num2unsigned(u, a1);
@@ -767,6 +826,10 @@ static int luauF_rshift(lua_State* L, StkId res, TValue* arg0, int nresults, Stk
     {
         lua_Number a1 = nvalue(arg0);
         lua_Number a2 = nvalue(args);
+
+        // moo: refuse non-integer arguments so fallback raises (see docs/DESIGN.md "Exact integers")
+        if (!luai_numisint(a1) || !luai_numisint(a2))
+            return -1;
 
         unsigned u;
         luai_num2unsigned(u, a1);
@@ -802,11 +865,15 @@ static int luauF_type(lua_State* L, StkId res, TValue* arg0, int nresults, StkId
 
 static int luauF_byte(lua_State* L, StkId res, TValue* arg0, int nresults, StkId args, int nparams)
 {
-    if (nparams >= 2 && ttisstring(arg0) && ttisnumber(args))
+    // moo: refuse non-integer indices so fallback raises (see docs/DESIGN.md "Exact integers")
+    if (nparams >= 2 && ttisstring(arg0) && ttisnumber(args) && luai_numisint(nvalue(args)))
     {
+        if (nparams >= 3 && (!ttisnumber(args + 1) || !luai_numisint(nvalue(args + 1))))
+            return -1;
+
         TString* ts = tsvalue(arg0);
         int i = int(moo_numclampint(moo_numtrunc(nvalue(args))));
-        int j = (nparams >= 3) ? (ttisnumber(args + 1) ? int(moo_numclampint(moo_numtrunc(nvalue(args + 1)))) : 0) : i;
+        int j = (nparams >= 3) ? int(moo_numclampint(moo_numtrunc(nvalue(args + 1)))) : i;
 
         if (i >= 1 && j >= i && j <= int(ts->len))
         {
@@ -841,7 +908,8 @@ static int luauF_char(lua_State* L, StkId res, TValue* arg0, int nresults, StkId
 
         if (nparams >= 1)
         {
-            if (!ttisnumber(arg0))
+            // moo: refuse non-integer character codes so fallback raises (see docs/DESIGN.md "Exact integers")
+            if (!ttisnumber(arg0) || !luai_numisint(nvalue(arg0)))
                 return -1;
 
             int ch = int(moo_numclampint(moo_numtrunc(nvalue(arg0))));
@@ -854,7 +922,7 @@ static int luauF_char(lua_State* L, StkId res, TValue* arg0, int nresults, StkId
 
         for (int i = 2; i <= nparams; ++i)
         {
-            if (!ttisnumber(args + (i - 2)))
+            if (!ttisnumber(args + (i - 2)) || !luai_numisint(nvalue(args + (i - 2))))
                 return -1;
 
             int ch = int(moo_numclampint(moo_numtrunc(nvalue(args + (i - 2)))));
@@ -902,7 +970,8 @@ static int luauF_typeof(lua_State* L, StkId res, TValue* arg0, int nresults, Stk
 
 static int luauF_sub(lua_State* L, StkId res, TValue* arg0, int nresults, StkId args, int nparams)
 {
-    if (nparams >= 3 && nresults <= 1 && ttisstring(arg0) && ttisnumber(args) && ttisnumber(args + 1))
+    // moo: refuse non-integer bounds so fallback raises (see docs/DESIGN.md "Exact integers")
+    if (nparams >= 3 && nresults <= 1 && ttisstring(arg0) && ttisnumber(args) && ttisnumber(args + 1) && luai_numisint(nvalue(args)) && luai_numisint(nvalue(args + 1)))
     {
         TString* ts = tsvalue(arg0);
         int i = int(moo_numclampint(moo_numtrunc(nvalue(args))));
@@ -1041,7 +1110,8 @@ static int luauF_tunpack(lua_State* L, StkId res, TValue* arg0, int nresults, St
 
         if (nparams == 1)
             n = luaH_getn(t);
-        else if (nparams == 3 && ttisnumber(args) && ttisnumber(args + 1) && nvalue(args) == MOO_NUMBER_ONE)
+        // moo: refuse non-integer end index so fallback raises (see docs/DESIGN.md "Exact integers")
+        else if (nparams == 3 && ttisnumber(args) && ttisnumber(args + 1) && nvalue(args) == MOO_NUMBER_ONE && luai_numisint(nvalue(args + 1)))
             n = int(moo_numclampint(moo_numtrunc(nvalue(args + 1))));
 
         if (n >= 0 && n <= t->sizearray && cast_int(L->stack_last - res) >= n && n + nparams <= LUAI_MAXCSTACK)
@@ -1097,6 +1167,10 @@ static int luauF_countlz(lua_State* L, StkId res, TValue* arg0, int nresults, St
     {
         lua_Number a1 = nvalue(arg0);
 
+        // moo: refuse non-integer argument so fallback raises (see docs/DESIGN.md "Exact integers")
+        if (!luai_numisint(a1))
+            return -1;
+
         unsigned n;
         luai_num2unsigned(n, a1);
 
@@ -1119,6 +1193,10 @@ static int luauF_countrz(lua_State* L, StkId res, TValue* arg0, int nresults, St
     if (nparams >= 1 && nresults <= 1 && ttisnumber(arg0))
     {
         lua_Number a1 = nvalue(arg0);
+
+        // moo: refuse non-integer argument so fallback raises (see docs/DESIGN.md "Exact integers")
+        if (!luai_numisint(a1))
+            return -1;
 
         unsigned n;
         luai_num2unsigned(n, a1);
@@ -1143,7 +1221,8 @@ static int luauF_select(lua_State* L, StkId res, TValue* arg0, int nresults, Stk
     {
         int n = cast_int(L->base - L->ci->func) - L->ci->p->numparams - 1;
 
-        if (ttisnumber(arg0))
+        // moo: refuse non-integer index so fallback raises (see docs/DESIGN.md "Exact integers")
+        if (ttisnumber(arg0) && luai_numisint(nvalue(arg0)))
         {
             int i = int(moo_numclampint(moo_numtrunc(nvalue(arg0))));
 
@@ -1193,6 +1272,10 @@ static int luauF_extractk(lua_State* L, StkId res, TValue* arg0, int nresults, S
     {
         lua_Number a1 = nvalue(arg0);
         lua_Number a2 = nvalue(args);
+
+        // moo: refuse non-integer argument so fallback raises (see docs/DESIGN.md "Exact integers")
+        if (!luai_numisint(a1) || !luai_numisint(a2))
+            return -1;
 
         unsigned n;
         luai_num2unsigned(n, a1);
@@ -1347,6 +1430,11 @@ static int luauF_byteswap(lua_State* L, StkId res, TValue* arg0, int nresults, S
     if (nparams >= 1 && nresults <= 1 && ttisnumber(arg0))
     {
         lua_Number a1 = nvalue(arg0);
+
+        // moo: refuse non-integer argument so fallback raises (see docs/DESIGN.md "Exact integers")
+        if (!luai_numisint(a1))
+            return -1;
+
         unsigned n;
         luai_num2unsigned(n, a1);
 
@@ -1366,7 +1454,8 @@ template<typename T>
 static int luauF_readinteger(lua_State* L, StkId res, TValue* arg0, int nresults, StkId args, int nparams)
 {
 #if !defined(LUAU_BIG_ENDIAN)
-    if (nparams >= 2 && nresults <= 1 && ttisbuffer(arg0) && ttisnumber(args))
+    // moo: refuse non-integer offset so fallback raises (see docs/DESIGN.md "Exact integers")
+    if (nparams >= 2 && nresults <= 1 && ttisbuffer(arg0) && ttisnumber(args) && luai_numisint(nvalue(args)))
     {
         int offset;
         luai_num2int(offset, nvalue(args));
@@ -1387,7 +1476,8 @@ template<typename T>
 static int luauF_writeinteger(lua_State* L, StkId res, TValue* arg0, int nresults, StkId args, int nparams)
 {
 #if !defined(LUAU_BIG_ENDIAN)
-    if (nparams >= 3 && nresults <= 0 && ttisbuffer(arg0) && ttisnumber(args) && ttisnumber(args + 1))
+    // moo: refuse non-integer offset and value so fallback raises (see docs/DESIGN.md "Exact integers")
+    if (nparams >= 3 && nresults <= 0 && ttisbuffer(arg0) && ttisnumber(args) && ttisnumber(args + 1) && luai_numisint(nvalue(args)) && luai_numisint(nvalue(args + 1)))
     {
         int offset;
         luai_num2int(offset, nvalue(args));
@@ -1411,7 +1501,8 @@ template<typename T>
 static int luauF_readfp(lua_State* L, StkId res, TValue* arg0, int nresults, StkId args, int nparams)
 {
 #if !defined(LUAU_BIG_ENDIAN)
-    if (nparams >= 2 && nresults <= 1 && ttisbuffer(arg0) && ttisnumber(args))
+    // moo: refuse non-integer offset so fallback raises (see docs/DESIGN.md "Exact integers")
+    if (nparams >= 2 && nresults <= 1 && ttisbuffer(arg0) && ttisnumber(args) && luai_numisint(nvalue(args)))
     {
         int offset;
         luai_num2int(offset, nvalue(args));
@@ -1443,7 +1534,8 @@ template<typename T>
 static int luauF_writefp(lua_State* L, StkId res, TValue* arg0, int nresults, StkId args, int nparams)
 {
 #if !defined(LUAU_BIG_ENDIAN)
-    if (nparams >= 3 && nresults <= 0 && ttisbuffer(arg0) && ttisnumber(args) && ttisnumber(args + 1))
+    // moo: refuse non-integer offset so fallback raises (see docs/DESIGN.md "Exact integers")
+    if (nparams >= 3 && nresults <= 0 && ttisbuffer(arg0) && ttisnumber(args) && ttisnumber(args + 1) && luai_numisint(nvalue(args)))
     {
         int offset;
         luai_num2int(offset, nvalue(args));
@@ -2458,8 +2550,8 @@ static int luauF_integercreate(lua_State* L, StkId res, TValue* arg0, int nresul
     {
         lua_Number a1 = nvalue(arg0);
 
-        // moo: an integer-valued number gives its integer
-        if (moo_numisinteger(a1))
+        // moo: an integer-valued number gives its integer (see docs/DESIGN.md "Exact integers")
+        if (luai_numisint(a1))
         {
             setlvalue(res, moo_numtrunc(a1));
             return 1;
@@ -2475,7 +2567,8 @@ static int luauF_integercreate(lua_State* L, StkId res, TValue* arg0, int nresul
 static int luauF_bufferreadlong(lua_State* L, StkId res, TValue* arg0, int nresults, StkId args, int nparams)
 {
 #if !defined(LUAU_BIG_ENDIAN)
-    if (nparams >= 2 && nresults <= 1 && ttisbuffer(arg0) && ttisnumber(args))
+    // moo: refuse non-integer offset so fallback raises (see docs/DESIGN.md "Exact integers")
+    if (nparams >= 2 && nresults <= 1 && ttisbuffer(arg0) && ttisnumber(args) && luai_numisint(nvalue(args)))
     {
         int offset;
         luai_num2int(offset, nvalue(args));
@@ -2495,7 +2588,8 @@ static int luauF_bufferreadlong(lua_State* L, StkId res, TValue* arg0, int nresu
 static int luauF_bufferwritelong(lua_State* L, StkId res, TValue* arg0, int nresults, StkId args, int nparams)
 {
 #if !defined(LUAU_BIG_ENDIAN)
-    if (nparams >= 3 && nresults <= 0 && ttisbuffer(arg0) && ttisnumber(args) && ttisinteger(args + 1))
+    // moo: refuse non-integer offset so fallback raises (see docs/DESIGN.md "Exact integers")
+    if (nparams >= 3 && nresults <= 0 && ttisbuffer(arg0) && ttisnumber(args) && ttisinteger(args + 1) && luai_numisint(nvalue(args)))
     {
         int offset;
         luai_num2int(offset, nvalue(args));
