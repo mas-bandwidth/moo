@@ -344,7 +344,8 @@ TEST_CASE("MooL5MovedScriptsNameAReason")
             checkReferences(root, record, reference, failures);
     }
 
-    CHECK_MESSAGE(scripts == 19, "expected 19 moved conformance scripts, found " << scripts);
+    // Later cards add moved scripts; each is held to the reason check above.
+    CHECK_MESSAGE(scripts >= 19, "expected at least 19 moved conformance scripts (layer 5 baseline), found " << scripts);
     for (const std::string& failure : failures)
         CHECK_MESSAGE(false, failure);
 }
