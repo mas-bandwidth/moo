@@ -38,9 +38,7 @@ std::string packDouble(lua_State* L, int64_t raw)
 // until moo-l3-buffer-floats lands (then buffer.writef64's bytes take its place).
 std::string doubleBitsLE(int64_t raw)
 {
-    double d = moo_todouble(raw);
-    uint64_t bits = 0;
-    memcpy(&bits, &d, 8);
+    uint64_t bits = moo_numtodoublebits(raw);
     std::string out;
     for (int k = 0; k < 8; ++k)
         out.push_back(static_cast<char>(bits >> (8 * k)));

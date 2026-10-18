@@ -1491,26 +1491,10 @@ static void copywithendian(volatile char* dest, volatile const char* src, int si
 }
 
 // moo: the exact float boundary rule (docs/DESIGN.md "Boundary", DETERMINISM.md 18). A Q48.16 number
-// packs to the nearest float/double bit pattern, ties to even, through moo_todouble; a float/double's
-// IEEE bits unpack to Q48.16 in integer arithmetic through moo_numfromdouble. The byte store below is
-// integer only: no float or double arithmetic reaches lstrlib.cpp itself.
-static uint32_t moo_numtofloatbits(int64_t n)
-{
-    double d = moo_todouble(n);
-    float f = (float)d;
-    uint32_t bits;
-    memcpy(&bits, &f, 4);
-    return bits;
-}
-
-static uint64_t moo_numtodoublebits(int64_t n)
-{
-    double d = moo_todouble(n);
-    uint64_t bits;
-    memcpy(&bits, &d, 8);
-    return bits;
-}
-
+// packs to the nearest float/double bit pattern, ties to even, through moo_numtofloatbits and
+// moo_numtodoublebits (moo_number.h); a float/double's IEEE bits unpack to Q48.16 in integer
+// arithmetic through moo_numfromdouble. The byte store below is integer only: no float or double
+// arithmetic reaches lstrlib.cpp itself.
 // moo: float to double is exact, so the double decoder is the one boundary rule for both f and d.
 static int moo_numfromfloat(float x, int64_t* out)
 {
