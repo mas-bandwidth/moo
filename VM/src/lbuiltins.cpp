@@ -397,8 +397,10 @@ static int luauF_sqrt(lua_State* L, StkId res, TValue* arg0, int nresults, StkId
 {
     if (nparams >= 1 && nresults <= 1 && ttisnumber(arg0))
     {
-        double a1 = moo_numbridgetodouble(nvalue(arg0));
-        setnvalue(res, moo_numbridgefromdouble(sqrt(a1)));
+        lua_Number a1 = nvalue(arg0);
+        if (a1 < 0)
+            return -1; // fall back: math.sqrt raises the named error
+        setnvalue(res, fixSqrt(a1));
         return 1;
     }
 
