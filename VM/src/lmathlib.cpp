@@ -1,6 +1,5 @@
-// moo: TEMPORARY BRIDGE until the math library is rebuilt on fixed (docs/DESIGN.md, "math library"): the functions
-// that call libm convert through doubles (moo_numbridgetodouble, moo_numbridgefromdouble). abs, ceil, floor, min, max,
-// clamp, sign, round and random are exact on the number already.
+// moo: sqrt and noise still use the temporary libm bridge (docs/DESIGN.md, "math library"); the exp/log family
+// below and the fixed trig functions share their integer implementations with bytecode fastcalls.
 // This file is part of the Luau programming language and is licensed under MIT License; see LICENSE.txt for details
 // This code is based on Lua 5.x implementation licensed under MIT License; see lua_LICENSE.txt for details
 #include "lualib.h"
@@ -23,6 +22,8 @@
 #define MOO_MATH_PHI (fixed_t(106039))          // round(phi * 2^16): 1.61803398874989484820 * 65536 = 106039.275...
 #define MOO_MATH_SQRT2 (fixed_t(92682))         // round(sqrt(2) * 2^16): 1.41421356237309504880 * 65536 = 92681.900...
 #define MOO_MATH_TAU (fixed_t(411775))          // round(2 * pi * 2^16): 6.28318530717958647692 * 65536 = 411774.832...
+#define MOO_MATH_LOG2_E (fixed_t(94548))        // round((1 / ln(2)) * 2^16): 1.44269504088896340736 * 65536 = 94548.462...
+#define MOO_MATH_INV_LOG2_10 (fixed_t(19728))   // round((ln(2) / ln(10)) * 2^16): 0.30102999566398119521 * 65536 = 19728.302...
 
 #define PCG32_INC 105
 
@@ -176,15 +177,74 @@ fixed_t moo_math_lerp(fixed_t a, fixed_t b, fixed_t t)
     return t == MOO_NUMBER_ONE ? b : moo_numadd(a, moo_nummul(moo_numsub(b, a), t));
 }
 
+// moo: exp and the hyperbolic functions share fixed compositions (docs/DESIGN.md, "math library").
+// Scaling uses fixMul, which rounds half up once; fixExp2 rounds its dropped bits half up and saturates.
+// sinh/cosh evaluate exp(+/-x)/2 before the saturating sum/difference. tanh uses
+// sign(x) * (1 - exp(-2|x|)) / (1 + exp(-2|x|)); its final fixDiv truncates toward zero.
+fixed_t moo_math_exp(fixed_t x)
+{
+    return fixExp2(fixMul(x, MOO_MATH_LOG2_E));
+}
+
+static fixed_t moo_math_halfexp(fixed_t x)
+{
+    return fixExp2(moo_numsub(fixMul(x, MOO_MATH_LOG2_E), MOO_NUMBER_ONE));
+}
+
+fixed_t moo_math_sinh(fixed_t x)
+{
+    return moo_numsub(moo_math_halfexp(x), moo_math_halfexp(moo_numunm(x)));
+}
+
+fixed_t moo_math_cosh(fixed_t x)
+{
+    return moo_numadd(moo_math_halfexp(x), moo_math_halfexp(moo_numunm(x)));
+}
+
+fixed_t moo_math_tanh(fixed_t x)
+{
+    fixed_t magnitude = x < 0 ? moo_numunm(x) : x;
+    fixed_t twice = moo_numadd(magnitude, magnitude);
+    fixed_t inverse = moo_math_exp(moo_numunm(twice));
+    fixed_t result = moo_numdiv(moo_numsub(MOO_NUMBER_ONE, inverse), moo_numadd(MOO_NUMBER_ONE, inverse));
+    return x < 0 ? moo_numunm(result) : result;
+}
+
+// moo: log uses fixLog2 (docs/DESIGN.md, "math library"); log divides by rounded log2(e) with fixDiv
+// (toward zero), log10 multiplies by rounded 1/log2(10) with fixMul (half up), and a custom base
+// divides the two fixed log2 results with fixDiv (toward zero). Domain refusals stay in the library caller.
+fixed_t moo_math_log10(fixed_t x)
+{
+    return fixMul(fixLog2(x), MOO_MATH_INV_LOG2_10);
+}
+
+bool moo_math_log(fixed_t x, bool hasBase, fixed_t base, fixed_t* out)
+{
+    if (x <= 0 || (hasBase && base <= 0) || (hasBase && base == MOO_NUMBER_ONE))
+        return false;
+
+    fixed_t logx = fixLog2(x);
+    if (!hasBase)
+        *out = moo_numdiv(logx, MOO_MATH_LOG2_E);
+    else if (base == 2 * MOO_NUMBER_ONE)
+        *out = logx;
+    else if (base == 10 * MOO_NUMBER_ONE)
+        *out = moo_math_log10(x);
+    else
+        *out = moo_numdiv(logx, fixLog2(base));
+    return true;
+}
+
 static int math_sin(lua_State* L)
 {
     lua_pushnumber(L, moo_math_sin(luaL_checknumber(L, 1)));
     return 1;
 }
 
+// moo: math.sinh shares the fixed half-exponent helper with its bytecode fastcall (docs/DESIGN.md, "math library").
 static int math_sinh(lua_State* L)
 {
-    lua_pushnumber(L, moo_numbridgefromdouble(sinh(moo_numbridgetodouble(luaL_checknumber(L, 1)))));
+    lua_pushnumber(L, moo_math_sinh(luaL_checknumber(L, 1)));
     return 1;
 }
 
@@ -194,9 +254,10 @@ static int math_cos(lua_State* L)
     return 1;
 }
 
+// moo: math.cosh shares the fixed half-exponent helper with its bytecode fastcall (docs/DESIGN.md, "math library").
 static int math_cosh(lua_State* L)
 {
-    lua_pushnumber(L, moo_numbridgefromdouble(cosh(moo_numbridgetodouble(luaL_checknumber(L, 1)))));
+    lua_pushnumber(L, moo_math_cosh(luaL_checknumber(L, 1)));
     return 1;
 }
 
@@ -209,9 +270,10 @@ static int math_tan(lua_State* L)
     return 1;
 }
 
+// moo: math.tanh shares the fixed stable ratio helper with its bytecode fastcall (docs/DESIGN.md, "math library").
 static int math_tanh(lua_State* L)
 {
-    lua_pushnumber(L, moo_numbridgefromdouble(tanh(moo_numbridgetodouble(luaL_checknumber(L, 1)))));
+    lua_pushnumber(L, moo_math_tanh(luaL_checknumber(L, 1)));
     return 1;
 }
 
@@ -323,35 +385,37 @@ static int math_pow(lua_State* L)
     return 1;
 }
 
+// moo: log domain checks and fixed scaling are shared with the bytecode fastcall (docs/DESIGN.md, "math library").
 static int math_log(lua_State* L)
 {
-    double x = moo_numbridgetodouble(luaL_checknumber(L, 1));
-    double res;
-    if (lua_isnoneornil(L, 2))
-        res = log(x);
-    else
-    {
-        double base = moo_numbridgetodouble(luaL_checknumber(L, 2));
-        if (base == 2.0)
-            res = log2(x);
-        else if (base == 10.0)
-            res = log10(x);
-        else
-            res = log(x) / log(base);
-    }
-    lua_pushnumber(L, moo_numbridgefromdouble(res));
+    fixed_t x = luaL_checknumber(L, 1);
+    bool hasBase = !lua_isnoneornil(L, 2);
+    fixed_t base = hasBase ? luaL_checknumber(L, 2) : 0;
+    if (x <= 0 || (hasBase && base <= 0))
+        luaL_error(L, "math.log of a non-positive number");
+    if (hasBase && base == MOO_NUMBER_ONE)
+        luaL_error(L, "division by zero");
+    fixed_t result;
+    if (!moo_math_log(x, hasBase, base, &result))
+        luaL_error(L, "math.log of a non-positive number");
+    lua_pushnumber(L, result);
     return 1;
 }
 
+// moo: log10 uses the shared fixed log2 scaling helper (docs/DESIGN.md, "math library").
 static int math_log10(lua_State* L)
 {
-    lua_pushnumber(L, moo_numbridgefromdouble(log10(moo_numbridgetodouble(luaL_checknumber(L, 1)))));
+    fixed_t x = luaL_checknumber(L, 1);
+    if (x <= 0)
+        luaL_error(L, "math.log of a non-positive number");
+    lua_pushnumber(L, moo_math_log10(x));
     return 1;
 }
 
+// moo: exp uses the shared fixed exp2 scaling helper (docs/DESIGN.md, "math library").
 static int math_exp(lua_State* L)
 {
-    lua_pushnumber(L, moo_numbridgefromdouble(exp(moo_numbridgetodouble(luaL_checknumber(L, 1)))));
+    lua_pushnumber(L, moo_math_exp(luaL_checknumber(L, 1)));
     return 1;
 }
 
