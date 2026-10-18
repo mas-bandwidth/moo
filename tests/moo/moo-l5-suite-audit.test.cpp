@@ -315,7 +315,8 @@ TEST_CASE("MooL5SkippedCasesNameAReason")
             checkReferences(root, record, reference, failures);
     }
 
-    CHECK_MESSAGE(doctestSkips == 29, "expected 29 doctest skip decorators, found " << doctestSkips);
+    // moo: the exact base has 42 named upstream skips; this card adds eleven Analyzer skips.
+    CHECK_MESSAGE(doctestSkips == 53, "expected 53 doctest skip decorators, found " << doctestSkips);
     CHECK_MESSAGE(earlyReturns == 2, "expected 2 marked early returns, found " << earlyReturns);
     CHECK_MESSAGE(unmarkedIfZero == 11, "expected 11 unmarked upstream #if 0 blocks, found " << unmarkedIfZero);
     for (const std::string& failure : failures)
