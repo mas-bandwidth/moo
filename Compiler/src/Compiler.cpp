@@ -1928,11 +1928,11 @@ struct Compiler
         return Compile::isConstantFalse(constants, node);
     }
 
+    // moo: the float vector is removed; no expression folds to a vector constant (docs/DESIGN.md "vec3, quat and transform").
     bool isConstantVector(AstExpr* node)
     {
-        const Constant* cv = constants.find(node);
-
-        return (cv != nullptr) && (cv->type == Constant::Type_Vectorf || cv->type == Constant::Type_Vectord);
+        (void)node;
+        return false;
     }
 
     bool isConstantInteger(AstExpr* node)
@@ -2082,13 +2082,7 @@ struct Compiler
             cid = bytecode.addConstantInteger(c->valueInteger64);
             break;
 
-        case Constant::Type_Vectorf:
-            cid = bytecode.addConstantVectorf(c->valueVectorf[0], c->valueVectorf[1], c->valueVectorf[2], c->valueVectorf[3]);
-            break;
-
-        case Constant::Type_Vectord:
-            cid = bytecode.addConstantVectord(c->valueVectord[0], c->valueVectord[1], c->valueVectord[2], c->valueVectord[3]);
-            break;
+        // moo: the float vector is removed; the compiler never emits vector constants (docs/DESIGN.md "vec3, quat and transform").
 
         case Constant::Type_String:
             cid = bytecode.addConstantString(sref(c->getString()));
@@ -3139,25 +3133,7 @@ struct Compiler
         }
         break;
 
-        case Constant::Type_Vectorf:
-        {
-            int32_t cid = bytecode.addConstantVectorf(cv->valueVectorf[0], cv->valueVectorf[1], cv->valueVectorf[2], cv->valueVectorf[3]);
-            if (cid < 0)
-                CompileError::raise(node->location, "Exceeded constant limit; simplify the code to compile");
-
-            emitLoadK(target, cid);
-        }
-        break;
-
-        case Constant::Type_Vectord:
-        {
-            int32_t cid = bytecode.addConstantVectord(cv->valueVectord[0], cv->valueVectord[1], cv->valueVectord[2], cv->valueVectord[3]);
-            if (cid < 0)
-                CompileError::raise(node->location, "Exceeded constant limit; simplify the code to compile");
-
-            emitLoadK(target, cid);
-        }
-        break;
+        // moo: the float vector is removed; the compiler never emits vector constants (docs/DESIGN.md "vec3, quat and transform").
 
         case Constant::Type_String:
         {
@@ -6103,24 +6079,14 @@ void setCompileConstantInteger64(CompileConstant* constant, int64_t l)
 
 void setCompileConstantVector(CompileConstant* constant, float x, float y, float z, float w)
 {
-    Compile::Constant* target = reinterpret_cast<Compile::Constant*>(constant);
-
-    target->type = Compile::Constant::Type_Vectorf;
-    target->valueVectorf[0] = x;
-    target->valueVectorf[1] = y;
-    target->valueVectorf[2] = z;
-    target->valueVectorf[3] = w;
+    // moo: the float vector is removed (docs/DESIGN.md "vec3, quat and transform"); leave the constant Type_Unknown.
+    (void)constant, (void)x, (void)y, (void)z, (void)w;
 }
 
 void setCompileConstantVectord(CompileConstant* constant, double x, double y, double z, double w)
 {
-    Compile::Constant* target = reinterpret_cast<Compile::Constant*>(constant);
-
-    target->type = Compile::Constant::Type_Vectord;
-    target->valueVectord[0] = x;
-    target->valueVectord[1] = y;
-    target->valueVectord[2] = z;
-    target->valueVectord[3] = w;
+    // moo: the float vector is removed (docs/DESIGN.md "vec3, quat and transform"); leave the constant Type_Unknown.
+    (void)constant, (void)x, (void)y, (void)z, (void)w;
 }
 
 void setCompileConstantString(CompileConstant* constant, const char* s, size_t l)

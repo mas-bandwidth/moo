@@ -1820,7 +1820,7 @@ RETURN R0 1
 )");
 }
 
-// moo: skipped; it asserts folding moo changed on purpose (builtins, pow, vectors do not fold). See tests/MooCompiler.test.cpp
+// moo: the float vector is removed (DESIGN.md "vec3, quat and transform")
 TEST_CASE("ConstantFoldVectorArith" * doctest::skip())
 {
     CHECK_EQ("\n" + compileFunction("local n = 2; local a, b = vector.create(1, 2, 3), vector.create(2, 4, 8); return a + b", 0, 2), R"(
@@ -1886,7 +1886,7 @@ RETURN R0 1
 )");
 }
 
-// moo: skipped; it asserts folding moo changed on purpose (builtins, pow, vectors do not fold). See tests/MooCompiler.test.cpp
+// moo: the float vector is removed (DESIGN.md "vec3, quat and transform")
 TEST_CASE("ConstantFoldVectorArith4Wide" * doctest::skip())
 {
     CHECK_EQ("\n" + compileFunction("local n = 2; local a, b = vector.create(1, 2, 3, 4), vector.create(2, 4, 8, 1); return a + b", 0, 2), R"(
@@ -1941,7 +1941,7 @@ RETURN R0 1
 )");
 }
 
-// moo: skipped; it asserts folding moo changed on purpose (builtins, pow, vectors do not fold). See tests/MooCompiler.test.cpp
+// moo: the float vector is removed (DESIGN.md "vec3, quat and transform")
 TEST_CASE("ConstantFoldVectorCompare" * doctest::skip())
 {
     ScopedFastFlag luauCompileNoFoldVectorEqW{FFlag::LuauCompileNoFoldVectorEqW, true};
@@ -1974,7 +1974,7 @@ L3: RETURN R0 2
 )");
 }
 
-// moo: skipped; it asserts folding moo changed on purpose (builtins, pow, vectors do not fold). See tests/MooCompiler.test.cpp
+// moo: the float vector is removed (DESIGN.md "vec3, quat and transform")
 TEST_CASE("ConstantFoldVectorComponents" * doctest::skip())
 {
     CHECK_EQ(
@@ -6089,7 +6089,8 @@ RETURN R0 4
 )");
 }
 
-TEST_CASE("VectorFastCall")
+// moo: the float vector is removed (DESIGN.md "vec3, quat and transform")
+TEST_CASE("VectorFastCall" * doctest::skip())
 {
     const char* source = "return Vector3.new(1, 2, 3)";
 
@@ -6111,7 +6112,8 @@ L0: RETURN R0 -1
 )");
 }
 
-TEST_CASE("VectorFastCall3")
+// moo: the float vector is removed (DESIGN.md "vec3, quat and transform")
+TEST_CASE("VectorFastCall3" * doctest::skip())
 {
     const char* source = R"(
 local a, b, c = ...
@@ -6137,7 +6139,7 @@ L0: RETURN R3 -1
 )");
 }
 
-// moo: skipped; it asserts folding moo changed on purpose (builtins, pow, vectors do not fold). See tests/MooCompiler.test.cpp
+// moo: the float vector is removed (DESIGN.md "vec3, quat and transform")
 TEST_CASE("VectorConstants" * doctest::skip())
 {
     CHECK_EQ("\n" + compileFunction("return vector.create(1, 2)", 0, 2, 0), R"(
@@ -6182,7 +6184,7 @@ RETURN R0 1
 )");
 }
 
-// moo: skipped; it asserts folding moo changed on purpose (builtins, pow, vectors do not fold). See tests/MooCompiler.test.cpp
+// moo: the float vector is removed (DESIGN.md "vec3, quat and transform")
 TEST_CASE("VectorConstantFields" * doctest::skip())
 {
     CHECK_EQ("\n" + compileFunction("return vector.one, vector.zero", 0, 2), R"(
@@ -13423,7 +13425,7 @@ RETURN R3 1
     );
 }
 
-// moo: skipped; it asserts folding moo changed on purpose (builtins, pow, vectors do not fold). See tests/MooCompiler.test.cpp
+// moo: the float vector is removed (DESIGN.md "vec3, quat and transform")
 TEST_CASE("VectorOptionsDefault" * doctest::skip())
 {
     Luau::BytecodeBuilder bcb;
@@ -13443,7 +13445,7 @@ RETURN R0 1
     );
 }
 
-// moo: skipped; it asserts folding moo changed on purpose (builtins, pow, vectors do not fold). See tests/MooCompiler.test.cpp
+// moo: the float vector is removed (DESIGN.md "vec3, quat and transform")
 TEST_CASE("VectorOptionsDoubleUnsupported" * doctest::skip())
 {
     // Until flag is enabled, bytecode is the same for vectors of any precision
@@ -13495,7 +13497,7 @@ RETURN R0 1
     CHECK(bytecode1 == bytecode2);
 }
 
-// moo: skipped; it asserts folding moo changed on purpose (builtins, pow, vectors do not fold). See tests/MooCompiler.test.cpp
+// moo: the float vector is removed (DESIGN.md "vec3, quat and transform")
 TEST_CASE("VectorOptionsDouble" * doctest::skip())
 {
     ScopedFastFlag luauCompileEmitVectorDouble{FFlag::LuauCompileEmitVectorDouble, true};
