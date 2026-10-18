@@ -41,11 +41,13 @@ TEST_CASE("MooFoldArithIsFixedPoint")
 
     // 2/3 is fixDiv's truncation, 43690/65536, not the double nearest 2/3
     std::string twothirds = mooCompile0("return 2 / 3");
-    CHECK_MESSAGE(has(twothirds, "0.666656494140625"), twothirds);
+    // moo: the dump prints moo_format.h's shortest round trip of 43690 raw, so "0.66666" (docs/layer3/moo-l3-bytecode-version.md)
+    CHECK_MESSAGE(has(twothirds, "[0.66666]"), twothirds);
 
     // 0.1 + 0.2 is 6554 + 13107 raw units
     std::string tenths = mooCompile0("return 0.1 + 0.2");
-    CHECK_MESSAGE(has(tenths, "0.3000030517578125"), tenths);
+    // moo: shortest round trip of 19661 raw is "0.3"
+    CHECK_MESSAGE(has(tenths, "[0.3]"), tenths);
 
     // division by zero is the run time's named error, never a folded infinity
     CHECK(!has(mooCompile0("return 1 / 0"), "LOADK"));
@@ -73,7 +75,8 @@ TEST_CASE("MooLiteralsAreExactAndInRange")
     CHECK_THROWS_WITH(mooCompile0("return 0x800000000000"), doctest::Contains("Number literal out of range"));
     CHECK_THROWS_WITH(mooCompile0("return 1e300"), doctest::Contains("Number literal out of range"));
     CHECK(has(mooCompile0("return 140737488355327"), "140737488355327"));
-    CHECK(has(mooCompile0("return 0.1"), "0.100006103515625"));
+    // moo: the constant is 6554 raw, which the dump prints by shortest round trip as "0.1"
+    CHECK(has(mooCompile0("return 0.1"), "[0.1]"));
     // half a unit, 2^-17, is a tie: to even, which is 0
     CHECK(has(mooCompile0("return 0.00000762939453125"), "LOADN R0 0"));
 }

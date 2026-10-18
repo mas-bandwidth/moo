@@ -78,6 +78,8 @@ public:
     int32_t addConstantNil();
     int32_t addConstantBoolean(bool value);
     int32_t addConstantNumber(double value);
+    // moo: a number constant given as its raw Q48.16 value (docs/DESIGN.md "Literals"; docs/layer3/moo-l3-bytecode-version.md)
+    int32_t addConstantNumberRaw(int64_t value);
     int32_t addConstantInteger(int64_t value);
     int32_t addConstantVectorf(float x, float y, float z, float w);
     int32_t addConstantVectord(double x, double y, double z, double w);
@@ -200,6 +202,10 @@ public:
     static uint8_t getVersion();
     static uint8_t getTypeEncodingVersion();
 
+    // moo: a double's raw Q48.16 value by the boundary rule (moo_numfromdouble, ties to even), saturating, NaN gives 0
+    // (docs/DESIGN.md "Boundary"); exact for the doubles the compiler holds today
+    static int64_t mooNumberFromDouble(double value);
+
 protected:
     struct Constant
     {
@@ -222,7 +228,7 @@ protected:
         union
         {
             bool valueBoolean;
-            double valueNumber;
+            int64_t valueNumber; // moo: the raw Q48.16 value (docs/DESIGN.md "Literals")
             int64_t valueInteger64;
             float valueVectorf[4];
             double valueVectord[4];
@@ -237,7 +243,7 @@ protected:
     struct ConstantKey
     {
         Constant::Type type;
-        // Note: this stores value* from Constant; when type is Type_Number, this stores the same bits as double does but in uint64_t.
+        // Note: this stores value* from Constant; when type is Type_Number, this stores the raw Q48.16 value in uint64_t (moo).
         // For Type_Vectorf, x and y are stored in 'value' and z and w are stored in 'extra1'.
         // For Type_Vectord, x is stored in 'value', y, z and w are stored in 'extra1/2/3' accordingly.
         uint64_t value;

@@ -90,6 +90,29 @@ const MooOracleOp kMooOracleOps[] = {
 
 const int kMooOracleOpCount = int(sizeof(kMooOracleOps) / sizeof(kMooOracleOps[0]));
 
+// true when release saturates this pair, so a checked build (MOO_OVERFLOW_ERRORS) raises `number overflow in '<op>'`
+// instead (docs/DESIGN.md "Overflow"); unary -, % and the comparisons never saturate
+bool mooOracleSaturates(const MooOracleOp& op, int64_t a, int64_t b)
+{
+    if (strcmp(op.sym, "+") == 0)
+        return moo_numaddsaturates(a, b);
+    if (strcmp(op.sym, "-") == 0)
+        return moo_numsubsaturates(a, b);
+    if (strcmp(op.sym, "*") == 0)
+        return moo_nummulsaturates(a, b);
+    if (strcmp(op.sym, "/") == 0)
+        return moo_numdivsaturates(a, b);
+    if (strcmp(op.sym, "//") == 0)
+        return moo_numidivsaturates(a, b);
+    return false;
+}
+
+// true when this build raises for the pair instead of saturating
+bool mooOracleRaises(const MooOracleOp& op, int64_t a, int64_t b)
+{
+    return MOO_OVERFLOW_ERRORS && mooOracleSaturates(op, a, b);
+}
+
 // PCG32 (O'Neill, pcg32_random_r), with a fixed seed and stream, so every run checks the same pairs
 struct MooOraclePcg32
 {
@@ -282,6 +305,7 @@ struct MooOracleOutcome
         NotRun,
         Value,
         DivisionByZero,
+        Overflow, // `number overflow in '<op>'`, the checked build's error where release saturates
         Wrong, // an error that is not `division by zero`, or a result of the wrong type
     };
 
@@ -295,6 +319,8 @@ struct MooOracleOutcome
             return "-";
         if (state == DivisionByZero)
             return "error(division by zero)";
+        if (state == Overflow)
+            return "error(number overflow)";
         if (state == Wrong)
             return "wrong(" + text + ")";
         return mooOracleHex(value) + " (" + std::to_string(static_cast<long long>(value)) + ")";
@@ -367,7 +393,13 @@ struct MooOracleHarness
         if (lua_pcall(L, nargs, 1, 0) != 0)
         {
             std::string message = lua_isstring(L, -1) ? lua_tostring(L, -1) : "?";
-            out.state = message.find("division by zero") != std::string::npos ? MooOracleOutcome::DivisionByZero : MooOracleOutcome::Wrong;
+            std::string overflow = std::string("number overflow in '") + op.sym + "'";
+            if (message.find("division by zero") != std::string::npos)
+                out.state = MooOracleOutcome::DivisionByZero;
+            else if (message.find(overflow) != std::string::npos)
+                out.state = MooOracleOutcome::Overflow;
+            else
+                out.state = MooOracleOutcome::Wrong;
             out.text = message;
         }
         else
@@ -431,6 +463,9 @@ struct MooOracleHarness
 
         checked += 1;
 
+        // a checked build raises where release saturates; moo_number.h itself (the direct path) still saturates
+        bool raises = !byZero && mooOracleRaises(op, a, b);
+
         bool agree = true;
         for (int p = 0; p < MooPathCount; ++p)
         {
@@ -438,7 +473,8 @@ struct MooOracleHarness
             if (got.state == MooOracleOutcome::NotRun)
                 continue;
             pathRuns[p] += 1;
-            if (got.state != expected.state || (got.state == MooOracleOutcome::Value && got.value != expected.value))
+            MooOracleOutcome::State want = raises && p != MooPathDirect ? MooOracleOutcome::Overflow : expected.state;
+            if (got.state != want || (got.state == MooOracleOutcome::Value && got.value != expected.value))
                 agree = false;
         }
 
@@ -490,6 +526,49 @@ struct MooOracleHarness
         compare(op, a, 0, paths);
     }
 
+    // one pair a checked build raises for (MOO_OVERFLOW_ERRORS): every path but direct runs alone, since each must
+    // raise `number overflow in '<op>'`; the compiler does not fold it, so the fold path raises at run time too
+    void checkOverflow(const MooOracleOp& op, int64_t a, int64_t b)
+    {
+        MooOracleOutcome paths[MooPathCount];
+        paths[MooPathDirect].state = MooOracleOutcome::Value;
+        paths[MooPathDirect].value = op.direct(a, b);
+
+        load("local a, b = ...\nreturn " + expression(op, "a", "b"));
+        lua_pushnumber(L, a);
+        lua_pushnumber(L, b);
+        paths[MooPathVm] = call(op, 2);
+
+        bool exactA = mooOracleLiteralExact(a);
+        bool exactB = mooOracleLiteralExact(b);
+        std::string la = mooOracleLiteral(a);
+        std::string lb = mooOracleLiteral(b);
+        int written = 0;
+        if (exactA && exactB)
+        {
+            load("return " + expression(op, la, lb));
+            paths[MooPathFold] = call(op, 0);
+            written++;
+        }
+        if (exactB)
+        {
+            load("local a = ...\nreturn " + expression(op, "a", lb));
+            lua_pushnumber(L, a);
+            paths[MooPathKRight] = call(op, 1);
+            written++;
+        }
+        if (exactA)
+        {
+            load("local b = ...\nreturn " + expression(op, la, "b"));
+            lua_pushnumber(L, b);
+            paths[MooPathKLeft] = call(op, 1);
+            written++;
+        }
+        literalSkipped += uint64_t(3 - written);
+
+        compare(op, a, b, paths);
+    }
+
     // a batch of pairs of one operator, all paths
     void checkBatch(const MooOracleOp& op, const std::vector<int64_t>& as, const std::vector<int64_t>& bs)
     {
@@ -498,6 +577,8 @@ struct MooOracleHarness
         {
             if (op.kind == MooOracleDivide && bs[i] == 0)
                 checkZero(op, as[i]);
+            else if (mooOracleRaises(op, as[i], bs[i]))
+                checkOverflow(op, as[i], bs[i]);
             else
                 a.push_back(as[i]), b.push_back(bs[i]);
         }

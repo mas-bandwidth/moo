@@ -5,6 +5,8 @@
 #include "Luau/SmallVector.h"
 #include "Luau/StringUtils.h"
 
+#include "moo_format.h" // moo: the raw number constant and its dump
+
 #include <algorithm>
 #include <array>
 
@@ -67,6 +69,14 @@ static void writeFloat(std::string& ss, float value)
 static void writeDouble(std::string& ss, double value)
 {
     ss.append(reinterpret_cast<const char*>(&value), sizeof(value));
+}
+
+// moo: the raw Q48.16 value, 8 bytes little-endian, by integer stores (docs/DESIGN.md "Literals")
+static void writeRawNumber(std::string& ss, int64_t value)
+{
+    uint64_t bits = uint64_t(value);
+    for (int i = 0; i < 8; ++i)
+        writeByte(ss, (unsigned char)(bits >> (8 * i)));
 }
 
 static void writeVarInt(std::string& ss, uint64_t value)
@@ -373,14 +383,35 @@ int32_t BytecodeBuilder::addConstantBoolean(bool value)
 
 int32_t BytecodeBuilder::addConstantNumber(double value)
 {
+    // moo: the compiler's double converts once, by the boundary rule (docs/DESIGN.md "Literals", "Boundary")
+    return addConstantNumberRaw(mooNumberFromDouble(value));
+}
+
+// moo: docs/DESIGN.md "Literals": the compiler stores number constants as the raw int64 in the moo bytecode version
+int32_t BytecodeBuilder::addConstantNumberRaw(int64_t value)
+{
+    LUAU_ASSERT(value >= MOO_NUMBER_MIN && value <= MOO_NUMBER_MAX);
+
     Constant c = {Constant::Type_Number};
     c.valueNumber = value;
 
     ConstantKey k = {Constant::Type_Number};
-    static_assert(sizeof(k.value) == sizeof(value), "Expecting double to be 64-bit");
+    static_assert(sizeof(k.value) == sizeof(value), "Expecting the raw number to be 64-bit");
     memcpy(&k.value, &value, sizeof(value));
 
     return addConstant(k, c);
+}
+
+// moo: docs/DESIGN.md "Boundary": the IEEE bits decoded in integer arithmetic, rounded once, ties to even; saturating
+int64_t BytecodeBuilder::mooNumberFromDouble(double value)
+{
+    int64_t raw = 0;
+    int status = moo_numfromdouble(value, &raw);
+    if (status == 0)
+        return raw;
+    if (status == 1)
+        return 0; // NaN
+    return value < 0 ? MOO_NUMBER_MIN : MOO_NUMBER_MAX;
 }
 
 int32_t BytecodeBuilder::addConstantInteger(int64_t value)
@@ -835,7 +866,9 @@ void BytecodeBuilder::finalize()
     uint8_t version = getVersion();
     LUAU_ASSERT((version >= LBC_VERSION_MIN && version <= LBC_VERSION_MAX) || version == LBC_VERSION_CLASSES);
 
-    bytecode = char(version);
+    // moo: a moo blob starts with the moo version, then the Luau version its format follows (Bytecode.h, "moo bytecode versions")
+    bytecode = char(LBC_MOO_VERSION_FLAG | LBC_MOO_VERSION_TARGET);
+    writeByte(bytecode, version);
 
     uint8_t typesversion = getTypeEncodingVersion();
     LUAU_ASSERT(typesversion >= LBC_TYPE_VERSION_MIN && typesversion <= LBC_TYPE_VERSION_MAX);
@@ -938,7 +971,7 @@ void BytecodeBuilder::writeFunction(std::string& ss, uint32_t id, uint8_t flags,
 
         case Constant::Type_Number:
             writeByte(ss, LBC_CONSTANT_NUMBER);
-            writeDouble(ss, c.valueNumber);
+            writeRawNumber(ss, c.valueNumber); // moo: the raw Q48.16 value, no double
             break;
 
         case Constant::Type_Integer:
@@ -1560,6 +1593,7 @@ std::vector<uint32_t> BytecodeBuilder::expandJumps(bool& hasLongJumpError)
 std::string BytecodeBuilder::getError(const std::string& message)
 {
     // 0 acts as a special marker for error bytecode (it's equal to LBC_VERSION_TARGET for valid bytecode blobs)
+    // moo: a valid moo blob starts with LBC_MOO_VERSION_FLAG | the moo version instead (Bytecode.h, "moo bytecode versions")
     std::string result;
     result += char(0);
     result += message;
@@ -2421,8 +2455,13 @@ void BytecodeBuilder::dumpConstant(std::string& result, int k, bool detailed) co
         formatAppend(result, "%s", data.valueBoolean ? "true" : "false");
         break;
     case Constant::Type_Number:
-        formatAppend(result, "%.17g", data.valueNumber);
+    {
+        // moo: the shortest decimal that reads back to the raw value (moo_format.h, docs/DESIGN.md "Number formatting")
+        char buf[40];
+        char* end = moo_numtostr(buf, data.valueNumber);
+        formatAppend(result, "%.*s", int(end - buf), buf);
         break;
+    }
     case Constant::Type_Integer:
         formatAppend(result, "%lld", (long long)(int64_t)data.valueInteger64);
         break;

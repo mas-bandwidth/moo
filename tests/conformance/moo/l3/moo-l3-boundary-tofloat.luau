@@ -14,8 +14,15 @@ assert(one + step == 1 + step)
 
 local max = moo_test.fromraw("9223372036854775807") -- INT64_MAX, 2^47 - 2^-16
 local min = moo_test.fromraw("-9223372036854775807")
-assert(max + step == max, tostring(max + step)) -- saturates at the top
-assert(min - step == min, tostring(min - step)) -- saturates at the bottom
+-- moo: release saturates at the top and the bottom; a checked build raises the named error instead
+-- (docs/DESIGN.md, "Overflow"; tests/conformance/moo/l3/moo-l3-overflow-errors-debug.luau)
+local function saturates(fn, want, name)
+    local ok, result = pcall(fn)
+    local suffix = "number overflow in '" .. name .. "'"
+    assert((ok and result == want) or (not ok and string.sub(result, -#suffix) == suffix), tostring(result))
+end
+saturates(function() return max + step end, max, "+")
+saturates(function() return min - step end, min, "-")
 assert(max - 1 < max)
 
 return "OK"

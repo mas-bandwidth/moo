@@ -24,6 +24,19 @@
 // the largest and smallest integer value a number holds (2^47 - 1 and its negation)
 #define MOO_NUMBER_INT_MAX (MOO_NUMBER_MAX >> MOO_NUMBER_FRACTION_BITS)
 
+// Checked arithmetic (docs/DESIGN.md, "Overflow"): MOO_OVERFLOW_ERRORS 1 makes the VM raise
+// "number overflow in '<op>'" where release saturates, and keeps the compiler from folding such an
+// operation. Unless the build sets it (CMake MOO_OVERFLOW_ERRORS ON/OFF, make overflow=on/off), it follows
+// assertions exactly as LUAU_ASSERT does (Common/include/Luau/Common.h): on without NDEBUG or with
+// LUAU_ENABLE_ASSERT, off in release.
+#if !defined(MOO_OVERFLOW_ERRORS)
+#if !defined(NDEBUG) || defined(LUAU_ENABLE_ASSERT)
+#define MOO_OVERFLOW_ERRORS 1
+#else
+#define MOO_OVERFLOW_ERRORS 0
+#endif
+#endif
+
 // a + b, exact, saturating (a and b in the domain)
 inline fixed_t moo_numadd(fixed_t a, fixed_t b)
 {
@@ -83,6 +96,59 @@ inline fixed_t moo_nummod(fixed_t a, fixed_t b)
     if (r != 0 && ((r < 0) != (b < 0)))
         r += b;
     return r;
+}
+
+// Saturation tests for checked arithmetic (docs/DESIGN.md, "Overflow"): each is true exactly when the
+// operation above it would saturate, that is when the exact (for * the rounded) result is outside
+// [MOO_NUMBER_MIN, MOO_NUMBER_MAX]. A result equal to MOO_NUMBER_MAX or MOO_NUMBER_MIN that is exact does not
+// saturate. The value is always the release operation's own; these only say whether it was clamped, so a
+// checked build either gives the release value or stops with the named error. Unary - and % are exact on
+// the domain and never saturate, so they have no test. ^ is not checked while it is the libm bridge: a test
+// would be a second double pow in the VM; moo-l4-pow-integer adds it with the integer pow.
+
+// true when moo_numadd(a, b) saturates
+inline bool moo_numaddsaturates(fixed_t a, fixed_t b)
+{
+    return (b > 0 && a > MOO_NUMBER_MAX - b) || (b < 0 && a < MOO_NUMBER_MIN - b);
+}
+
+// true when moo_numsub(a, b) saturates
+inline bool moo_numsubsaturates(fixed_t a, fixed_t b)
+{
+    return (b < 0 && a > MOO_NUMBER_MAX + b) || (b > 0 && a < MOO_NUMBER_MIN + b);
+}
+
+// true when moo_nummul(a, b) saturates: fixMul clamps only to the two edges, so any other result is exact;
+// at an edge, the product rounded as fixMul rounds it (on fixed's own 128-bit seam) decides
+inline bool moo_nummulsaturates(fixed_t a, fixed_t b)
+{
+    fixed_t r = fixMul(a, b);
+    if (r != MOO_NUMBER_MAX && r != MOO_NUMBER_MIN)
+        return false;
+    fixInt128 x = fixInt128Shr(fixInt128Add(fixInt128MulI64(a, b), fixInt128FromI64(FIX_HALF)), FIX_FRACTION_BITS);
+    return fixInt128Gt(x, fixInt128FromI64(MOO_NUMBER_MAX)) || fixInt128Lt(x, fixInt128FromI64(MOO_NUMBER_MIN));
+}
+
+// true when moo_numdiv(a, b) saturates (b != 0; division by zero is its own error): the quotient
+// a * 2^16 / b truncated is outside the domain exactly when |a| >= 2^47 * |b|, that is |a| >> 47 >= |b|
+inline bool moo_numdivsaturates(fixed_t a, fixed_t b)
+{
+    if (b == 0)
+        return false;
+    uint64_t ma = a < 0 ? uint64_t(0) - uint64_t(a) : uint64_t(a);
+    uint64_t mb = b < 0 ? uint64_t(0) - uint64_t(b) : uint64_t(b);
+    return (ma >> 47) >= mb;
+}
+
+// true when moo_numidiv(a, b) saturates (b != 0): the floor of the quotient is beyond the integer range
+inline bool moo_numidivsaturates(fixed_t a, fixed_t b)
+{
+    if (b == 0)
+        return false;
+    int64_t q = a / b;
+    if ((a % b != 0) && ((a < 0) != (b < 0)))
+        q -= 1;
+    return q > MOO_NUMBER_INT_MAX || q < -MOO_NUMBER_INT_MAX;
 }
 
 // true when the value has no fraction bits
