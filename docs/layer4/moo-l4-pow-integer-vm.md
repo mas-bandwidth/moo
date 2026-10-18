@@ -1,20 +1,27 @@
 # moo-l4-pow-integer-vm
 
-Layer 4's integer-exponent `^` in the VM: `luai_numpow` and the `^` opcodes call `moo_pow_int`
+Layer 4's integer-exponent `^` in the VM: `luai_numpow` (`VM/src/lnumutils.h`) calls `moo_pow_int`
 (`Common/include/moo_pow.h`, the design card's function) when the exponent is integer-valued, and a
 fractional exponent stays on the libm bridge until `moo-l4-pow-fractional`. The function is unchanged.
+This card's PATHS is `VM/src/lnumutils.h` only, so it changes just the seam and the tests; the opcode
+callers (`VM/src/lvmexecute.cpp`, `VM/src/lvmutils.cpp`) are unchanged.
 
 ## Decision
 
-No decision of this card's own. It follows `docs/layer4/moo-l4-pow-integer.md`: an exponent is
-integer-valued when `moo_numisinteger(c)` holds, and the integer exponent is `c >> 16`
-(`MOO_NUMBER_FRACTION_BITS`). `moo_pow_int`'s status decides the named errors: `MOO_POW_DIVISION_BY_ZERO`
-raises `division by zero` in every build, and `MOO_POW_SATURATED` raises `number overflow in '^'` under
-`#if MOO_OVERFLOW_ERRORS`; release uses its `*out` for `MOO_POW_OK` and `MOO_POW_SATURATED`.
+No decision of this card's own. It follows `docs/layer4/moo-l4-pow-integer.md`: an exponent is integer-valued
+when `moo_numisinteger(c)` holds, and the integer exponent is `c >> 16` (`MOO_NUMBER_FRACTION_BITS`).
+`moo_numpow` (behind the `luai_numpow` macro) calls `moo_pow_int(a, b >> 16, &r)` and returns `r` — the
+release value for `MOO_POW_OK` and `MOO_POW_SATURATED`, and 0 for `MOO_POW_DIVISION_BY_ZERO` (`0 ^
+negative`).
 
-The design card had not landed on `sprint/moo` at this card's base (`6285e3f6`), so its two commits
-(`29e1432e`, `6178c9f1`) are carried on this branch by cherry-pick; `moo_pow.h` and its note are not
-changed here.
+The design note's named errors — `division by zero` on `MOO_POW_DIVISION_BY_ZERO` in every build, and
+`number overflow in '^'` on `MOO_POW_SATURATED` under `#if MOO_OVERFLOW_ERRORS` — surface in the callers,
+`luaV_doarithimpl<TM_POW>` and the `LOP_POW`/`LOP_POWK` opcodes. Those callers are in `VM/src/lvmutils.cpp`
+and `VM/src/lvmexecute.cpp`, which are outside this card's PATHS; the closing card
+(`moo-l4-conformance`) folds the full picture. This card pins the released bits.
+
+The design card had not landed on `sprint/moo` at this card's original base, so its commits were carried on
+this branch by cherry-pick; `moo_pow.h` and its note are not changed here.
 
 ## What changed
 
@@ -25,27 +32,16 @@ changed here.
     `b` keeps `moo_numbridgefromdouble(pow(...))`, with the TEMPORARY comment narrowed to that case;
   - the checked-arithmetic comment says `^` with an integer exponent is checked through `moo_pow_int`'s
     status.
-- `VM/src/lvmexecute.cpp` `LOP_POW` and `LOP_POWK`: the fast path calls `moo_pow_int` once for an
-  integer-valued exponent. On `MOO_POW_DIVISION_BY_ZERO`, and on `MOO_POW_SATURATED` under
-  `#if MOO_OVERFLOW_ERRORS`, it leaves for `luaV_doarithimpl<TM_POW>`, which raises; otherwise it sets
-  `*out`. A fractional exponent calls `luai_numpow` (the bridge).
-- `VM/src/lvmutils.cpp` `luaV_doarithimpl`: for `TM_POW` with an integer-valued exponent it calls
-  `moo_pow_int` once, raises `division by zero` on its division-by-zero status beside the `/`, `//` and `%`
-  check, and raises `number overflow in '^'` on its saturation status in the existing
-  `#if MOO_OVERFLOW_ERRORS` block. The `TM_POW` case uses the computed value; a fractional exponent uses
-  `luai_numpow`.
 - `tests/moo/moo-l4-pow-integer-vm.test.cpp` (new, suite `moo-l4-pow-integer-vm`):
-  - `MooPowIntVmMatchesMooPowInt`: 2^12 seeded (base, integer exponent) pairs through both the
-    two-operand `^` and the constant-exponent opcode, matched to `moo_pow_int`'s status and bits;
+  - `MooPowIntVmMatchesMooPowInt`: 2^12 seeded (base, integer exponent) pairs through both the two-operand
+    `^` and the constant-exponent opcode, matched bit for bit to `moo_pow_int` (`*out`, which is the release
+    value for OK and SATURATED and 0 for `0 ^ negative`);
   - `MooPowIntVmFractionalBridge`: a fractional exponent still gives the bridge's bits;
-  - `MooPowIntVmZeroToNegativeRaises`: `0 ^ negative` raises `division by zero` on both opcode paths and
-    through a coerced string operand, and `0 ^ 0` and `0 ^ positive` do not.
-- `tests/conformance/moo/l3/moo-l4-pow-integer.luau` (new): pins the note's exact raw values
-  (`2 ^ 12`, `2 ^ 46`, the `2 ^ 47` saturation, `6 ^ -1 = 10923` against `1 / 6 = 10922`,
-  `3 ^ -2 = 7282`, the `1.5 ^ 17` tie to even, negative bases) and the named error.
-- `tests/moo/moo-l3-overflow-errors-debug.test.cpp`: `MooOverflowPowUncheckedBridge` pinned behaviour this
-  card removes, so it becomes `MooOverflowPowInteger`: `2 ^ 47` saturates in release and raises
-  `number overflow in '^'` in a checked build; `2 ^ 46` stays exact. (The design note allows this edit.)
+  - `MooPowIntVmZeroToNegative`: `0 ^ negative` releases 0 on both opcode paths and through a coerced string
+    operand; `0 ^ 0 = 1` and `0 ^ positive = 0`.
+- `tests/conformance/moo/l3/moo-l4-pow-integer.luau` (new): pins the note's exact raw values (`2 ^ 12`,
+  `2 ^ 46`, the `2 ^ 47` saturation, `6 ^ -1 = 10923` against `1 / 6 = 10922`, `3 ^ -2 = 7282`, the
+  `1.5 ^ 17` tie to even, negative bases) and `0 ^ negative` releasing 0.
 
 ## DESIGN.md sentences that must change
 
@@ -75,8 +71,14 @@ changed here.
 
 ## Not done
 
-- `math.pow`, its fastcall and constant folding are the other two pro cards; this card touches only the
-  `^` VM path.
-- `Common/include/moo_number.h:105-107`'s saturation comment still says `^` is not checked; this card's
-  path list does not include that file, so the change waits for the closing card.
-- The design card's commits are carried here because they had not landed on the base.
+- The opcode callers (`VM/src/lvmexecute.cpp` `LOP_POW`/`LOP_POWK` and `VM/src/lvmutils.cpp`
+  `luaV_doarithimpl`), which raise `division by zero` on `0 ^ negative` and, in a checked build,
+  `number overflow in '^'` on saturation, are outside this card's PATHS and are not changed. `0 ^ negative`
+  therefore releases 0 but does not raise on this branch.
+- `tests/moo/moo-l3-overflow-errors-debug.test.cpp`'s `MooOverflowPowUncheckedBridge` (which pins `^` as
+  the unchecked libm bridge) is unchanged; the design note's allowance to replace it waits for the card that
+  moves the error raising into the callers.
+- `math.pow`, its fastcall and constant folding are the other two pro cards; this card touches only the `^`
+  VM seam.
+- `Common/include/moo_number.h`'s saturation comment still says `^` is not checked; that file is outside this
+  card's PATHS, so the change waits for the closing card.
