@@ -6,6 +6,8 @@
 #include "Luau/DenseHash.h"
 #include "Luau/SmallVector.h"
 
+#include "moo_number.h" // moo: a number constant is the raw Q48.16 value
+
 #include <algorithm>
 #include <list>
 #include <optional>
@@ -155,7 +157,7 @@ struct BcVmConst
     union
     {
         bool valueBoolean;
-        double valueNumber;
+        int64_t valueNumber; // moo: the raw Q48.16 value (docs/DESIGN.md "Literals")
         float valueVectorf[4];
         double valueVectord[4];
         std::string_view valueString;
@@ -744,12 +746,19 @@ struct BcFunction
 
 using CompTimeBcFunction = BcFunction<BcVmConst>;
 
-inline BcOp addVmConstNumber(CompTimeBcFunction& func, double value)
+// moo: a number constant given as its raw Q48.16 value (docs/DESIGN.md "Literals")
+inline BcOp addVmConstNumberRaw(CompTimeBcFunction& func, int64_t value)
 {
     BcVmConst constant;
     constant.kind = BcVmConstKind::Number;
     constant.valueNumber = value;
     return func.addConst(constant);
+}
+
+// moo: a double converts once, by the boundary rule (BytecodeBuilder::mooNumberFromDouble, docs/DESIGN.md "Boundary")
+inline BcOp addVmConstNumber(CompTimeBcFunction& func, double value)
+{
+    return addVmConstNumberRaw(func, BytecodeBuilder::mooNumberFromDouble(value));
 }
 
 std::optional<CompTimeBcFunction> fromFunctionBytecode(std::string bytecode, std::vector<std::string_view>& strings);

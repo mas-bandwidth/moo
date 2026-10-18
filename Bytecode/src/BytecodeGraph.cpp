@@ -87,7 +87,14 @@ std::optional<CompTimeBcFunction> fromFunctionBytecode(std::string bytecode, std
         case LBC_CONSTANT_NUMBER:
         {
             fn.constants[i].kind = BcVmConstKind::Number;
-            fn.constants[i].valueNumber = read<double>(data, offset);
+            // moo: the raw Q48.16 value, 8 bytes little-endian (docs/DESIGN.md "Literals"), so a round trip is bit exact
+            uint64_t bits = 0;
+            for (int b = 0; b < 8; ++b)
+                bits |= uint64_t(read<uint8_t>(data, offset)) << (8 * b);
+            fn.constants[i].valueNumber = int64_t(bits);
+            // moo: INT64_MIN is outside the number's domain (docs/DESIGN.md "Layer 3 as built"); the VM refuses it too
+            if (fn.constants[i].valueNumber < MOO_NUMBER_MIN)
+                return std::nullopt;
             break;
         }
 
@@ -365,7 +372,7 @@ std::string toFunctionBytecode(BytecodeBuilder& bcb, CompTimeBcFunction& fn)
             break;
 
         case BcVmConstKind::Number:
-            consts.push_back(bcb.addConstantNumber(c.valueNumber));
+            consts.push_back(bcb.addConstantNumberRaw(c.valueNumber)); // moo: the raw value, bit exact
             break;
 
         case BcVmConstKind::Vectorf:

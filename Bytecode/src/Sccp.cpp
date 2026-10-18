@@ -27,7 +27,9 @@ std::optional<BcOp> BcVmConstImpl::evaluate(const BcOp& lhsOp, const BcOp& rhsOp
         {
             BcVmConst result;
             result.kind = BcVmConstKind::Number;
-            result.valueNumber = *resultOpt;
+            // moo: TEMPORARY until moo-l3-bytecode-graph-fixed folds on the raw value: Sccp folds doubles, so the result
+            // converts once by the boundary rule (docs/layer3/moo-l3-bytecode-version.md)
+            result.valueNumber = BytecodeBuilder::mooNumberFromDouble(*resultOpt);
             return findOrAddConst(func, result);
         }
 
@@ -230,7 +232,8 @@ double BcVmConstImpl::asNumber(const BcOp& op) const
     {
         BcVmConst& vmConst = func.constOp(op);
         LUAU_ASSERT(vmConst.kind == BcVmConstKind::Number && "use isNumber first");
-        return vmConst.valueNumber;
+        // moo: TEMPORARY until moo-l3-bytecode-graph-fixed: the raw value as the double Sccp folds on
+        return moo_numbridgetodouble(vmConst.valueNumber);
     }
 
     LUAU_ASSERT(!"unsupported type, use isNumber first");
