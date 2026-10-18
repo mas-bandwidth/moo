@@ -5,6 +5,7 @@
 #include "moo_number.h"
 #include "moo_format.h"
 #include "moo_parse.h"
+#include "moo_pow.h"
 
 #include <math.h>
 #include <cstdint>
@@ -16,16 +17,30 @@
 #define luai_numsub(a, b) moo_numsub(a, b)
 #define luai_nummul(a, b) moo_nummul(a, b)
 #define luai_numdiv(a, b) moo_numdiv(a, b)
-// TEMPORARY BRIDGE until pow is rebuilt on fixed (docs/DESIGN.md, "pow and ^"): libm pow on doubles
-#define luai_numpow(a, b) moo_numbridgefromdouble(pow(moo_numbridgetodouble(a), moo_numbridgetodouble(b)))
+// moo: an integer-valued exponent is moo_pow_int, exact and rounded once (docs/DESIGN.md, "math
+// library", "pow and ^"); its callers raise its statuses. *out is the release value for OK and SATURATED,
+// and 0 for division by zero (0 ^ negative).
+inline fixed_t moo_numpow(fixed_t a, fixed_t b)
+{
+    if (moo_numisinteger(b))
+    {
+        fixed_t r = 0;
+        (void)moo_pow_int(a, b >> MOO_NUMBER_FRACTION_BITS, &r);
+        return r;
+    }
+    // TEMPORARY BRIDGE for a fractional exponent until pow is rebuilt on fixed (docs/DESIGN.md, "pow and
+    // ^"): libm pow on doubles
+    return moo_numbridgefromdouble(pow(moo_numbridgetodouble(a), moo_numbridgetodouble(b)));
+}
+#define luai_numpow(a, b) moo_numpow(a, b)
 #define luai_numunm(a) moo_numunm(a)
 
 // moo: checked arithmetic (docs/DESIGN.md, "Overflow"). With MOO_OVERFLOW_ERRORS (moo_number.h) a number
 // operation that would saturate leaves the VM's fast path (luai_numnosat is false), and luaV_doarithimpl
 // raises "number overflow in '<op>'" at the operation's own error site, as it raises "division by zero".
 // In release luai_numnosat is (true) without evaluating its operands, so the fast path is what it was.
-// Unary - and % never saturate on the domain, so they have no check; ^ (the libm bridge) is unchecked until
-// it is rebuilt on fixed (moo-l4-pow-integer), since a check would be a second double pow in the VM.
+// Unary - and % never saturate on the domain, so they have no check; ^ with an integer exponent is checked
+// through moo_pow_int's status (Common/include/moo_pow.h) in luaV_doarithimpl and the ^ opcodes.
 #if MOO_OVERFLOW_ERRORS
 #define luai_numaddsat(a, b) moo_numaddsaturates(a, b)
 #define luai_numsubsat(a, b) moo_numsubsaturates(a, b)
