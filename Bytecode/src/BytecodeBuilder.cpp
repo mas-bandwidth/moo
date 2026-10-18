@@ -5,7 +5,7 @@
 #include "Luau/SmallVector.h"
 #include "Luau/StringUtils.h"
 
-#include "moo_format.h"
+#include "moo_format.h" // moo: the raw number constant and its dump
 
 #include <algorithm>
 #include <array>
@@ -1593,6 +1593,7 @@ std::vector<uint32_t> BytecodeBuilder::expandJumps(bool& hasLongJumpError)
 std::string BytecodeBuilder::getError(const std::string& message)
 {
     // 0 acts as a special marker for error bytecode (it's equal to LBC_VERSION_TARGET for valid bytecode blobs)
+    // moo: a valid moo blob starts with LBC_MOO_VERSION_FLAG | the moo version instead (Bytecode.h, "moo bytecode versions")
     std::string result;
     result += char(0);
     result += message;

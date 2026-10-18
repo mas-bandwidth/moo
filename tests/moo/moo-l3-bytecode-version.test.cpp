@@ -10,6 +10,7 @@
 #include "Luau/Bytecode.h"
 #include "Luau/BytecodeBuilder.h"
 #include "Luau/BytecodeGraph.h"
+#include "Luau/BytecodeDump.h"
 
 #include "doctest.h"
 #include "MooHost.h"
@@ -146,7 +147,8 @@ std::vector<int64_t> seededRawValues()
         int64_t v = int64_t(bits >> shift);
         if (v == INT64_MIN)
             continue;
-        values.push_back(v);
+        // every magnitude scale in both halves of the domain
+        values.push_back((nextRandom(state) & 1) ? -v : v);
     }
     return values;
 }
@@ -317,15 +319,99 @@ TEST_CASE("MooBytecodeDoubleConstantsConvertByTheBoundaryRule")
     CHECK(BytecodeBuilder::mooNumberFromDouble(-std::numeric_limits<double>::infinity()) == -INT64_MAX);
     CHECK(BytecodeBuilder::mooNumberFromDouble(std::numeric_limits<double>::quiet_NaN()) == 0);
 
-    // the same rule as the C API boundary, on the seeded doubles the old loader rounded
+    // exactly the old load-time bridge (moo_numbridgefromdouble), so the compiler's output values are unchanged: seeded
+    // IEEE bit patterns of both signs, every exponent from the subnormals past 2^47, and the ties and edges by name
+    std::vector<double> doubles = {0.0, -0.0, 140737488355328.0, -140737488355328.0, 140737488355327.99998474121,
+        -140737488355327.99998474121, 1.0 / 131072.0, -1.0 / 131072.0, 3.0 / 131072.0, -3.0 / 131072.0, 5e-324, -5e-324};
     uint64_t state = 1000;
-    for (int i = 0; i < 4096; ++i)
+    while (doubles.size() < 8192)
     {
-        double d = double(int64_t(nextRandom(state) >> 20)) / 65536.0 / double(1 + (i % 7));
-        int64_t viaApi = 0;
-        REQUIRE(moo_fromdouble(d, &viaApi) == MOO_NUMBER_OK);
-        CHECK(BytecodeBuilder::mooNumberFromDouble(d) == viaApi);
+        uint64_t mantissa = nextRandom(state) & ((uint64_t(1) << 52) - 1);
+        uint64_t exponent = 1023 - 40 + nextRandom(state) % 100; // 2^-40 .. 2^59
+        if (nextRandom(state) % 8 == 0)
+            mantissa &= ~((uint64_t(1) << 36) - 1); // short mantissas: exact values and ties
+        uint64_t bits = (uint64_t(nextRandom(state) & 1) << 63) | (exponent << 52) | mantissa;
+        double d;
+        memcpy(&d, &bits, sizeof(d));
+        doubles.push_back(d);
     }
+    for (double d : doubles)
+        CHECK_MESSAGE(BytecodeBuilder::mooNumberFromDouble(d) == moo_numbridgefromdouble(d), "double " << d);
+}
+
+// Bytecode.h "moo bytecode versions": a blob that ends after the moo version byte is refused by name, not read past.
+TEST_CASE("MooBytecodeRefusesTruncatedHeader")
+{
+    lua_State* L = luaL_newstate();
+    REQUIRE(L != nullptr);
+
+    std::string blob(1, char(LBC_MOO_VERSION_FLAG | LBC_MOO_VERSION_TARGET));
+    CHECK(loadAndRun(L, blob) == "moo: moo bytecode is truncated");
+
+    lua_close(L);
+}
+
+// A refusal in a later proto, after an earlier proto finished loading, leaves the VM consistent through a full GC.
+TEST_CASE("MooBytecodeRefusalMidChunkIsGcSafe")
+{
+    lua_State* L = luaL_newstate();
+    REQUIRE(L != nullptr);
+    luaL_openlibs(L);
+
+    // two protos: proto 0 is valid, proto 1 carries an integer constant
+    std::string body = luauV9Body(numberConstant(98304));
+    std::string proto = body.substr(5, body.size() - 6); // the one proto, without the header and the main id
+    std::string intConstant;
+    intConstant += char(LBC_CONSTANT_INTEGER);
+    intConstant += char(0);
+    intConstant += char(5);
+    std::string badBody = luauV9Body(intConstant);
+    std::string badProto = badBody.substr(5, badBody.size() - 6);
+
+    std::string blob = mooBlob(body.substr(0, 4) + char(2) + proto + badProto + char(0));
+    CHECK(loadAndRun(L, blob) == "moo: moo bytecode has no integer constant");
+
+    lua_gc(L, LUA_GCCOLLECT, 0);
+    CHECK(mooRun(L, "return 1 + 1") == "2");
+
+    lua_close(L);
+}
+
+// docs/DESIGN.md "Number formatting": the dump prints a fractional constant as the shortest decimal that reads back.
+TEST_CASE("MooBytecodeDumpPrintsShortest")
+{
+    Luau::BytecodeBuilder bcb;
+    bcb.setDumpFlags(Luau::BytecodeBuilder::Dump_Code);
+    uint32_t fid = bcb.beginFunction(0);
+    bcb.emitAD(LOP_LOADK, 0, int16_t(bcb.addConstantNumberRaw(6554)));
+    bcb.emitAD(LOP_LOADK, 1, int16_t(bcb.addConstantNumberRaw(-INT64_MAX)));
+    bcb.emitABC(LOP_RETURN, 0, 3, 0);
+    bcb.endFunction(2, 0);
+    bcb.setMainFunction(fid);
+    bcb.finalize();
+    std::string dump = bcb.dumpFunction(fid);
+    CHECK_MESSAGE(dump.find("LOADK R0 K0 [0.1]") != std::string::npos, dump);
+    CHECK_MESSAGE(dump.find("LOADK R1 K1 [-140737488355327.99998]") != std::string::npos, dump);
+
+    // the graph tool's dump prints the same way
+    std::vector<std::string_view> strings;
+    std::optional<Luau::Bytecode::CompTimeBcFunction> fn = Luau::Bytecode::fromFunctionBytecode(bcb.getFunctionData(fid), strings);
+    REQUIRE(fn);
+    std::string graphDump = Luau::Bytecode::toString(*fn, true);
+    CHECK_MESSAGE(graphDump.find("(0.1)") != std::string::npos, graphDump);
+}
+
+// The graph reader refuses INT64_MIN, outside the domain, as the VM does.
+TEST_CASE("MooBytecodeGraphRefusesNumberOutsideTheDomain")
+{
+    std::string data;
+    builtBlob(1, &data);
+    size_t at = data.find(numberConstant(1));
+    REQUIRE(at != std::string::npos);
+    std::string bad = data.substr(0, at) + numberConstant(INT64_MIN) + data.substr(at + 9);
+
+    std::vector<std::string_view> strings;
+    CHECK(!Luau::Bytecode::fromFunctionBytecode(bad, strings));
 }
 
 TEST_SUITE_END();

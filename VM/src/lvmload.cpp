@@ -354,7 +354,15 @@ static int loadsafe(
         return 1;
     }
 
-    // moo: the Luau version whose format the rest of the moo blob follows
+    // moo: the Luau version whose format the rest of the moo blob follows; a blob that ends here is refused by name
+    if (offset >= size)
+    {
+        char chunkbuf[LUA_IDSIZE];
+        const char* chunkid = luaO_chunkid(chunkbuf, sizeof(chunkbuf), chunkname, strlen(chunkname));
+        lua_pushfstring(L, "%s: moo bytecode is truncated", chunkid);
+        return 1;
+    }
+
     version = read<uint8_t>(data, size, offset);
 
     if ((version < LBC_VERSION_MIN || version > LBC_VERSION_MAX) && version != LBC_VERSION_CLASSES)

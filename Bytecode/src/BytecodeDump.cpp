@@ -1,7 +1,7 @@
 // This file is part of the Luau programming language and is licensed under MIT License; see LICENSE.txt for details
 #include "Luau/BytecodeDump.h"
 
-#include "moo_format.h"
+#include "moo_format.h" // moo: the raw number constant prints by moo's formatter
 
 namespace Luau
 {

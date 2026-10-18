@@ -38,7 +38,8 @@ error blob: [0] [message]                                  (unchanged)
   refused. Version N would then fail the Luau format check on the next byte, which is below 3. So such a blob is
   refused, though not by the "Luau bytecode" name. Luau is at version 14.
 
-An unknown moo version is the error `moo bytecode version mismatch (expected [1..1], got N)`. A moo blob whose second
+An unknown moo version is the error `moo bytecode version mismatch (expected [1..1], got N)`. A blob that ends after
+the moo byte is `moo bytecode is truncated`. A moo blob whose second
 byte is not a supported Luau format keeps Luau's own `bytecode version mismatch` error.
 
 ## Decision 2: the number constant is 8 bytes of raw Q48.16, little-endian
@@ -47,7 +48,8 @@ byte is not a supported Luau format keeps Luau's own `bytecode version mismatch`
 (`writeRawNumber`, BytecodeBuilder.cpp) uses shifts and integer stores, with no double and no `memcpy` of host
 order. Both readers assemble the same bytes with shifts. The domain is `[-INT64_MAX, INT64_MAX]`. A blob that
 carries `INT64_MIN` is refused by name, `moo bytecode number constant out of range`, so the VM never holds a value
-outside the domain.
+outside the domain. The graph reader (`fromFunctionBytecode`) also refuses it, returning no graph, so the
+moo-bytecode tool never writes an out-of-domain constant.
 
 ## Decision 3: moo bytecode has no integer constant
 
@@ -93,7 +95,15 @@ compiles but does not load (see "Not done").
 - `MooBytecodeGraphRoundTripIsRaw`: the same 4096 values go through `fromFunctionBytecode` and `toFunctionBytecode`;
   the value and the function bytes come back identical.
 - `MooBytecodeDoubleConstantsConvertByTheBoundaryRule`: `addConstantNumber(double)` uses the boundary rule. This
-  covers ties to even, saturation, infinity, NaN and -0, and 4096 seeded doubles checked against `moo_fromdouble`.
+  covers ties to even, saturation, infinity, NaN and -0. Over 8192 seeded IEEE bit patterns of both signs, with
+  exponents from 2^-40 to 2^59 plus the edges by name, it gives exactly the value of the old load-time bridge
+  (`moo_numbridgefromdouble`).
+- `MooBytecodeRefusesTruncatedHeader`: a one-byte moo blob is refused by name.
+- `MooBytecodeRefusalMidChunkIsGcSafe`: proto 0 loads, then proto 1 is refused for its integer constant. A full GC
+  follows, and the VM still runs.
+- `MooBytecodeDumpPrintsShortest`: the builder dump prints `[0.1]` and `[-140737488355327.99998]`, and the graph dump
+  prints `(0.1)`.
+- `MooBytecodeGraphRefusesNumberOutsideTheDomain`: the graph reader refuses `INT64_MIN`.
 
 `tests/conformance/moo/l3/moo-l3-bytecode-version.luau` (MooL3Scripts) checks that, at optimization levels 0, 1 and
 2, the compiler's blob starts with `0x81` and a 7-bit Luau version. It checks that `0.1`, `-1.5` and `2^37 + 0.5` load
@@ -131,11 +141,21 @@ DETERMINISM.md 19, **Fix**: append "Built in layer 3 (`moo-l3-bytecode-version`)
 
 ## Comments outside PATHS that now describe the old state
 
+`BytecodeBuilder::getError` keeps upstream's comment ("equal to LBC_VERSION_TARGET for valid bytecode blobs"). A
+`moo:` line now follows it. `BytecodeBuilder::mooNumberFromDouble` belongs in `Common/include/moo_number.h`, beside
+`moo_numfromdouble` (DESIGN.md "Upstream merges"), but that file is outside PATHS. Move it when moo_number.h is next
+in a card's PATHS.
+
 `Ast/src/Parser.cpp:4005`, `Compiler/src/ConstantFolding.cpp:26` and `tests/MooHost.h` (the `moo_test.load` comment:
 "bytecode number constants are rounded at load") still describe the bridge. Their own cards, or moo-l3-conformance,
 should update them.
 
 ## Not done: test cases outside PATHS that break (PATHS-PROPOSED)
+
+BASE has since moved to `d4b5c1d6`, and Moo.Test is red there on its own:
+`tests/moo/moo-l5-suite-audit.test.cpp:347` `MooL5MovedScriptsNameAReason` expects 19 moved scripts and finds 21.
+This card's new l3 script makes the count 22. The fix is to that audit's count, or to its idea of "moved", and is
+owned by moo-l5-suite-audit.
 
 Each was green at BASE `1fcc79e5`. Each breaks only because of this card's required change, and each needs an edit
 outside PATHS:
