@@ -233,3 +233,80 @@ inline int moo_numfromdouble(double x, int64_t* out)
     *out = negative ? -int64_t(magnitude) : int64_t(magnitude);
     return 0;
 }
+
+// the IEEE-754 binary32 bits nearest the exact value raw / 2^16, ties to even, in integer arithmetic
+// (docs/DESIGN.md, "Boundary"): the boundary rule going out of the VM, and buffer.writef32 and
+// string.pack's float encoding. Every Q48.16 value is a finite normal binary32, so there is no
+// subnormal, infinity or overflow case. raw = 0 gives +0.0's bits.
+inline uint32_t moo_numtofloatbits(fixed_t raw)
+{
+    if (raw == 0)
+        return 0;
+
+    uint32_t sign = raw < 0 ? 0x80000000u : 0u;
+    uint64_t m = raw < 0 ? uint64_t(0) - uint64_t(raw) : uint64_t(raw);
+
+    int b = 0;
+    for (uint64_t x = m; x; x >>= 1)
+        b += 1;
+    int E = b - 17; // value = m * 2^-16 = significand * 2^E, significand in [1, 2)
+
+    uint64_t M24;
+    if (b <= 24)
+        M24 = m << (24 - b);
+    else
+    {
+        int shift = b - 24;
+        M24 = m >> shift;
+        uint64_t rest = m & ((uint64_t(1) << shift) - 1);
+        uint64_t half = uint64_t(1) << (shift - 1);
+        if (rest > half || (rest == half && (M24 & 1)))
+            M24 += 1;
+    }
+
+    if (M24 == (uint64_t(1) << 24)) // rounded up to 2.0
+    {
+        M24 = uint64_t(1) << 23;
+        E += 1;
+    }
+
+    return sign | uint32_t(E + 127) << 23 | uint32_t(M24 - (uint64_t(1) << 23));
+}
+
+// the IEEE-754 binary64 bits nearest the exact value raw / 2^16, ties to even, in integer arithmetic
+// (docs/DESIGN.md, "Boundary"): moo_todouble's one rule. Every Q48.16 value is a finite normal
+// binary64, so there is no subnormal, infinity or overflow case. raw = 0 gives +0.0's bits.
+inline uint64_t moo_numtodoublebits(fixed_t raw)
+{
+    if (raw == 0)
+        return 0;
+
+    uint64_t sign = raw < 0 ? 0x8000000000000000ull : 0ull;
+    uint64_t m = raw < 0 ? uint64_t(0) - uint64_t(raw) : uint64_t(raw);
+
+    int b = 0;
+    for (uint64_t x = m; x; x >>= 1)
+        b += 1;
+    int E = b - 17; // value = m * 2^-16 = significand * 2^E, significand in [1, 2)
+
+    uint64_t M53;
+    if (b <= 53)
+        M53 = m << (53 - b);
+    else
+    {
+        int shift = b - 53;
+        M53 = m >> shift;
+        uint64_t rest = m & ((uint64_t(1) << shift) - 1);
+        uint64_t half = uint64_t(1) << (shift - 1);
+        if (rest > half || (rest == half && (M53 & 1)))
+            M53 += 1;
+    }
+
+    if (M53 == (uint64_t(1) << 53)) // rounded up to 2.0
+    {
+        M53 = uint64_t(1) << 52;
+        E += 1;
+    }
+
+    return sign | uint64_t(E + 1023) << 52 | (M53 - (uint64_t(1) << 52));
+}
