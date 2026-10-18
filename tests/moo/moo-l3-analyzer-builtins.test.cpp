@@ -26,16 +26,14 @@ TEST_CASE("OsAndIntegerAreNotGlobals")
     lua_close(L);
 }
 
-// DESIGN.md "Analyzer": the vector type and library are dropped from the analyzer together with
-// os and integer. The VM still exposes luaopen_vector at this base; the analyzer check is the
-// build/moo-analyze gate, and this case records the VM side so the two are not confused.
-TEST_CASE("VectorIsStillAVmGlobal")
+// DESIGN.md "Analyzer": both analyzer and VM omit the vector global after moo-l3-libs-out.
+TEST_CASE("VectorIsNotAVmGlobal")
 {
     lua_State* L = luaL_newstate();
     REQUIRE(L != nullptr);
     luaL_openlibs(L);
 
-    CHECK(mooRun(L, "return type(rawget(_G, 'vector'))") == "table");
+    CHECK(mooRun(L, "return rawget(_G, 'vector') == nil") == "true");
 
     lua_close(L);
 }
