@@ -9,6 +9,8 @@
 #include "Luau/StringUtils.h"
 #include "Luau/TimeTrace.h"
 
+#include "moo_number.h"
+
 #include "Builtins.h"
 #include "ConstantFolding.h"
 #include "CostModel.h"
@@ -1445,13 +1447,13 @@ struct Compiler
             Constant fc = getConstant(expr->args.data[1]);
             Constant wc = getConstant(expr->args.data[2]);
 
-            int fi = fc.type == Constant::Type_Number ? int(fc.valueNumber) : -1;
-            int wi = wc.type == Constant::Type_Number ? int(wc.valueNumber) : -1;
+            int fi = fc.type == Constant::Type_Number ? int(moo_numtrunc(fc.valueNumber)) : -1;
+            int wi = wc.type == Constant::Type_Number ? int(moo_numtrunc(wc.valueNumber)) : -1;
 
             if (fi >= 0 && wi > 0 && fi + wi <= 32)
             {
                 int fwp = fi | ((wi - 1) << 5);
-                int32_t cid = bytecode.addConstantNumber(fwp);
+                int32_t cid = bytecode.addConstantNumberRaw(moo_numfromint(fwp));
                 if (cid < 0)
                     CompileError::raise(expr->location, "Exceeded constant limit; simplify the code to compile");
 
@@ -2045,7 +2047,7 @@ struct Compiler
 
         if (c && c->type == Constant::Type_Number)
         {
-            int cid = bytecode.addConstantNumber(c->valueNumber);
+            int cid = bytecode.addConstantNumberRaw(c->valueNumber);
             if (cid < 0)
                 CompileError::raise(node->location, "Exceeded constant limit; simplify the code to compile");
 
@@ -2075,7 +2077,7 @@ struct Compiler
             break;
 
         case Constant::Type_Number:
-            cid = bytecode.addConstantNumber(c->valueNumber);
+            cid = bytecode.addConstantNumberRaw(c->valueNumber);
             break;
 
         case Constant::Type_Integer:
@@ -2720,7 +2722,7 @@ struct Compiler
 
                 const Constant* ckey = constants.find(item.key);
 
-                indexSize += (ckey && ckey->type == Constant::Type_Number && ckey->valueNumber == double(indexSize + 1));
+                indexSize += (ckey && ckey->type == Constant::Type_Number && ckey->valueNumber == moo_numfromint(int64_t(indexSize + 1)));
             }
 
             // we only perform the optimization if we don't have any other []-keys
@@ -2995,9 +2997,10 @@ struct Compiler
 
         Constant cv = getConstant(expr->index);
 
-        if (cv.type == Constant::Type_Number && cv.valueNumber >= 1 && cv.valueNumber <= 256 && double(int(cv.valueNumber)) == cv.valueNumber)
+        if (cv.type == Constant::Type_Number && moo_numisinteger(cv.valueNumber) && moo_numtrunc(cv.valueNumber) >= 1 &&
+            moo_numtrunc(cv.valueNumber) <= 256)
         {
-            uint8_t i = uint8_t(int(cv.valueNumber) - 1);
+            uint8_t i = uint8_t(moo_numtrunc(cv.valueNumber) - 1);
 
             uint8_t rt = compileExprAuto(expr->expr, rs);
 
@@ -3101,18 +3104,20 @@ struct Compiler
 
         case Constant::Type_Number:
         {
-            double d = cv->valueNumber;
+            fixed_t v = cv->valueNumber;
 
-            if (d >= std::numeric_limits<int16_t>::min() && d <= std::numeric_limits<int16_t>::max() && double(int16_t(d)) == d &&
-                !(d == 0.0 && signbit(d)))
+            // short number encoding: an integer-valued raw that fits the integer range loads directly with LOADN
+            // (the VM scales the immediate by 2^16, moo_numfromint)
+            int64_t i = 0;
+            if (moo_numisinteger(v) && (i = moo_numtrunc(v)) >= std::numeric_limits<int16_t>::min() &&
+                i <= std::numeric_limits<int16_t>::max())
             {
-                // short number encoding: doesn't require a table entry lookup
-                bytecode.emitAD(LOP_LOADN, target, int16_t(d));
+                bytecode.emitAD(LOP_LOADN, target, int16_t(i));
             }
             else
             {
-                // long number encoding: use generic constant path
-                int32_t cid = bytecode.addConstantNumber(d);
+                // long number encoding: the raw Q48.16 value travels verbatim (docs/DESIGN.md "Layer 3 as built", "The compiler")
+                int32_t cid = bytecode.addConstantNumberRaw(v);
                 if (cid < 0)
                     CompileError::raise(node->location, "Exceeded constant limit; simplify the code to compile");
 
@@ -3180,7 +3185,13 @@ struct Compiler
         }
         else if (AstExprConstantNumber* expr = node->as<AstExprConstantNumber>())
         {
-            int32_t cid = bytecode.addConstantNumber(expr->value);
+            // moo: the AST still hands the compiler a double; convert it once by the boundary rule (docs/DESIGN.md
+            // "Literals"); the next card (moo-l3-ast-raw-literals) removes it. LUAU_ASSERT discards its argument in
+            // release, so the conversion runs here, outside the assert.
+            int64_t raw = 0;
+            int status = moo_numfromdouble(expr->value, &raw);
+            LUAU_ASSERT(status == 0);
+            int32_t cid = bytecode.addConstantNumberRaw(raw);
             if (cid < 0)
                 CompileError::raise(expr->location, "Exceeded constant limit; simplify the code to compile");
 
@@ -3475,11 +3486,12 @@ struct Compiler
     {
         Constant cv = getConstant(index);
 
-        if (cv.type == Constant::Type_Number && cv.valueNumber >= 1 && cv.valueNumber <= 256 && double(int(cv.valueNumber)) == cv.valueNumber)
+        if (cv.type == Constant::Type_Number && moo_numisinteger(cv.valueNumber) && moo_numtrunc(cv.valueNumber) >= 1 &&
+            moo_numtrunc(cv.valueNumber) <= 256)
         {
             LValue result = {LValue::Kind_IndexNumber};
             result.reg = reg;
-            result.number = uint8_t(int(cv.valueNumber) - 1);
+            result.number = uint8_t(moo_numtrunc(cv.valueNumber) - 1);
             result.location = index->location;
 
             return result;
@@ -4212,15 +4224,18 @@ struct Compiler
     bool tryCompileUnrolledFor(AstStatFor* stat, int thresholdBase, int thresholdMaxBoost)
     {
         Constant one = {Constant::Type_Number};
-        one.valueNumber = 1.0;
+        one.valueNumber = moo_numfromint(1);
 
         Constant fromc = getConstant(stat->from);
         Constant toc = getConstant(stat->to);
         Constant stepc = stat->step ? getConstant(stat->step) : one;
 
-        int tripCount = (fromc.type == Constant::Type_Number && toc.type == Constant::Type_Number && stepc.type == Constant::Type_Number)
-                            ? getTripCount(fromc.valueNumber, toc.valueNumber, stepc.valueNumber)
-                            : -1;
+        int tripCount =
+            (fromc.type == Constant::Type_Number && toc.type == Constant::Type_Number && stepc.type == Constant::Type_Number)
+                ? getTripCount(
+                      moo_numbridgetodouble(fromc.valueNumber), moo_numbridgetodouble(toc.valueNumber), moo_numbridgetodouble(stepc.valueNumber)
+                  )
+                : -1;
 
         if (tripCount < 0)
         {
@@ -4267,7 +4282,7 @@ struct Compiler
 
         bytecode.addDebugRemark("loop unroll succeeded (iterations %d, cost %d, profit %.2fx)", tripCount, unrolledCost, double(unrollProfit) / 100);
 
-        compileUnrolledFor(stat, tripCount, fromc.valueNumber, stepc.valueNumber);
+        compileUnrolledFor(stat, tripCount, moo_numbridgetodouble(fromc.valueNumber), moo_numbridgetodouble(stepc.valueNumber));
         return true;
     }
 
@@ -4288,7 +4303,7 @@ struct Compiler
         {
             // we need to re-fold constants in the loop body with the new value; this reuses computed constant values elsewhere in the tree
             locstants[var].type = Constant::Type_Number;
-            locstants[var].valueNumber = from + iv * step;
+            locstants[var].valueNumber = moo_numbridgefromdouble(from + iv * step);
 
             if (iv == 0)
                 foldConstants(
@@ -6065,8 +6080,9 @@ void setCompileConstantNumber(CompileConstant* constant, double n)
 {
     Compile::Constant* target = reinterpret_cast<Compile::Constant*>(constant);
 
+    // moo: the constant is the raw Q48.16 value; a host double converts once by the bridge (docs/DESIGN.md "Boundary")
     target->type = Compile::Constant::Type_Number;
-    target->valueNumber = n;
+    target->valueNumber = moo_numbridgefromdouble(n);
 }
 
 void setCompileConstantInteger64(CompileConstant* constant, int64_t l)

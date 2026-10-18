@@ -3,6 +3,8 @@
 
 #include "Luau/Compiler.h"
 
+#include "moo_number.h"
+
 #include "ValueTracking.h"
 
 #include <vector>
@@ -32,7 +34,7 @@ struct Constant
     union
     {
         bool valueBoolean;
-        double valueNumber;
+        fixed_t valueNumber; // moo: the raw Q48.16 value (docs/DESIGN.md "Layer 3 as built", "The compiler")
         int64_t valueInteger64;
         size_t valueTable;                 // index pointing to constant table entry with table's constant properties
         const char* valueString = nullptr; // length stored in stringLength

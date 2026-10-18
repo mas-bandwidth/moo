@@ -444,8 +444,11 @@ static int luauF_sqrt(lua_State* L, StkId res, TValue* arg0, int nresults, StkId
 {
     if (nparams >= 1 && nresults <= 1 && ttisnumber(arg0))
     {
-        double a1 = moo_numbridgetodouble(nvalue(arg0));
-        setnvalue(res, moo_numbridgefromdouble(sqrt(a1)));
+        // moo: sqrt on fixed's fixSqrt (docs/DESIGN.md, "math library"); negative falls back so math.sqrt raises the named error
+        lua_Number a1 = nvalue(arg0);
+        if (a1 < 0)
+            return -1;
+        setnvalue(res, fixSqrt(a1));
         return 1;
     }
 

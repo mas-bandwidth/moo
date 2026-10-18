@@ -11,7 +11,9 @@ local ignore =
 	-- what follows is a set of mismatches that hopefully eventually will go down to 0
 	"_G.require", -- need to move to Roblox type defs
 
-	-- moo: both analyzer and luaL_openlibs omit vector after moo-l3-libs-out (docs/DESIGN.md, "Layer 3 as built").
+	-- moo: the analyzer's definitions drop vector (docs/DESIGN.md "Analyzer"), but the VM still
+	-- exposes the vector library at this base, so ignore it until the VM removal lands.
+	"_G.vector",
 }
 
 function verify(real, rtti, path)
