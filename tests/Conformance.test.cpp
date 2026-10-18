@@ -4656,7 +4656,8 @@ TEST_CASE("Native")
     );
 }
 
-TEST_CASE("NativeIntegerSpills")
+// moo: skipped; its integer constant is now refused by the loader by name, "moo bytecode has no integer constant" (docs/DESIGN.md "integer"). Owner: card moo-l3-ast-raw-literals, which refuses the integer literal at compile time.
+TEST_CASE("NativeIntegerSpills" * doctest::skip())
 {
     ScopedFastFlag integerType{FFlag::LuauIntegerType2, true};
 

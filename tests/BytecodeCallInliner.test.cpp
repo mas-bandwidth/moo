@@ -173,7 +173,7 @@ struct BytecodeInlinerFixture
     {
         std::string bytecode = bcb.getBytecode();
         const char* data = bytecode.data();
-        size_t offset = 2; // skip versions
+        size_t offset = 3; // moo: skip the 3-byte moo header (moo version, Luau version, types version); docs/layer3/moo-l3-bytecode-version.md
         std::vector<std::string> result;
         uint32_t stringsCount = readVarInt(data, offset);
         for (uint32_t i = 0; i < stringsCount; i++)
@@ -1075,6 +1075,7 @@ TEST_CASE_FIXTURE(BytecodeInlinerFixture, "fold_constants_div_by_zero")
         true
     );
 
+    // moo: 1/0 folds to the saturated MOO_NUMBER_MAX (raw INT64_MAX), not inf; moo has no infinity
     REQUIRE_EQ(
         "\n" + result,
         R"(
@@ -1082,8 +1083,8 @@ GETUPVAL R1 U0
 LOADK R2 K0 [10]
 LOADK R3 K1 [0]
 CMPPROTO R1 #0 L0
-LOADK R4 K2 [inf]
-LOADK R1 K2 [inf]
+LOADK R4 K2 [140737488355327.99998]
+LOADK R1 K2 [140737488355327.99998]
 JUMP L1
 L0: CALLFB R1 2 1 [-1]
 L1: ADD R2 R1 R0

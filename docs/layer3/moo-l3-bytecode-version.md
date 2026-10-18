@@ -150,32 +150,36 @@ in a card's PATHS.
 "bytecode number constants are rounded at load") still describe the bridge. Their own cards, or moo-l3-conformance,
 should update them.
 
-## Not done: test cases outside PATHS that break (PATHS-PROPOSED)
+## Test cases the moo header and raw constants changed (attempt 2)
 
-BASE has since moved to `d4b5c1d6`, and Moo.Test is red there on its own:
-`tests/moo/moo-l5-suite-audit.test.cpp:347` `MooL5MovedScriptsNameAReason` expects 19 moved scripts and finds 21.
-This card's new l3 script makes the count 22. The fix is to that audit's count, or to its idea of "moved", and is
-owned by moo-l5-suite-audit.
+Each was green at BASE `1fcc79e5` and broke only because of this card's required change. Attempt 2 fixed each:
 
-Each was green at BASE `1fcc79e5`. Each breaks only because of this card's required change, and each needs an edit
-outside PATHS:
+- `tests/BytecodeCallInliner.test.cpp:176` and `tests/BytecodeCompiler.test.cpp:99` skipped the header with
+  `size_t offset = 2`. A moo header is 3 bytes, so it is now `offset = 3` (`moo:`). Without it the string table is
+  misread and `graph_builds_loop_exit_phi_for_downstream_use` crashed Luau.UnitTest with SIGSEGV.
+- `tests/BytecodeCallInliner.test.cpp` `fold_constants_div_by_zero`: Sccp folds `10 / 0` to the double infinity,
+  which saturates to `MOO_NUMBER_MAX`, printed `140737488355327.99998`; the expectation now says so (`moo:`). Folding
+  by zero should be refused (DESIGN.md "Division by zero"); owner: `moo-l3-bytecode-graph-fixed`.
+- `tests/MooCompiler.test.cpp` `MooFoldArithIsFixedPoint` and `MooLiteralsAreExactAndInRange`: the dump strings
+  `0.666656494140625`, `0.3000030517578125` and `0.100006103515625` now print by shortest round trip as `[0.66666]`,
+  `[0.3]` and `[0.1]` (brackets included, so the match is exact; `moo:`).
+- `tests/Sccp.test.cpp` `sccp_nan_compare_check1/2/3` build a NaN constant, and a number has no NaN: skipped by name
+  with that reason; owner `moo-l3-bytecode-graph-fixed`.
+- `tests/Conformance.test.cpp` `NativeIntegerSpills`: `native_integer_spills.luau` compiles integer literals to
+  `LBC_CONSTANT_INTEGER`, which the loader now refuses by name: skipped with that reason; owner
+  `moo-l3-ast-raw-literals`.
 
-- `tests/BytecodeCallInliner.test.cpp:176` and `tests/BytecodeCompiler.test.cpp:99` skip the header with
-  `size_t offset = 2; // skip versions`. A moo header is 3 bytes, so this must be `offset = 3` (moo). Without that
-  change the string table is misread, and `graph_builds_loop_exit_phi_for_downstream_use` crashes Luau.UnitTest with
-  SIGSEGV. With it (probed on hulk, not committed), every other failure is one of those listed below.
-- `tests/BytecodeCallInliner.test.cpp:1092` `fold_constants_div_by_zero`: Sccp folds `10 / 0` to the double infinity,
-  which now saturates to `140737488355327.99998`. Owner: `moo-l3-bytecode-graph-fixed`. Folding by zero should be
-  refused, per DESIGN.md "Division by zero".
-- `tests/MooCompiler.test.cpp:44`, `:48`, `:76`: the dump strings `0.666656494140625`, `0.3000030517578125` and
-  `0.100006103515625` now print as `0.66666`, `0.3` and `0.1`.
-- `tests/Sccp.test.cpp` `sccp_nan_compare_check1/2/3`: they build a NaN constant, but a number has no NaN. Owner:
-  `moo-l3-bytecode-graph-fixed`.
-- `tests/Conformance.test.cpp:4659` `NativeIntegerSpills`: `native_integer_spills.luau` compiles integer literals to
-  `LBC_CONSTANT_INTEGER`, which the loader now refuses by name. Owner: `moo-l3-ast-raw-literals`. The other option is
-  a moo skip of that case.
+DETERMINISM.md "Status" must add, after "Twenty compiler cases ... tests moo's folding.": "Three Sccp cases that build
+a NaN constant (`tests/Sccp.test.cpp` `sccp_nan_compare_check1/2/3`) and `NativeIntegerSpills`
+(`tests/Conformance.test.cpp`, whose integer constant the loader refuses by name) are skipped with the reason
+beside each."
 
-`Bytecode/src/Sccp.cpp` is outside PATHS too. The change converts at the two calls only (`evaluate` stores through
+BASE `d4b5c1d6` and its tip `efdb83f5` are red on their own in `tests/moo/moo-l5-suite-audit.test.cpp`, and this
+card does not edit that file. `MooL5MovedScriptsNameAReason` expects 19 moved scripts and finds 21; this card's new l3
+script makes it 22. `MooL5SkippedCasesNameAReason` expects 29 doctest skips and finds 36 at `efdb83f5`; the four
+skips above make it 40. Both counts are owned by moo-l5-suite-audit (or the card that next corrects that audit).
+
+`Bytecode/src/Sccp.cpp` (added to PATHS at attempt 2): the change converts at the two calls only (`evaluate` stores through
 `mooNumberFromDouble`; `asNumber` returns `moo_numbridgetodouble`), and both are marked TEMPORARY until
 `moo-l3-bytecode-graph-fixed`. Without it, the implicit int64/double conversions would compile with no warning and
 silently fold on the wrong scale.
