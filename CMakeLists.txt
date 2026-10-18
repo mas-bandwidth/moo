@@ -123,6 +123,18 @@ include(Sources.cmake)
 
 # moo: Common/include/moo_number.h is moo's number on fixed, shared by the VM and the compiler's constant folding
 target_link_libraries(Luau.Common INTERFACE Moo.Fixed)
+
+# moo: checked arithmetic (docs/DESIGN.md, "Overflow"): ON raises "number overflow in <op>" where release
+# saturates; AUTO follows assertions (on in Debug or with LUAU_ENABLE_ASSERT defined, off with NDEBUG); OFF never
+set(MOO_OVERFLOW_ERRORS AUTO CACHE STRING "Raise number overflow instead of saturating: AUTO (with assertions), ON or OFF")
+set_property(CACHE MOO_OVERFLOW_ERRORS PROPERTY STRINGS AUTO ON OFF)
+if(MOO_OVERFLOW_ERRORS STREQUAL "ON")
+    target_compile_definitions(Luau.Common INTERFACE MOO_OVERFLOW_ERRORS=1)
+elseif(MOO_OVERFLOW_ERRORS STREQUAL "OFF")
+    target_compile_definitions(Luau.Common INTERFACE MOO_OVERFLOW_ERRORS=0)
+elseif(NOT MOO_OVERFLOW_ERRORS STREQUAL "AUTO")
+    message(FATAL_ERROR "MOO_OVERFLOW_ERRORS must be AUTO, ON or OFF")
+endif()
 target_compile_features(Luau.Common PUBLIC cxx_std_17)
 target_include_directories(Luau.Common PUBLIC Common/include)
 

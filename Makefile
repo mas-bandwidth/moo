@@ -8,7 +8,7 @@ CMAKE_PATH=cmake
 config=debug
 protobuf=system
 
-BUILD=build/$(config)
+BUILD=build/$(config)$(if $(overflow),-overflow-$(overflow))
 
 COMMON_SOURCES=$(wildcard Common/src/*.cpp)
 COMMON_OBJECTS=$(COMMON_SOURCES:%=$(BUILD)/%.o)
@@ -124,6 +124,15 @@ endif
 ifneq ($(werror),)
 	CXXFLAGS+=-Werror
 	CXXFLAGS+=-Wno-unused-but-set-variable
+endif
+
+# moo: checked arithmetic (docs/DESIGN.md, "Overflow"): overflow=on raises "number overflow in <op>" where
+# release saturates, overflow=off never; unset, it follows assertions (on in config=debug, off with NDEBUG)
+ifeq ($(overflow),on)
+	CXXFLAGS+=-DMOO_OVERFLOW_ERRORS=1
+endif
+ifeq ($(overflow),off)
+	CXXFLAGS+=-DMOO_OVERFLOW_ERRORS=0
 endif
 
 # configuration-specific flags

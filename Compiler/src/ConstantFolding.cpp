@@ -41,11 +41,40 @@ static bool mooResult(Constant& result, fixed_t r)
     return true;
 }
 
+#if MOO_OVERFLOW_ERRORS
+// moo: a checked build keeps an operation that saturates for run time, where it raises "number overflow
+// in '<op>'" instead of carrying a folded saturated constant (docs/DESIGN.md, "Overflow")
+static bool mooSaturates(AstExprBinary::Op op, fixed_t a, fixed_t b)
+{
+    switch (op)
+    {
+    case AstExprBinary::Add:
+        return moo_numaddsaturates(a, b);
+    case AstExprBinary::Sub:
+        return moo_numsubsaturates(a, b);
+    case AstExprBinary::Mul:
+        return moo_nummulsaturates(a, b);
+    case AstExprBinary::Div:
+        return moo_numdivsaturates(a, b);
+    case AstExprBinary::FloorDiv:
+        return moo_numidivsaturates(a, b);
+    default:
+        return false;
+    }
+}
+#endif
+
 static void mooFold(Constant& result, AstExprBinary::Op op, const Constant& la, const Constant& ra)
 {
     fixed_t a, b;
     if (!mooOperands(la, ra, &a, &b))
         return;
+
+#if MOO_OVERFLOW_ERRORS
+    // moo: docs/DESIGN.md, "Overflow"
+    if (mooSaturates(op, a, b))
+        return;
+#endif
 
     switch (op)
     {

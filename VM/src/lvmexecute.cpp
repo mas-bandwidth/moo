@@ -1765,7 +1765,8 @@ reentry:
                 VM_CASE_STKID rc = VM_REG(LUAU_INSN_C(insn));
 
                 // fast-path
-                if (LUAU_LIKELY(ttisnumber(rb) && ttisnumber(rc)))
+                // moo: a checked build leaves it when the operation saturates (docs/DESIGN.md, "Overflow")
+                if (LUAU_LIKELY(ttisnumber(rb) && ttisnumber(rc) && luai_numnosat(add, nvalue(rb), nvalue(rc))))
                 {
                     setnvalue(ra, luai_numadd(nvalue(rb), nvalue(rc)));
                     VM_NEXT();
@@ -1811,7 +1812,8 @@ reentry:
                 VM_CASE_STKID rc = VM_REG(LUAU_INSN_C(insn));
 
                 // fast-path
-                if (LUAU_LIKELY(ttisnumber(rb) && ttisnumber(rc)))
+                // moo: a checked build leaves it when the operation saturates (docs/DESIGN.md, "Overflow")
+                if (LUAU_LIKELY(ttisnumber(rb) && ttisnumber(rc) && luai_numnosat(sub, nvalue(rb), nvalue(rc))))
                 {
                     setnvalue(ra, luai_numsub(nvalue(rb), nvalue(rc)));
                     VM_NEXT();
@@ -1857,7 +1859,8 @@ reentry:
                 VM_CASE_STKID rc = VM_REG(LUAU_INSN_C(insn));
 
                 // fast-path
-                if (LUAU_LIKELY(ttisnumber(rb) && ttisnumber(rc)))
+                // moo: a checked build leaves it when the operation saturates (docs/DESIGN.md, "Overflow")
+                if (LUAU_LIKELY(ttisnumber(rb) && ttisnumber(rc) && luai_numnosat(mul, nvalue(rb), nvalue(rc))))
                 {
                     setnvalue(ra, luai_nummul(nvalue(rb), nvalue(rc)));
                     VM_NEXT();
@@ -1918,7 +1921,8 @@ reentry:
                 VM_CASE_STKID rc = VM_REG(LUAU_INSN_C(insn));
 
                 // fast-path
-                if (LUAU_LIKELY(ttisnumber(rb) && ttisnumber(rc) && nvalue(rc) != 0))
+                // moo: a checked build leaves it when the operation saturates (docs/DESIGN.md, "Overflow")
+                if (LUAU_LIKELY(ttisnumber(rb) && ttisnumber(rc) && nvalue(rc) != 0 && luai_numnosat(div, nvalue(rb), nvalue(rc))))
                 {
                     setnvalue(ra, luai_numdiv(nvalue(rb), nvalue(rc)));
                     VM_NEXT();
@@ -1979,7 +1983,8 @@ reentry:
                 VM_CASE_STKID rc = VM_REG(LUAU_INSN_C(insn));
 
                 // fast-path
-                if (LUAU_LIKELY(ttisnumber(rb) && ttisnumber(rc) && nvalue(rc) != 0))
+                // moo: a checked build leaves it when the operation saturates (docs/DESIGN.md, "Overflow")
+                if (LUAU_LIKELY(ttisnumber(rb) && ttisnumber(rc) && nvalue(rc) != 0 && luai_numnosat(idiv, nvalue(rb), nvalue(rc))))
                 {
                     setnvalue(ra, luai_numidiv(nvalue(rb), nvalue(rc)));
                     VM_NEXT();
@@ -2056,7 +2061,8 @@ reentry:
                 VM_CASE_STKID rc = VM_REG(LUAU_INSN_C(insn));
 
                 // fast-path
-                if (ttisnumber(rb) && ttisnumber(rc))
+                // moo: a checked build leaves it when the operation saturates (docs/DESIGN.md, "Overflow")
+                if (ttisnumber(rb) && ttisnumber(rc) && luai_numnosat(pow, nvalue(rb), nvalue(rc)))
                 {
                     setnvalue(ra, luai_numpow(nvalue(rb), nvalue(rc)));
                     VM_NEXT();
@@ -2077,7 +2083,8 @@ reentry:
                 TValue* kv = VM_KV(LUAU_INSN_C(insn));
 
                 // fast-path
-                if (ttisnumber(rb))
+                // moo: a checked build leaves it when the operation saturates (docs/DESIGN.md, "Overflow")
+                if (ttisnumber(rb) && luai_numnosat(add, nvalue(rb), nvalue(kv)))
                 {
                     setnvalue(ra, luai_numadd(nvalue(rb), nvalue(kv)));
                     VM_NEXT();
@@ -2098,7 +2105,8 @@ reentry:
                 TValue* kv = VM_KV(LUAU_INSN_C(insn));
 
                 // fast-path
-                if (ttisnumber(rb))
+                // moo: a checked build leaves it when the operation saturates (docs/DESIGN.md, "Overflow")
+                if (ttisnumber(rb) && luai_numnosat(sub, nvalue(rb), nvalue(kv)))
                 {
                     setnvalue(ra, luai_numsub(nvalue(rb), nvalue(kv)));
                     VM_NEXT();
@@ -2119,7 +2127,8 @@ reentry:
                 TValue* kv = VM_KV(LUAU_INSN_C(insn));
 
                 // fast-path
-                if (LUAU_LIKELY(ttisnumber(rb)))
+                // moo: a checked build leaves it when the operation saturates (docs/DESIGN.md, "Overflow")
+                if (LUAU_LIKELY(ttisnumber(rb) && luai_numnosat(mul, nvalue(rb), nvalue(kv))))
                 {
                     setnvalue(ra, luai_nummul(nvalue(rb), nvalue(kv)));
                     VM_NEXT();
@@ -2165,7 +2174,8 @@ reentry:
                 TValue* kv = VM_KV(LUAU_INSN_C(insn));
 
                 // fast-path
-                if (LUAU_LIKELY(ttisnumber(rb) && nvalue(kv) != 0))
+                // moo: a checked build leaves it when the operation saturates (docs/DESIGN.md, "Overflow")
+                if (LUAU_LIKELY(ttisnumber(rb) && nvalue(kv) != 0 && luai_numnosat(div, nvalue(rb), nvalue(kv))))
                 {
                     setnvalue(ra, luai_numdiv(nvalue(rb), nvalue(kv)));
                     VM_NEXT();
@@ -2211,7 +2221,8 @@ reentry:
                 TValue* kv = VM_KV(LUAU_INSN_C(insn));
 
                 // fast-path
-                if (LUAU_LIKELY(ttisnumber(rb) && nvalue(kv) != 0))
+                // moo: a checked build leaves it when the operation saturates (docs/DESIGN.md, "Overflow")
+                if (LUAU_LIKELY(ttisnumber(rb) && nvalue(kv) != 0 && luai_numnosat(idiv, nvalue(rb), nvalue(kv))))
                 {
                     setnvalue(ra, luai_numidiv(nvalue(rb), nvalue(kv)));
                     VM_NEXT();
@@ -2287,7 +2298,8 @@ reentry:
                 TValue* kv = VM_KV(LUAU_INSN_C(insn));
 
                 // fast-path
-                if (ttisnumber(rb))
+                // moo: a checked build leaves it when the operation saturates (docs/DESIGN.md, "Overflow")
+                if (ttisnumber(rb) && luai_numnosat(pow, nvalue(rb), nvalue(kv)))
                 {
                     setnvalue(ra, luai_numpow(nvalue(rb), nvalue(kv)));
                     VM_NEXT();
@@ -3094,7 +3106,8 @@ reentry:
                 VM_CASE_STKID rc = VM_REG(LUAU_INSN_C(insn));
 
                 // fast-path
-                if (ttisnumber(rc))
+                // moo: a checked build leaves it when the operation saturates (docs/DESIGN.md, "Overflow")
+                if (ttisnumber(rc) && luai_numnosat(sub, nvalue(kv), nvalue(rc)))
                 {
                     setnvalue(ra, luai_numsub(nvalue(kv), nvalue(rc)));
                     VM_NEXT();
@@ -3115,7 +3128,8 @@ reentry:
                 VM_CASE_STKID rc = VM_REG(LUAU_INSN_C(insn));
 
                 // fast-path
-                if (LUAU_LIKELY(ttisnumber(rc) && nvalue(rc) != 0))
+                // moo: a checked build leaves it when the operation saturates (docs/DESIGN.md, "Overflow")
+                if (LUAU_LIKELY(ttisnumber(rc) && nvalue(rc) != 0 && luai_numnosat(div, nvalue(kv), nvalue(rc))))
                 {
                     setnvalue(ra, luai_numdiv(nvalue(kv), nvalue(rc)));
                     VM_NEXT();
