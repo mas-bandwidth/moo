@@ -392,10 +392,12 @@ static int luauF_pow(lua_State* L, StkId res, TValue* arg0, int nresults, StkId 
             return 1;
         }
 
-        // moo: a fractional exponent stays on the libm bridge until moo-l4-pow-fractional
-        double a1 = moo_numbridgetodouble(base);
-        double a2 = moo_numbridgetodouble(exponent);
-        setnvalue(res, moo_numbridgefromdouble(pow(a1, a2)));
+        // moo: a fractional exponent is fixPow (docs/DESIGN.md, "pow and ^"). A negative base with a
+        // fractional exponent returns -1 so the library path raises the named error; 0 ^ positive fraction
+        // is 0 (fixPow returns 0 for a base <= 0).
+        if (base < 0)
+            return -1;
+        setnvalue(res, fixPow(base, exponent));
         return 1;
     }
 
