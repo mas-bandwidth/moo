@@ -31,10 +31,10 @@ deleted; Luau's integer type is out (DESIGN.md "integer").
   AST; the "Until the moo bytecode version" sentence is deleted; the integer-literal branch is the named error.
 - `Compiler/src/ConstantFolding.cpp` `analyze` and `Compiler/src/Compiler.cpp` `compileExpr`: the literal constant
   is `expr->rawValue`, with no `moo_numfromdouble`.
-- Three upstream integer-type cases are skipped with a `moo:` reason because the literal they parse is now an
-  error: `IntegerBcb` (`tests/Compiler.test.cpp`) and `negated_integer_literal_is_a_constant` and
-  `negating_a_non_literal_integer_is_an_error` (`tests/TypeInfer.operators.test.cpp`). Those two files are outside
-  this card's PATH list; the skip is required for no newly failing Luau.UnitTest case.
+- Three upstream integer-type cases are skipped in place because they test Luau integer-literal semantics, which
+  moo now rejects by name: `IntegerBcb` (`tests/Compiler.test.cpp`) and `negated_integer_literal_is_a_constant` and
+  `negating_a_non_literal_integer_is_an_error` (`tests/TypeInfer.operators.test.cpp`). Both test files are in this
+  attempt's PATHS, and each skip's `moo:` reason sits immediately above its case for the suite audit.
 
 ## Sentences that must change in docs/DESIGN.md "Layer 3 as built" and docs/DETERMINISM.md
 

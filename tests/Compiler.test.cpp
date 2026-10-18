@@ -12526,8 +12526,7 @@ RETURN R0 1
     CHECK_EQ(bc2[0], 0);
 }
 
-// moo: skipped; moo has one number type, so an integer literal is the parse error "moo has no integer type"
-// (docs/DESIGN.md "integer", docs/layer3/moo-l3-ast-raw-literals.md)
+// moo: skipped because moo rejects integer literals (docs/DESIGN.md "integer", docs/layer3/moo-l3-ast-raw-literals.md)
 TEST_CASE("IntegerBcb" * doctest::skip())
 {
     ScopedFastFlag luauInteger{FFlag::LuauIntegerType2, true};
