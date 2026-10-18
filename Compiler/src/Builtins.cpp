@@ -261,35 +261,7 @@ static int getBuiltinFunctionId(const Builtin& builtin, const CompileOptions& op
             return LBF_BUFFER_WRITEINTEGER;
     }
 
-    if (builtin.object == "vector")
-    {
-        if (builtin.method == "create")
-            return LBF_VECTOR;
-        if (builtin.method == "magnitude")
-            return LBF_VECTOR_MAGNITUDE;
-        if (builtin.method == "normalize")
-            return LBF_VECTOR_NORMALIZE;
-        if (builtin.method == "cross")
-            return LBF_VECTOR_CROSS;
-        if (builtin.method == "dot")
-            return LBF_VECTOR_DOT;
-        if (builtin.method == "floor")
-            return LBF_VECTOR_FLOOR;
-        if (builtin.method == "ceil")
-            return LBF_VECTOR_CEIL;
-        if (builtin.method == "abs")
-            return LBF_VECTOR_ABS;
-        if (builtin.method == "sign")
-            return LBF_VECTOR_SIGN;
-        if (builtin.method == "clamp")
-            return LBF_VECTOR_CLAMP;
-        if (builtin.method == "min")
-            return LBF_VECTOR_MIN;
-        if (builtin.method == "max")
-            return LBF_VECTOR_MAX;
-        if (builtin.method == "lerp")
-            return LBF_VECTOR_LERP;
-    }
+    // moo: the float vector is removed; vector.* maps to no builtin (docs/DESIGN.md "vec3, quat and transform").
 
     if (FFlag::LuauIntegerFastcalls && builtin.object == "integer")
     {
@@ -369,19 +341,8 @@ static int getBuiltinFunctionId(const Builtin& builtin, const CompileOptions& op
             return LBF_INTEGER_TONUMBER;
     }
 
-    if (options.vectorCtor)
-    {
-        if (options.vectorLib)
-        {
-            if (builtin.isMethod(options.vectorLib, options.vectorCtor))
-                return LBF_VECTOR;
-        }
-        else
-        {
-            if (builtin.isGlobal(options.vectorCtor))
-                return LBF_VECTOR;
-        }
-    }
+    // moo: the float vector is removed; vectorLib/vectorCtor options map to no builtin (docs/DESIGN.md "vec3, quat and transform").
+    (void)options;
 
     return -1;
 }
