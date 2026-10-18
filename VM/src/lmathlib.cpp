@@ -13,14 +13,14 @@
 #include <limits>
 #include <math.h>
 
-#define LUAU_PI (3.14159265358979323846)
-#define RADIANS_PER_DEGREE (LUAU_PI / 180.0)
-
-#define LUAU_NAN (std::numeric_limits<double>::quiet_NaN())
-#define LUAU_E (2.71828182845904523536)
-#define LUAU_PHI (1.61803398874989484820)
-#define LUAU_SQRT2 (1.41421356237309504880)
-#define LUAU_TAU (6.28318530717958647692)
+// moo: exact Q48.16 constants, each rounded once to nearest 2^-16 (docs/DESIGN.md "math library")
+#define MOO_MATH_PI (fixed_t(205887))          // round(pi * 2^16): 3.14159265358979323846 * 65536 = 205887.416...
+#define MOO_MATH_DEG_PER_RAD (fixed_t(3754936)) // round((180 / pi) * 2^16): 57.29577951308232... * 65536 = 3754936.206...
+#define MOO_MATH_RAD_PER_DEG (fixed_t(1144))    // round((pi / 180) * 2^16): 0.017453292519943295... * 65536 = 1143.818...
+#define MOO_MATH_E (fixed_t(178145))            // round(e * 2^16): 2.71828182845904523536 * 65536 = 178145.382...
+#define MOO_MATH_PHI (fixed_t(106039))          // round(phi * 2^16): 1.61803398874989484820 * 65536 = 106039.275...
+#define MOO_MATH_SQRT2 (fixed_t(92682))         // round(sqrt(2) * 2^16): 1.41421356237309504880 * 65536 = 92681.900...
+#define MOO_MATH_TAU (fixed_t(411775))          // round(2 * pi * 2^16): 6.28318530717958647692 * 65536 = 411774.832...
 
 #define PCG32_INC 105
 
@@ -70,6 +70,80 @@ bool moo_math_tan(fixed_t radians, fixed_t* out)
         return false;
     *out = moo_numdiv(cs.sine, cs.cosine);
     return true;
+}
+
+// moo: fmod, modf, frexp, ldexp, deg, rad and lerp on the raw Q48.16 value (docs/DESIGN.md "math library"):
+// one shared definition serves both the library entry points here and their bytecode fastcalls in lbuiltins.cpp.
+bool moo_math_fmod(fixed_t a, fixed_t b, fixed_t* out)
+{
+    if (b == 0)
+        return false;
+    *out = (b == -1) ? 0 : (a % b);
+    return true;
+}
+
+void moo_math_modf(fixed_t a, fixed_t* ip, fixed_t* fp)
+{
+    uint64_t u = a < 0 ? uint64_t(0) - uint64_t(a) : uint64_t(a);
+    uint64_t f = u & uint64_t(MOO_NUMBER_ONE - 1);
+    uint64_t i = u - f;
+    *ip = a < 0 ? -fixed_t(i) : fixed_t(i);
+    *fp = a < 0 ? -fixed_t(f) : fixed_t(f);
+}
+
+void moo_math_frexp(fixed_t a, fixed_t* m, int* e)
+{
+    if (a == 0)
+    {
+        *m = 0;
+        *e = 0;
+        return;
+    }
+
+    uint64_t u = a < 0 ? uint64_t(0) - uint64_t(a) : uint64_t(a);
+    int msb = 0;
+    for (uint64_t x = u >> 1; x != 0; x >>= 1)
+        msb += 1;
+
+    uint64_t mag = msb <= 15 ? (u << (15 - msb)) : (u >> (msb - 15));
+    *m = a < 0 ? -fixed_t(mag) : fixed_t(mag);
+    *e = msb - 15;
+}
+
+fixed_t moo_math_ldexp(fixed_t a, int e)
+{
+    if (a == 0 || e == 0)
+        return a;
+
+    uint64_t u = a < 0 ? uint64_t(0) - uint64_t(a) : uint64_t(a);
+    if (e > 0)
+    {
+        if (e >= 63 || u > (uint64_t(MOO_NUMBER_MAX) >> e))
+            return a < 0 ? MOO_NUMBER_MIN : MOO_NUMBER_MAX;
+        uint64_t r = u << e;
+        return a < 0 ? -fixed_t(r) : fixed_t(r);
+    }
+
+    uint64_t s = uint64_t(0) - uint64_t(int64_t(e));
+    if (s >= 63)
+        return 0;
+    uint64_t r = u >> s;
+    return a < 0 ? -fixed_t(r) : fixed_t(r);
+}
+
+fixed_t moo_math_deg(fixed_t a)
+{
+    return fixMul(a, MOO_MATH_DEG_PER_RAD);
+}
+
+fixed_t moo_math_rad(fixed_t a)
+{
+    return fixMul(a, MOO_MATH_RAD_PER_DEG);
+}
+
+fixed_t moo_math_lerp(fixed_t a, fixed_t b, fixed_t t)
+{
+    return t == MOO_NUMBER_ONE ? b : moo_numadd(a, moo_nummul(moo_numsub(b, a), t));
 }
 
 static int math_sin(lua_State* L)
@@ -147,18 +221,24 @@ static int math_floor(lua_State* L)
     return 1;
 }
 
+// moo: fmod and modf on the raw Q48.16 value (docs/DESIGN.md "math library", "Division by zero")
 static int math_fmod(lua_State* L)
 {
-    lua_pushnumber(L, moo_numbridgefromdouble(fmod(moo_numbridgetodouble(luaL_checknumber(L, 1)), moo_numbridgetodouble(luaL_checknumber(L, 2)))));
+    fixed_t a = luaL_checknumber(L, 1);
+    fixed_t b = luaL_checknumber(L, 2);
+    fixed_t out;
+    if (!moo_math_fmod(a, b, &out))
+        luaL_error(L, "division by zero");
+    lua_pushnumber(L, out);
     return 1;
 }
 
 static int math_modf(lua_State* L)
 {
-    double ip;
-    double fp = modf(moo_numbridgetodouble(luaL_checknumber(L, 1)), &ip);
-    lua_pushnumber(L, moo_numbridgefromdouble(ip));
-    lua_pushnumber(L, moo_numbridgefromdouble(fp));
+    fixed_t ip, fp;
+    moo_math_modf(luaL_checknumber(L, 1), &ip, &fp);
+    lua_pushnumber(L, ip);
+    lua_pushnumber(L, fp);
     return 2;
 }
 
@@ -206,29 +286,34 @@ static int math_exp(lua_State* L)
     return 1;
 }
 
+// moo: deg, rad, frexp and ldexp on the raw Q48.16 value (docs/DESIGN.md "math library", "Exact integers")
 static int math_deg(lua_State* L)
 {
-    lua_pushnumber(L, moo_numbridgefromdouble(moo_numbridgetodouble(luaL_checknumber(L, 1)) / RADIANS_PER_DEGREE));
+    lua_pushnumber(L, moo_math_deg(luaL_checknumber(L, 1)));
     return 1;
 }
 
 static int math_rad(lua_State* L)
 {
-    lua_pushnumber(L, moo_numbridgefromdouble(moo_numbridgetodouble(luaL_checknumber(L, 1)) * RADIANS_PER_DEGREE));
+    lua_pushnumber(L, moo_math_rad(luaL_checknumber(L, 1)));
     return 1;
 }
 
 static int math_frexp(lua_State* L)
 {
+    fixed_t m;
     int e;
-    lua_pushnumber(L, moo_numbridgefromdouble(frexp(moo_numbridgetodouble(luaL_checknumber(L, 1)), &e)));
+    moo_math_frexp(luaL_checknumber(L, 1), &m, &e);
+    lua_pushnumber(L, m);
     lua_pushinteger(L, e);
     return 2;
 }
 
 static int math_ldexp(lua_State* L)
 {
-    lua_pushnumber(L, moo_numbridgefromdouble(ldexp(moo_numbridgetodouble(luaL_checknumber(L, 1)), luaL_checkinteger(L, 2))));
+    fixed_t a = luaL_checknumber(L, 1);
+    int e = luaL_checkinteger(L, 2);
+    lua_pushnumber(L, moo_math_ldexp(a, e));
     return 1;
 }
 
@@ -451,51 +536,54 @@ static int math_round(lua_State* L)
     return 1;
 }
 
+// moo: map, lerp, isnan, isinf and isfinite on fixed (docs/DESIGN.md "math library", "Division by zero")
 static int math_map(lua_State* L)
 {
-    double x = moo_numbridgetodouble(luaL_checknumber(L, 1));
-    double inmin = moo_numbridgetodouble(luaL_checknumber(L, 2));
-    double inmax = moo_numbridgetodouble(luaL_checknumber(L, 3));
-    double outmin = moo_numbridgetodouble(luaL_checknumber(L, 4));
-    double outmax = moo_numbridgetodouble(luaL_checknumber(L, 5));
+    fixed_t x = luaL_checknumber(L, 1);
+    fixed_t inmin = luaL_checknumber(L, 2);
+    fixed_t inmax = luaL_checknumber(L, 3);
+    fixed_t outmin = luaL_checknumber(L, 4);
+    fixed_t outmax = luaL_checknumber(L, 5);
 
-    double result = outmin + (x - inmin) * (outmax - outmin) / (inmax - inmin);
-    lua_pushnumber(L, moo_numbridgefromdouble(result));
+    fixed_t denom = moo_numsub(inmax, inmin);
+    if (denom == 0)
+        luaL_error(L, "division by zero");
+    fixed_t result = moo_numadd(outmin, moo_numdiv(moo_nummul(moo_numsub(x, inmin), moo_numsub(outmax, outmin)), denom));
+    lua_pushnumber(L, result);
     return 1;
 }
 
 static int math_lerp(lua_State* L)
 {
-    double a = moo_numbridgetodouble(luaL_checknumber(L, 1));
-    double b = moo_numbridgetodouble(luaL_checknumber(L, 2));
-    double t = moo_numbridgetodouble(luaL_checknumber(L, 3));
+    fixed_t a = luaL_checknumber(L, 1);
+    fixed_t b = luaL_checknumber(L, 2);
+    fixed_t t = luaL_checknumber(L, 3);
 
-    double r = (t == 1.0) ? b : a + (b - a) * t;
-    lua_pushnumber(L, moo_numbridgefromdouble(r));
+    lua_pushnumber(L, moo_math_lerp(a, b, t));
     return 1;
 }
 
 static int math_isnan(lua_State* L)
 {
-    double x = moo_numbridgetodouble(luaL_checknumber(L, 1));
+    (void)luaL_checknumber(L, 1);
 
-    lua_pushboolean(L, isnan(x));
+    lua_pushboolean(L, 0);
     return 1;
 }
 
 static int math_isinf(lua_State* L)
 {
-    double x = moo_numbridgetodouble(luaL_checknumber(L, 1));
+    (void)luaL_checknumber(L, 1);
 
-    lua_pushboolean(L, isinf(x));
+    lua_pushboolean(L, 0);
     return 1;
 }
 
 static int math_isfinite(lua_State* L)
 {
-    double x = moo_numbridgetodouble(luaL_checknumber(L, 1));
+    (void)luaL_checknumber(L, 1);
 
-    lua_pushboolean(L, isfinite(x));
+    lua_pushboolean(L, 1);
     return 1;
 }
 
@@ -550,19 +638,20 @@ int luaopen_math(lua_State* L)
 
     luaL_register(L, LUA_MATHLIBNAME, mathlib);
 
-    lua_pushnumber(L, moo_numbridgefromdouble(LUAU_PI));
+    // moo: exact Q48.16 constants; math.pi is nearest Q48.16 to pi, math.huge is MOO_NUMBER_MAX (docs/DESIGN.md "math library")
+    lua_pushnumber(L, MOO_MATH_PI);
     lua_setfield(L, -2, "pi");
-    lua_pushnumber(L, moo_numbridgefromdouble(HUGE_VAL));
+    lua_pushnumber(L, MOO_NUMBER_MAX);
     lua_setfield(L, -2, "huge");
-    lua_pushnumber(L, moo_numbridgefromdouble(LUAU_NAN));
+    lua_pushnumber(L, fixed_t(0));
     lua_setfield(L, -2, "nan");
-    lua_pushnumber(L, moo_numbridgefromdouble(LUAU_E));
+    lua_pushnumber(L, MOO_MATH_E);
     lua_setfield(L, -2, "e");
-    lua_pushnumber(L, moo_numbridgefromdouble(LUAU_PHI));
+    lua_pushnumber(L, MOO_MATH_PHI);
     lua_setfield(L, -2, "phi");
-    lua_pushnumber(L, moo_numbridgefromdouble(LUAU_SQRT2));
+    lua_pushnumber(L, MOO_MATH_SQRT2);
     lua_setfield(L, -2, "sqrt2");
-    lua_pushnumber(L, moo_numbridgefromdouble(LUAU_TAU));
+    lua_pushnumber(L, MOO_MATH_TAU);
     lua_setfield(L, -2, "tau");
 
     return 1;
