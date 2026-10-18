@@ -380,27 +380,7 @@ void registerBuiltinGlobals(Frontend& frontend, GlobalTypes& globals, bool typeC
     addGlobalBinding(globals, "string", *it->second.readTy, "@luau");
     addGlobalBinding(globals, "string", *it->second.writeTy, "@luau");
 
-    // Setup 'vector' metatable
-    if (auto it = globals.globalScope->exportedTypeBindings.find("vector"); it != globals.globalScope->exportedTypeBindings.end())
-    {
-        TypeId vectorTy = it->second.type;
-        ExternType* vectorCls = getMutable<ExternType>(vectorTy);
-
-        vectorCls->metatable = arena.addType(TableType{{}, std::nullopt, TypeLevel{}, TableState::Sealed});
-        TableType* metatableTy = Luau::getMutable<TableType>(vectorCls->metatable);
-
-        metatableTy->props["__add"] = {makeFunction(arena, vectorTy, {vectorTy}, {vectorTy})};
-        metatableTy->props["__sub"] = {makeFunction(arena, vectorTy, {vectorTy}, {vectorTy})};
-        metatableTy->props["__unm"] = {makeFunction(arena, vectorTy, {}, {vectorTy})};
-
-        std::initializer_list<TypeId> mulOverloads{
-            makeFunction(arena, vectorTy, {vectorTy}, {vectorTy}),
-            makeFunction(arena, vectorTy, {builtinTypes->numberType}, {vectorTy}),
-        };
-        metatableTy->props["__mul"] = {makeIntersection(arena, mulOverloads)};
-        metatableTy->props["__div"] = {makeIntersection(arena, mulOverloads)};
-        metatableTy->props["__idiv"] = {makeIntersection(arena, mulOverloads)};
-    }
+    // moo: there is no vector type or library (DESIGN.md "Analyzer"), so there is no vector metatable to set up.
 
     // next<K, V>(t: Table<K, V>, i: K?) -> (K?, V)
     TypePackId nextArgsTypePack = arena.addTypePack(TypePack{{mapOfKtoV, makeOption(builtinTypes, arena, genericK)}});
