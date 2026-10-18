@@ -4,6 +4,9 @@ Decision: implement Luau Perlin noise directly in fixed Q48.16 with the same 256
 
 Changed:
 - \`VM/src/lmathlib.cpp\`: \`perlin_fade\`, \`perlin_lerp\`, \`perlin_grad\`, \`moo_math_noise\`, and the \`math_noise\` library wrapper use \`moo_num*\` fixed operations. The library returns the shared fixed result without a double bridge.
+- \`VM/src/lbuiltins.cpp\`: \`luauF_noise\` calls the same \`moo_math_noise\`; the fastcall table slot is appended before the compatibility dummies.
+- \`Compiler/src/Builtins.cpp\` and \`Common/include/Luau/Bytecode.h\`: \`math.noise\` maps to the new appended \`LBF_MATH_NOISE\`, so every existing builtin id is preserved.
+- \`tests/Compiler.test.cpp\`: the existing \`JumpFold\` snapshot now expects the \`math.noise\` FASTCALL (and the constant indices it shifts); this is the only upstream expectation the fastcall changes.
 - \`tests/moo/moo-l4-math-noise.test.cpp\`: frozen 64-point raw-output hash, lattice zeros, output range and 2^16 seeded comparison against a test-only copy of Luau's float reference.
 - \`tests/conformance/moo/l3/moo-l4-math-noise.luau\`: lattice, range, 256-period, negative-coordinate and optional-argument behavior.
 
@@ -19,4 +22,9 @@ Exact DESIGN.md sentences for the layer closing card to update:
 Exact DETERMINISM.md sentence for the layer closing card to update:
 - \`**Fix:** floats leave the VM (layer 3) and the math library is rebuilt on \`fixed\` (layer 4): \`sin\`, \`cos\`, \`atan2\`, \`sqrt\`, \`exp2\`, \`log2\` from \`fixed\`, with the rest built from them in integer arithmetic. The compiler's folding calls the **same** fixed functions the VM calls, so folded and unfolded code agree bit for bit. See DESIGN.md, "math library".\`
 
-Not done: no broad determinism audit or other layer 4 work was done.
+Pre-existing gate red at BASE 3234bcbd27bd9f04b626e674d7fe5058b31488dc (not caused by this card; the same cases and assertion counts fail on the unchanged base, built and run beside this branch):
+
+- \`Moo.Test\`: 4 failed test cases at both BASE and this head, 44 failed assertions at both: \`MooL3Scripts\` (the landed \`moo-l4-pow-integer-math.luau\` expects fractional exponents on the libm bridge; \`moo-l4-pow-fractional\` now answers them with \`fixPow\`), \`MathPowFractionalStaysOnBridge\`, \`MooPowIntVmFractionalBridge\`, \`MooL5SkippedCasesNameAReason\` (42 doctest skips where it expects 29). The three new moo-l4-math-noise cases pass (384 assertions).
+- \`Luau.UnitTest\`: 13 failed test cases at both BASE and this head, 14 failed assertions at both, identical names: \`builtin_table_names\`, \`compound_assign_reports_invalid_vector_arithmetic\`, \`fold_constants_div_by_zero\`, \`issubtypeof\`, \`MooBuiltinsDoNotFold\`, \`persistent_sealed_table_is_immutable\`, \`type_narrow_to_vector\`, \`type_tostring\`, \`type_vector_refine\`, \`udtf_cloner_missing_integer_crashes_copy\`, \`udtf_integer_constructor_is_not_number\`, \`udtf_integer_is_distinct_from_number\`, \`udtf_integer_methods_work\`. Before the \`tests/Compiler.test.cpp\` snapshot update this head had one more (\`JumpFold\`, the fastcall change); the update removes it.
+
+Not done: the pre-existing \`Moo.Test\` and \`Luau.UnitTest\` red above is left for its owning cards; no broad determinism audit or other layer 4 work was done.
