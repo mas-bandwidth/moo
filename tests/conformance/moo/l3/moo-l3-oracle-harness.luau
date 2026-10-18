@@ -42,14 +42,20 @@ assert(raw(-0) == "0")
 assert(-0 == 0)
 assert(raw(0 * -1) == "0")
 
--- saturation, never wrap (DESIGN.md "Overflow")
-assert(raw(MAX + u) == "9223372036854775807")
-assert(raw(MIN - u) == "-9223372036854775807")
+-- saturation, never wrap (DESIGN.md "Overflow"); a checked build (MOO_OVERFLOW_ERRORS) raises the named error
+-- instead (tests/conformance/moo/l3/moo-l3-overflow-errors-debug.luau); unary minus of MIN is exact, never checked
+local function saturates(fn, want, name)
+	local ok, result = pcall(fn)
+	local suffix = "number overflow in '" .. name .. "'"
+	assert((ok and raw(result) == want) or (not ok and string.sub(tostring(result), -#suffix) == suffix), tostring(result))
+end
+saturates(function() return MAX + u end, "9223372036854775807", "+")
+saturates(function() return MIN - u end, "-9223372036854775807", "-")
 assert(raw(-MIN) == "9223372036854775807")
-assert(raw(MAX * 2) == "9223372036854775807")
-assert(raw(MIN * 2) == "-9223372036854775807")
-assert(raw(MAX / u) == "9223372036854775807")
-assert(raw(MAX // u) == "9223372036854775807")
+saturates(function() return MAX * 2 end, "9223372036854775807", "*")
+saturates(function() return MIN * 2 end, "-9223372036854775807", "*")
+saturates(function() return MAX / u end, "9223372036854775807", "/")
+saturates(function() return MAX // u end, "9223372036854775807", "//")
 
 -- division by zero is the named error, folded or not (DESIGN.md "Division by zero")
 local zero = rt("0")
