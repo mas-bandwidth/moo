@@ -4947,7 +4947,8 @@ TEST_CASE_FIXTURE(Fixture, "bidirectional_inference_callback_in_array")
 }
 
 
-TEST_CASE_FIXTURE(BuiltinsFixture, "let_generalization_direct")
+// moo: vector is not a moo builtin (DESIGN.md "Analyzer")
+TEST_CASE_FIXTURE(BuiltinsFixture, "let_generalization_direct" * doctest::skip())
 {
     DOES_NOT_PASS_OLD_SOLVER_GUARD();
 
@@ -4965,7 +4966,8 @@ TEST_CASE_FIXTURE(BuiltinsFixture, "let_generalization_direct")
     CHECK_EQ("vector", toString(requireType("result2"), {true}));
 }
 
-TEST_CASE_FIXTURE(BuiltinsFixture, "let_generalization_direct_one_level")
+// moo: vector is not a moo builtin (DESIGN.md "Analyzer")
+TEST_CASE_FIXTURE(BuiltinsFixture, "let_generalization_direct_one_level" * doctest::skip())
 {
     DOES_NOT_PASS_OLD_SOLVER_GUARD();
 
@@ -5026,7 +5028,8 @@ TEST_CASE_FIXTURE(Fixture, "let_generalization_forin_iterator")
     CHECK_EQ("(...any) -> string", toString(requireType("strs"), {true}));
 }
 
-TEST_CASE_FIXTURE(BuiltinsFixture, "let_generalization_assign_statement")
+// moo: vector is not a moo builtin (DESIGN.md "Analyzer")
+TEST_CASE_FIXTURE(BuiltinsFixture, "let_generalization_assign_statement" * doctest::skip())
 {
     DOES_NOT_PASS_OLD_SOLVER_GUARD();
 

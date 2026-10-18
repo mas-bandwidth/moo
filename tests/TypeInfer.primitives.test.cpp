@@ -115,7 +115,8 @@ TEST_CASE_FIXTURE(BuiltinsFixture, "property_of_buffers")
     LUAU_REQUIRE_ERROR_COUNT(1, result);
 }
 
-TEST_CASE_FIXTURE(BuiltinsFixture, "properties_of_vectors")
+// moo: vector is not a moo builtin (DESIGN.md "Analyzer")
+TEST_CASE_FIXTURE(BuiltinsFixture, "properties_of_vectors" * doctest::skip())
 {
     CheckResult result = check(R"(
         local a = vector.create(1, 2, 3)

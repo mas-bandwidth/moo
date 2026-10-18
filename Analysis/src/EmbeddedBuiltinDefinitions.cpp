@@ -146,7 +146,7 @@ declare math: {
 
 )BUILTIN_SRC";
 
-static constexpr const char* kBuiltinDefinitionOsSrc = R"BUILTIN_SRC(
+[[maybe_unused]] static constexpr const char* kBuiltinDefinitionOsSrc = R"BUILTIN_SRC(
 
 type DateTypeArg = {
     year: number,
@@ -284,7 +284,7 @@ declare utf8: {
 
 )BUILTIN_SRC";
 
-static constexpr const char* kBuiltinDefinitionBufferSrc = R"BUILTIN_SRC(
+[[maybe_unused]] static constexpr const char* kBuiltinDefinitionBufferSrc = R"BUILTIN_SRC(
 --- Buffer API
 declare buffer: {
     create: @checked (size: number) -> buffer,
@@ -352,7 +352,7 @@ declare buffer: {
 
 )BUILTIN_SRC";
 
-static const char* const kBuiltinDefinitionVectorSrc = R"BUILTIN_SRC(
+[[maybe_unused]] static const char* const kBuiltinDefinitionVectorSrc = R"BUILTIN_SRC(
 
 -- While vector would have been better represented as a built-in primitive type, type solver extern type handling covers most of the properties
 declare extern type vector with
@@ -383,7 +383,7 @@ declare vector: {
 
 )BUILTIN_SRC";
 
-static const char* const kBuiltinDefinitionIntegerSrc = R"BUILTIN_SRC(
+[[maybe_unused]] static const char* const kBuiltinDefinitionIntegerSrc = R"BUILTIN_SRC(
 
 declare integer: {
     create: @checked (x: number) -> integer,
@@ -444,7 +444,8 @@ std::string getBuiltinDefinitionSource()
 
     result += kBuiltinDefinitionBit32Src;
     result += kBuiltinDefinitionMathSrc;
-    result += kBuiltinDefinitionOsSrc;
+    // moo: the os library is deleted from the VM (DETERMINISM.md "Status", 9), so the analyzer must not declare it
+    // (DESIGN.md "Analyzer").
 
     if (FFlag::DebugLuauCoroutineFinallyAnalysis)
         result += kBuiltinDefinitionCoroutineSrc;
@@ -457,17 +458,9 @@ std::string getBuiltinDefinitionSource()
         result += kBuiltinDefinitionTableSrc;
     result += kBuiltinDefinitionDebugSrc;
     result += kBuiltinDefinitionUtf8Src;
-    if (FFlag::LuauIntegerType2 && FFlag::LuauIntegerLibrary)
-        result += kBuiltinDefinitionBufferSrc;
-    else
-        result += kBuiltinDefinitionBufferSrc_NOINTEGER;
-
-    result += kBuiltinDefinitionVectorSrc;
-
-    if (FFlag::LuauIntegerType2 && FFlag::LuauIntegerLibrary)
-    {
-        result += kBuiltinDefinitionIntegerSrc;
-    }
+    // moo: number is Q48.16 and there is no integer type or library (DESIGN.md "Analyzer"), so the buffer
+    // definition never mentions integer, whatever the upstream flags say.
+    result += kBuiltinDefinitionBufferSrc_NOINTEGER;
 
     if (FFlag::DebugLuauUserDefinedClasses && FFlag::LuauAllowGlobalDeclarationToBeCalledClass)
     {
@@ -478,7 +471,7 @@ std::string getBuiltinDefinitionSource()
 }
 
 // TODO: split into separate tagged unions when the new solver can appropriately handle that.
-static constexpr const char* kBuiltinDefinitionTypeMethodSrc = R"BUILTIN_SRC(
+[[maybe_unused]] static constexpr const char* kBuiltinDefinitionTypeMethodSrc = R"BUILTIN_SRC(
 
 export type type = {
     tag: "nil" | "unknown" | "never" | "any" | "boolean" | "number" | "integer" | "string" | "buffer" | "thread" |
@@ -586,7 +579,7 @@ export type type = {
 
 )BUILTIN_SRC";
 
-static constexpr const char* kBuiltinDefinitionTypesLibSrc = R"BUILTIN_SRC(
+[[maybe_unused]] static constexpr const char* kBuiltinDefinitionTypesLibSrc = R"BUILTIN_SRC(
 
 declare types: {
     unknown: type,
@@ -639,15 +632,9 @@ std::string getTypeFunctionDefinitionSource()
 {
     std::string result;
 
-    if (FFlag::LuauIntegerType2)
-        result += kBuiltinDefinitionTypeMethodSrc;
-    else
-        result += kBuiltinDefinitionTypeMethodSrc_NOINTEGER;
-
-    if (FFlag::LuauIntegerType2)
-        result += kBuiltinDefinitionTypesLibSrc;
-    else
-        result += kBuiltinDefinitionTypesLibSrc_NOINTEGER;
+    // moo: there is no integer type (DESIGN.md "Analyzer"), so always use the definition without it.
+    result += kBuiltinDefinitionTypeMethodSrc_NOINTEGER;
+    result += kBuiltinDefinitionTypesLibSrc_NOINTEGER;
 
     return result;
 }
