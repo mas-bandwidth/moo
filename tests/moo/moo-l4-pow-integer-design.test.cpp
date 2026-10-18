@@ -15,6 +15,7 @@
 #include "doctest.h"
 
 #include <stdint.h>
+#include <stdlib.h>
 
 #include <string>
 #include <thread>
@@ -487,12 +488,6 @@ WalkTotals walks(int64_t from, int64_t step)
 
 TEST_CASE("MooPowIntCertainSampled")
 {
-    // the walks of MooPowIntCertainEverywhere for one exponent in 4096, every exponent from 14 to 20, and for
-    // an exponent in 65536 out to the last that can be in range
-    WalkTotals t = walks(MOO_POW_EXACT_MAX + 1, 4096);
-    CHECK(t.uncertain == 0);
-    CHECK(t.lastLive > 2000000);
-
     // past the walks (docs/layer4/moo-l4-pow-integer.md, "Exponents past the walks are decided"): the nearest
     // bases each side of 1 at exponents 2^22 .. 2^62 and their neighbours, both signs, are decided at the edge
     for (int k = 22; k <= 62; ++k)
@@ -509,6 +504,7 @@ TEST_CASE("MooPowIntCertainSampled")
                     CHECK(status == (((a > 65536) == (n > 0)) ? MOO_POW_SATURATED : MOO_POW_OK));
                 }
 
+    // every exponent 14..20 in full, above 1 for n > 0 and below 1 for n < 0 (the widest walks)
     for (int64_t n = MOO_POW_EXACT_MAX + 1; n <= 20; ++n)
     {
         uint64_t visited = 0, uncertain = 0;
@@ -521,16 +517,21 @@ TEST_CASE("MooPowIntCertainSampled")
 
 // The proof that the interval path always decides (docs/layer4/moo-l4-pow-integer.md, "Why one rounding is
 // exact"): for every |n| > MOO_POW_EXACT_MAX, every base whose result neither saturates nor rounds to 0 is
-// visited, and the two bounds round to the same value on every one. About 7.7e7 calls, so it is skipped by
-// default; run it with: build/Moo.Test -ts=moo-l4-pow-integer-design -tc=MooPowIntCertainEverywhere --no-skip
-TEST_CASE("MooPowIntCertainEverywhere" * doctest::skip())
+// visited, and the two bounds round to the same value on every one. The whole proof is about 7.7e7 calls (25 s of
+// CPU), so by default the case walks one exponent in 4096 from 14 out past the last live one (0.3 s); MOO_POW_PROOF=1
+// runs every exponent on 16 threads (as MOO_ORACLE_N and MOO_FORMAT_N widen their cases):
+//   MOO_POW_PROOF=1 build/Moo.Test -ts=moo-l4-pow-integer-design -tc=MooPowIntCertainEverywhere
+TEST_CASE("MooPowIntCertainEverywhere")
 {
-    const int threads = 16;
+    const char* proof = getenv("MOO_POW_PROOF");
+    const bool full = proof && proof[0] == '1' && proof[1] == 0;
+    const int threads = full ? 16 : 1;
+    const int64_t step = full ? 16 : 4096;
     std::vector<WalkTotals> totals(threads);
     std::vector<std::thread> pool;
     for (int k = 0; k < threads; ++k)
-        pool.emplace_back([k, &totals]() {
-            totals[k] = walks(MOO_POW_EXACT_MAX + 1 + k, threads);
+        pool.emplace_back([k, step, &totals]() {
+            totals[k] = walks(MOO_POW_EXACT_MAX + 1 + k, step);
         });
     for (std::thread& t : pool)
         t.join();
@@ -548,7 +549,7 @@ TEST_CASE("MooPowIntCertainEverywhere" * doctest::skip())
             all.firstExponent = t.firstExponent;
         }
     }
-    MESSAGE("visited " << all.visited << " calls, " << all.uncertain << " uncertain (first: base " << all.firstBase << " exponent "
+    MESSAGE(std::string(full ? "full proof: " : "sampled: ") << "visited " << all.visited << " calls, " << all.uncertain << " uncertain (first: base " << all.firstBase << " exponent "
                        << all.firstExponent << "); last exponent with a live base " << all.lastLive);
     CHECK(all.uncertain == 0);
     CHECK(all.lastLive > 2000000);
