@@ -29,10 +29,10 @@ folded constant is bit-identical to the run time's result by construction. The f
     result. That pins the folded constant to the function rather than to a second computation.
   - `MooFoldPowIntLeavesDivisionByZeroAndFractionalUnfolded`: `return 0 ^ -1` and `return 2 ^ 0.5` still
     compile to `POWK`.
-- `tests/MooCompiler.test.cpp` is not changed. The design note says `MooFoldArithIsFixedPoint`'s pin of
-  `10 ^ 2` as `POWK` changes in this card, but that file is outside this card's PATHS, so the card cannot
-  edit it; the `10 ^ 2` fold is instead pinned in the new test file above. `MooCompiler.test.cpp:58`'s
-  `POWK` assertion is now stale and fails once this fold lands.
+- `tests/MooCompiler.test.cpp` is changed: `MooFoldArithIsFixedPoint`'s pin of `10 ^ 2` as `POWK`
+  becomes `LOADN R0 100`, because the design note requires that case to change in this card and the file is
+  in this card's PATHS. Its header comment likewise notes that `^` with an integer exponent folds through
+  `moo_pow_int`. The fold is also pinned in the new test file above.
 - NEW this note. `Common/include/moo_pow.h` and `docs/layer4/moo-l4-pow-integer.md` are unchanged.
 
 Not changed: `Compiler/src/BuiltinFolding.cpp`. `foldBuiltin` returns `Constant()` before its switch for
