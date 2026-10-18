@@ -14,7 +14,7 @@ Use `fixExp2` and `fixLog2` as the only math sources for these seven entry point
 - `VM/src/lbuiltins.cpp`: the seven bytecode fastcalls call those helpers. Invalid log domains return to the library wrapper so both paths raise the same error.
 - `tests/moo/moo-l4-math-exp-log.test.cpp`: checks each function at edges and 4096 seeded inputs, verifies library and fastcall results against the fixed composition, checks log errors, and prints the maximum absolute error against each available oracle vector.
 - `tests/conformance/moo/l3/moo-l4-math-exp-log.luau`: pins saturation, identities, alias/fastcall agreement, and the named log errors.
-- `tests/conformance/moo/math.luau`: four upstream expectations become the fixed results. `math.exp(1)` is `178144/65536`, one raw below `math.e = 178145`, because `fixExp2` samples the exponent on the Q48.16 grid; `math.log10("10")` and `math.log("10", 10)` are `65535/65536`, one raw below 1, because `fixLog2(10) * round(1/log2(10))` rounds to 65535; `math.log("0")` no longer returns `-inf` because a non-positive log argument is the named error. Each carries a `moo:` comment beside the replaced assertion.
+- `tests/conformance/moo/math.luau` is outside this card's PATHS and is intentionally left unchanged. Its upstream lines `assert(math.exp(1) == math.e)`, `assert(math.log10("10") == 1)`, `assert(math.log("10", 10) == 1)`, and `assert(math.log("0") == -inf)` now contradict the fixed results and the `x <= 0` named error, so the upstream `Math` conformance case stays red until the layer-closing card updates it.
 
 The current `moo-l4-math-oracle` vectors produced these maximum absolute errors in raw Q48.16 units for this composition:
 
