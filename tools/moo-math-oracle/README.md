@@ -52,6 +52,10 @@ and `-fno-fast-math`.
 - A NaN result stops the generator: it means a sample left the function's domain.
 - Below 2^37 the double has more fraction bits than Q48.16, so the ideal is the correctly rounded double rounded
   again. It can differ from rounding the real value once only when the double falls exactly on a half-unit tie.
+- At and above 2^37 (2^53 raw) the double is coarser than a raw unit, so the ideal is the double itself. It can be
+  up to half a double ulp from the nearest Q48.16: 2^(b - 54) raw for a result of b bits, at most 512 raw near the
+  top of the range. An error measured there includes up to that much of the oracle's own (exp, sinh, cosh, tan near
+  its poles, pow).
 
 ## The samples
 
@@ -61,8 +65,9 @@ Inputs at and above 2^53 raw are therefore taken on the grid a double holds. The
 
 - **asin, acos: exhaustive.** Every raw value in [-1, 1], 131073 inputs each.
 - **Every other function: a seeded dense sample.** There are 65536 PCG32 draws (seed `0x6d6f6f2d6d617468`, stream =
-  the function's index in `gen.c`'s table) plus the edges. The records are sorted and duplicates removed, so a block
-  holds somewhat fewer records than draws. Each draw is made one of four ways, with equal odds:
+  the function's index in `gen.c`'s table) plus the edges. The records are sorted and duplicates removed. About a
+  quarter of the draws repeat (mostly the small bit widths, the edge ±8 draws and draws clamped to a domain limit),
+  so a block holds 47,044 to 63,138 records. Each draw is made one of four ways, with equal odds:
   - uniform in the function's dense core (below);
   - uniform anywhere in its domain;
   - any bit width from 1 to 63, with either sign where the domain has negatives;
@@ -75,8 +80,9 @@ Inputs at and above 2^53 raw are therefore taken on the grid a double holds. The
   - the ends of the dense core.
 
   For sin, cos, tan and atan they also include the nearest raw value of k·π/2, and the raw values on each side of
-  it, for |k| <= 16 and for k = ±2^j with 5 <= j <= 40 (`mooHalfPiMultiple`, from π/2 · 2^16 with 64 fraction bits). For the
-  two-input functions, the first 13 edges of each input are crossed.
+  it, for |k| <= 16 and for k = ±2^j with 5 <= j <= 40 (`mooHalfPiMultiple`, from π/2 · 2^16 with 64 fraction
+  bits). For j >= 37 the multiple is above 2^53 raw, so the edge is the grid point toward zero from it, and its
+  neighbours fall on the same point. For the two-input functions, the first 13 edges of each input are crossed.
 
 | function | domain (raw) | dense core |
 |---|---|---|

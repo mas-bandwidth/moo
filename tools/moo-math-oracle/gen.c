@@ -46,7 +46,8 @@ static double moo_cr_sqrt(double x)
 #define MOO_ONE ((int64_t)65536)
 
 // ---------------------------------------------------------------------------------------------------------------
-// moo's boundary rule, copied from Common/include/moo_number.h moo_numfromdouble so the generator stands alone:
+// docs/DESIGN.md "Boundary": moo's boundary rule, copied from Common/include/moo_number.h moo_numfromdouble so the
+// generator stands alone:
 // the IEEE bits decoded in integer arithmetic and rounded once, ties to even. Returns 0 (ok), 1 (NaN),
 // 2 (infinite) or 3 (out of range); writes *out only on 0.
 static int mooOracleFromDouble(double x, int64_t* out)
@@ -113,6 +114,7 @@ static int64_t mooOracleIdeal(double y, const char* name, int64_t a, int64_t b)
     return y > 0 ? MOO_MAX : MOO_MIN;
 }
 
+// docs/DESIGN.md "math library", "Accuracy oracle": the ideal is f of the input itself, so the input must be exact.
 // The input raw value as the double that holds it exactly. Every sampled raw has at most 53 significant bits
 // (mooOracleExact), so the conversion and the scaling by 2^-16 are exact.
 static double mooOracleToDouble(int64_t raw)
@@ -276,7 +278,8 @@ static int mooInDomain(const MooFunction* f, int64_t a, int64_t b)
     return 1;
 }
 
-// One draw, one of four ways with equal odds: in the dense core; anywhere in the domain; any bit width from 1 to
+// docs/DESIGN.md "math library", "Accuracy oracle" ("dense sampling elsewhere"). One draw, one of four ways with
+// equal odds: in the dense core; anywhere in the domain; any bit width from 1 to
 // 63 with either sign; or an edge moved by up to 8 raw units. Then put on the exact-double grid and into the domain.
 static int64_t mooDraw(MooPcg32* rng, int64_t lo, int64_t hi, int64_t coreLo, int64_t coreHi, const int64_t* edges, int edgeCount)
 {

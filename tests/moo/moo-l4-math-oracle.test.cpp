@@ -194,7 +194,7 @@ private:
         return true;
     }
 
-    // zigzag LEB128, at most 10 bytes, within the payload
+    // zigzag LEB128, at most 10 bytes, within the payload; a 10th byte above 1 would overflow 64 bits
     bool varint(uint64_t& v, size_t limit)
     {
         uint64_t z = 0;
@@ -203,6 +203,8 @@ private:
             if (pos >= limit)
                 return false;
             unsigned char c = bytes[pos++];
+            if (shift == 63 && c > 1)
+                return false;
             z |= uint64_t(c & 0x7f) << shift;
             if (!(c & 0x80))
             {
@@ -213,6 +215,57 @@ private:
         return false;
     }
 };
+
+// A file of the README's format built from parts, with its FNV-1a trailer, for the refusal witnesses.
+struct MooOracleBlock
+{
+    std::string name;
+    unsigned arity;
+    uint64_t count;
+    std::vector<unsigned char> payload;
+    uint64_t payloadSize; // the size the block header claims
+};
+
+void mooPutLe(std::vector<unsigned char>& out, uint64_t v, int bytes)
+{
+    for (int i = 0; i < bytes; i++)
+        out.push_back((unsigned char)(v >> (8 * i)));
+}
+
+std::vector<unsigned char> mooOracleBuild(const std::vector<MooOracleBlock>& blocks, size_t trailing)
+{
+    std::vector<unsigned char> out = {'M', 'O', 'O', 'M', 'A', 'T', 'H', '1'};
+    const std::string header = "synthetic\n";
+    mooPutLe(out, 1, 4);
+    mooPutLe(out, header.size(), 4);
+    out.insert(out.end(), header.begin(), header.end());
+    mooPutLe(out, blocks.size(), 4);
+    for (const MooOracleBlock& b : blocks)
+    {
+        out.push_back((unsigned char)b.name.size());
+        out.insert(out.end(), b.name.begin(), b.name.end());
+        out.push_back((unsigned char)b.arity);
+        out.push_back(0);
+        mooPutLe(out, b.count, 8);
+        mooPutLe(out, b.payloadSize, 8);
+        out.insert(out.end(), b.payload.begin(), b.payload.end());
+    }
+    out.insert(out.end(), trailing, 0);
+    uint64_t h = 0xcbf29ce484222325ull;
+    for (unsigned char c : out)
+    {
+        h ^= c;
+        h *= 0x100000001b3ull;
+    }
+    mooPutLe(out, h, 8);
+    return out;
+}
+
+std::string mooOracleRead(const std::vector<unsigned char>& bytes)
+{
+    MooOracleFile file;
+    return MooOracleReader(bytes).read(file);
+}
 
 MooOracleFile mooOracleLoad()
 {
@@ -315,7 +368,9 @@ TEST_CASE("MooL4MathOracleVectorsDecode")
 {
     MooOracleFile file = mooOracleLoad();
 
-    CHECK(file.header.find("core-math ") != std::string::npos);
+    // tools/moo-math-oracle/CMakeLists.txt MOO_CORE_MATH_PIN and MOO_ORACLE_SAMPLES
+    CHECK(file.header.find("core-math dae5dd8c0d5bd2691b45de28c9edbe12f067c3d3\n") != std::string::npos);
+    CHECK(file.header.find(" 65536 PCG32 draws ") != std::string::npos);
     REQUIRE(file.functions.size() == sizeof(mooOracleFunctionNames) / sizeof(mooOracleFunctionNames[0]));
     for (size_t i = 0; i < file.functions.size(); i++)
     {
@@ -324,15 +379,19 @@ TEST_CASE("MooL4MathOracleVectorsDecode")
         CHECK(file.functions[i].count > 0);
     }
 
-    // asin and acos are exhaustive over [-1, 1]: every raw value from -65536 to 65536
+    // asin and acos, and only they, are exhaustive over [-1, 1]: every raw value from -65536 to 65536
     for (const MooOracleFunction& f : file.functions)
-        if (f.name == "asin" || f.name == "acos")
+    {
+        bool small = f.name == "asin" || f.name == "acos";
+        CHECK_MESSAGE(f.exhaustive == small, f.name);
+        CHECK_MESSAGE(f.arity == ((f.name == "atan2" || f.name == "pow") ? 2 : 1), f.name);
+        if (small)
         {
-            CHECK(f.exhaustive);
             REQUIRE(f.count == 131073);
             CHECK(f.records.front().a == -65536);
             CHECK(f.records.back().a == 65536);
         }
+    }
 
     printf("moo-math-oracle file=%s functions=%zu\n", mooOracleVectorPath().c_str(), file.functions.size());
 }
@@ -371,8 +430,30 @@ TEST_CASE("MooL4MathOracleVectorsRefuseDamage")
     CHECK_MESSAGE(error.find("header says") != std::string::npos, "a miscounted block gave: " << error);
 }
 
-// The ideal at points where the real answer is exact: these anchor the file to the definition, and
-// tests/conformance/moo/l3/moo-l4-math-oracle.luau checks the same points through the VM.
+// A reversed witness for each structural refusal of the reader, on small files built with a correct trailer, so
+// the hash cannot be what refuses them. The well-formed file must decode.
+TEST_CASE("MooL4MathOracleVectorsRefuseStructure")
+{
+    // two records (a=3, ideal=7) and (a=5, ideal=8): zigzag deltas 3 -> 6, 7 -> 14, 2 -> 4, 1 -> 2
+    const std::vector<unsigned char> good = {6, 14, 4, 2};
+    CHECK(mooOracleRead(mooOracleBuild({{"f", 1, 2, good, good.size()}}, 0)) == "");
+
+    CHECK(mooOracleRead(mooOracleBuild({{"f", 3, 2, good, good.size()}}, 0)).find("bad arity") != std::string::npos);
+    CHECK(mooOracleRead(mooOracleBuild({{"f", 1, 2, good, good.size() + 1}}, 0)).find("past the end") != std::string::npos);
+    CHECK(mooOracleRead(mooOracleBuild({{"f", 1, 3, {6, 14, 4, 2, 2}, 5}}, 0)).find("truncated record") != std::string::npos);
+    // the second record steps back: a delta of -2 is zigzag 3
+    CHECK(mooOracleRead(mooOracleBuild({{"f", 1, 2, {6, 14, 3, 2}, 4}}, 0)).find("not sorted") != std::string::npos);
+    CHECK(mooOracleRead(mooOracleBuild({{"f", 1, 2, good, good.size()}}, 1)).find("trailing bytes") != std::string::npos);
+    // a 10-byte varint whose last byte is 2 would need 65 bits
+    const std::vector<unsigned char> overlong = {0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x02, 14};
+    CHECK(mooOracleRead(mooOracleBuild({{"f", 1, 1, overlong, overlong.size()}}, 0)).find("truncated record") != std::string::npos);
+    const std::vector<unsigned char> longest = {0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x01, 14};
+    CHECK(mooOracleRead(mooOracleBuild({{"f", 1, 1, longest, longest.size()}}, 0)) == "");
+}
+
+// The ideal at points where the real answer is exact: these anchor the file to the definition.
+// tests/conformance/moo/l3/moo-l4-math-oracle.luau checks math.pi against acos(-1) here, and math.huge against the
+// saturated ideal, through the VM.
 TEST_CASE("MooL4MathOracleExactPoints")
 {
     MooOracleFile file = mooOracleLoad();
@@ -407,6 +488,8 @@ TEST_CASE("MooL4MathOracleExactPoints")
     // asin(1) = pi/2 = 102943.708... raw, so 102944; acos(-1) = pi = 205887.416... raw, so 205887
     CHECK(ideal("asin", one, 0) == 102944);
     CHECK(ideal("acos", -one, 0) == 205887);
+    // a result beyond the range saturates: exp of the largest input
+    CHECK(ideal("exp", INT64_MAX - 1023, 0) == INT64_MAX);
 }
 
 // The table layer 4 decides the bounds from: for each function with a fixed source, the maximum error in raw units
