@@ -67,8 +67,8 @@ not met by this card alone:
   `MooPowIntVmFractionalBridge`; the last two build raw values in C++ and never parse a literal. All three fail the
   same way at BASE.
 - `build/Luau.UnitTest`: 5146/5159 cases, 22933/22947 assertions. The 13 failing cases are
-  `fold_constants_div_by_zero`, `MooBuiltinsDoNotFold`, six `TypeFunction.user` cases, the two vector cases in
-  `TypeInfer.operators`/`TypeInfer.refinements`, and the two `os`-table cases; all 13 fail the same way at BASE.
+  `fold_constants_div_by_zero`, `MooBuiltinsDoNotFold`, six `TypeFunction.user` cases, three vector cases in
+  `TypeInfer.operators`/`TypeInfer.refinements`, and two `os`-table cases; all 13 fail the same way at BASE.
 
 Red at BASE for the largest literal, with the new case trimmed to the fields BASE has: BASE compiles
 `140737488355327.99998474121094` to raw `0` and `70368744177663.00001525878906` to `4611686018427322368`, one unit
