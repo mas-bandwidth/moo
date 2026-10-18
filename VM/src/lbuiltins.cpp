@@ -49,6 +49,7 @@ fixed_t moo_math_ldexp(fixed_t a, int e);
 fixed_t moo_math_deg(fixed_t a);
 fixed_t moo_math_rad(fixed_t a);
 fixed_t moo_math_lerp(fixed_t a, fixed_t b, fixed_t t);
+fixed_t moo_math_noise(fixed_t x, fixed_t y, fixed_t z);
 
 // luauF functions implement FASTCALL instruction that performs a direct execution of some builtin functions from the VM
 // The rule of thumb is that FASTCALL functions can not call user code, yield, fail, or reallocate stack.
@@ -1908,6 +1909,31 @@ static int luauF_lerp(lua_State* L, StkId res, TValue* arg0, int nresults, StkId
     return -1;
 }
 
+// moo: the fastcall shares the fixed math.noise implementation with its library entry (DESIGN.md \"math library\").
+static int luauF_noise(lua_State* L, StkId res, TValue* arg0, int nresults, StkId args, int nparams)
+{
+    if (nparams < 1 || nresults > 1 || !ttisnumber(arg0))
+        return -1;
+
+    fixed_t y = 0;
+    fixed_t z = 0;
+    if (nparams > 1 && !ttisnil(args))
+    {
+        if (!ttisnumber(args))
+            return -1;
+        y = nvalue(args);
+    }
+    if (nparams > 2 && !ttisnil(args + 1))
+    {
+        if (!ttisnumber(args + 1))
+            return -1;
+        z = nvalue(args + 1);
+    }
+
+    setnvalue(res, moo_math_noise(nvalue(arg0), y, z));
+    return 1;
+}
+
 static int luauF_isnan(lua_State* L, StkId res, TValue* arg0, int nresults, StkId args, int nparams)
 {
     if (nparams >= 1 && nresults <= 1 && ttisnumber(arg0))
@@ -2894,6 +2920,8 @@ const luau_FastFunction luauF_table[256] = {
 
     luauF_bufferreadlong,
     luauF_bufferwritelong,
+
+    luauF_noise,
 
 // When adding builtins, add them above this line; what follows is 64 "dummy" entries with luauF_missing fallback.
 // This is important so that older versions of the runtime that don't support newer builtins automatically fall back via luauF_missing.
