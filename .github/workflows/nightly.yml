@@ -5,10 +5,17 @@ on:
   schedule:
     - cron: "17 7 * * *"
   workflow_dispatch:
+  push:
+    paths:
+      - "tools/moo-math-oracle/**"
+  pull_request:
+    paths:
+      - "tools/moo-math-oracle/**"
 
 jobs:
   test:
     name: ${{ matrix.name }}
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     runs-on: ${{ matrix.os }}
     timeout-minutes: 60
     strategy:
@@ -75,6 +82,7 @@ jobs:
 
   windows-msvc:
     name: windows-msvc
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     runs-on: windows-latest
     timeout-minutes: 90
     steps:
@@ -97,6 +105,7 @@ jobs:
 
   tla:
     name: tla
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -109,3 +118,12 @@ jobs:
       - name: model check
         run: tools/moo-tlc.sh "$PWD/tla2tools.jar"
 
+  math-oracle:
+    name: math-oracle
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: regenerate the CORE-MATH oracle and compare
+        run: tools/moo-math-oracle/check.sh
