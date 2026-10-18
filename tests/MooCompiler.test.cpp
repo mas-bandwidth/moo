@@ -5,7 +5,8 @@
 // pointer here:
 //
 // - number arithmetic folds with the VM's own fixed-point operations, so 2/3 folds to fixDiv's truncation and a
-//   folded constant is the run time's bits; division by zero and pow are not folded;
+//   folded constant is the run time's bits; division by zero and `^` with a fractional exponent are not folded,
+//   and `^` with an integer exponent folds through moo_pow_int;
 // - builtin calls (math.*, string.*, bit32.*, vector.*) and math.pi / math.huge do not fold, because the build
 //   machine's libm and the run time's must not disagree (until the math library is rebuilt on fixed).
 #include "Luau/BytecodeBuilder.h"
@@ -53,8 +54,9 @@ TEST_CASE("MooFoldArithIsFixedPoint")
     CHECK(!has(mooCompile0("return 1 / 0"), "LOADK"));
     CHECK(has(mooCompile0("return 1 / 0"), "DIV"));
 
-    // pow waits for the math library on fixed
-    CHECK(has(mooCompile0("return 10 ^ 2"), "POWK"));
+    // moo: `10 ^ 2` is an integer power, so it folds to 100 through moo_pow_int; it was POWK (not folded)
+    // before this card, which changes that case (docs/layer4/moo-l4-pow-integer-fold.md)
+    CHECK(has(mooCompile0("return 10 ^ 2"), "LOADN R0 100"));
 }
 
 TEST_CASE("MooBuiltinsDoNotFold")

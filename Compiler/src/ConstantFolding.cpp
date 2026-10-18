@@ -7,6 +7,7 @@
 #include "Luau/Lexer.h"
 
 #include "moo_number.h"
+#include "moo_pow.h"
 
 #include <vector>
 #include <math.h>
@@ -98,6 +99,22 @@ static void mooFold(Constant& result, AstExprBinary::Op op, const Constant& la, 
         if (b != 0)
             mooResult(result, moo_nummod(a, b));
         break;
+    case AstExprBinary::Pow:
+    {
+        // moo: ^ with an integer exponent folds through moo_pow_int, so the folded constant is the run time's bits
+        // (docs/DESIGN.md, "Layer 3 as built", "The compiler"; "math library", "pow and ^"). A fractional exponent
+        // stays unfolded; division by zero and a saturated power are never folded, because the run time raises the
+        // named errors ("division by zero" in every build, "number overflow in '^'" in a checked build).
+        if (!moo_numisinteger(b))
+            break;
+        fixed_t r = 0;
+        int status = moo_pow_int(a, b >> MOO_NUMBER_FRACTION_BITS, &r);
+        if (status == MOO_POW_OK)
+            mooResult(result, r);
+        // MOO_POW_SATURATED and MOO_POW_DIVISION_BY_ZERO: leave them for run time (docs/DESIGN.md,
+        // "Overflow", "Division by zero")
+        break;
+    }
     case AstExprBinary::CompareLt:
         result.type = Constant::Type_Boolean;
         result.valueBoolean = a < b;
@@ -115,7 +132,7 @@ static void mooFold(Constant& result, AstExprBinary::Op op, const Constant& la, 
         result.valueBoolean = a >= b;
         break;
     default:
-        break; // pow waits for the math library on fixed; the rest are not number operations
+        break; // the rest are not number operations
     }
 }
 
