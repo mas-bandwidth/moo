@@ -74,17 +74,19 @@ slots, strings, buffers, userdata, closures, threads; and the GC counters). Both
 `tests/determinism/expected.txt` everywhere. The programs: object-keyed tables of every
 collectable kind with deletes and rehash (`objectkeys`), allocation churn with weak keys, weak
 values, weak both and userdata destructors in five size classes (`gcchurn`), coroutines
-(generators, yields across `pcall`, errors, close, wrap, nesting: `coroutines`), and the rest of
-the surface without transcendentals (`library`). Measured 2026-10-17, all identical:
+(generators, yields across `pcall`, errors, close, wrap, nesting: `coroutines`, and the
+adversarial transitions and refusals in `coroutines2`), every error string and traceback
+(`errors`), and the rest of the surface without transcendentals (`library`). Measured
+2026-10-17; Linux gcc and clang re-run 2026-10-19, all identical:
 
-| program | effects | state | hulk gcc 13.3 | hulk clang 18.1 | hulk clang Debug ASan+UBSan | mini-m5-1 arm64 Apple clang 21 |
-|---|---|---|---|---|---|---|
-| coroutines | `c2101c58c9141949` | `d59008475cc0efa8` | same | same | same | same |
-| coroutines2 | `45af4a6f2428da59` | `d835a456666b53fd` | pending nightly | same | pending nightly | pending nightly |
-| errors | `f7037948e0d4bea2` | `a36df0b1b7d7553c` | pending nightly | same | pending nightly | pending nightly |
-| gcchurn | `3fb416325297900d` | `e044604535a6a1e5` | same | same | same | same |
-| library | `009401661dac79ec` | `3517c3f5eeac8dfa` | same | same | same | same |
-| objectkeys | `c33c0a917acf2ebf` | `9fac96c3362df53c` | same | same | same | same |
+| program | effects | state | hulk gcc 13.3 | hulk clang 18.1 | hulk clang Debug ASan+UBSan | mini-m5-1 arm64 Apple clang 21 | windows-msvc | windows-clang-cl |
+|---|---|---|---|---|---|---|---|---|
+| coroutines | `c2101c58c9141949` | `d81a1f4ae7546667` | same | same | same | same | pending nightly | pending nightly |
+| coroutines2 | `45af4a6f2428da59` | `d835a456666b53fd` | same | same | pending nightly | pending nightly | pending nightly | pending nightly |
+| errors | `f7037948e0d4bea2` | `a36df0b1b7d7553c` | same | same | pending nightly | pending nightly | pending nightly | pending nightly |
+| gcchurn | `3fb416325297900d` | `190fe5a4371020c2` | same | same | same | same | pending nightly | pending nightly |
+| library | `009401661dac79ec` | `66d1c7cf8da050e5` | same | same | same | same | pending nightly | pending nightly |
+| objectkeys | `c33c0a917acf2ebf` | `4d2f33e10754ac67` | same | same | same | same | pending nightly | pending nightly |
 
 `MOO_DETERMINISM_PRINT=1` prints the table's lines. The nightly runs it on Linux gcc, Linux
 clang, macOS arm64 and Windows MSVC and clang-cl; CI runs it on Linux clang on every push. Floats are still the number type, so
