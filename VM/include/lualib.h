@@ -35,8 +35,7 @@ LUALIB_API int64_t luaL_optinteger64(lua_State* L, int nArg, int64_t def);
 LUALIB_API unsigned luaL_checkunsigned(lua_State* L, int numArg);
 LUALIB_API unsigned luaL_optunsigned(lua_State* L, int numArg, unsigned def);
 
-LUALIB_API const LUA_VECTOR_TYPE* luaL_checkvector(lua_State* L, int narg);
-LUALIB_API const LUA_VECTOR_TYPE* luaL_optvector(lua_State* L, int narg, const LUA_VECTOR_TYPE* def);
+// moo: luaL_checkvector and luaL_optvector are removed with the vector C API (layer 3, docs/DESIGN.md "vec3, quat and transform")
 
 LUALIB_API void luaL_checkstack(lua_State* L, int sz, const char* msg);
 LUALIB_API void luaL_checktype(lua_State* L, int narg, int t);
