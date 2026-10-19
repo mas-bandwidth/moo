@@ -9,7 +9,8 @@ LUAU_FASTFLAG(LuauIntegerLibrary)
 LUAU_FASTFLAG(DebugLuauUserDefinedClassesRuntime)
 LUAU_FASTFLAGVARIABLE(LuauSandboxFreezesVectorMetatable)
 
-static const luaL_Reg lualibs[] = {
+// moo: lualibs (with the integer library) stays defined, unused, for upstream merges; luaL_openlibs always opens lualibs_NOINTEGER.
+[[maybe_unused]] static const luaL_Reg lualibs[] = {
     {"", luaopen_base},
     {LUA_COLIBNAME, luaopen_coroutine},
     {LUA_TABLIBNAME, luaopen_table},
@@ -19,7 +20,7 @@ static const luaL_Reg lualibs[] = {
     {LUA_UTF8LIBNAME, luaopen_utf8},
     {LUA_BITLIBNAME, luaopen_bit32},
     {LUA_BUFFERLIBNAME, luaopen_buffer},
-    {LUA_VECLIBNAME, luaopen_vector},
+    // moo: the float32 vector library entry is removed here (layer 3, docs/DESIGN.md "vec3, quat and transform").
     {LUA_INTLIBNAME, luaopen_integer},
     {NULL, NULL},
 };
@@ -34,17 +35,14 @@ static const luaL_Reg lualibs_NOINTEGER[] = {
     {LUA_UTF8LIBNAME, luaopen_utf8},
     {LUA_BITLIBNAME, luaopen_bit32},
     {LUA_BUFFERLIBNAME, luaopen_buffer},
-    {LUA_VECLIBNAME, luaopen_vector},
     {NULL, NULL},
 };
 
 void luaL_openlibs(lua_State* L)
 {
-    const luaL_Reg* lib;
-    if (FFlag::LuauIntegerLibrary)
-        lib = lualibs;
-    else
-        lib = lualibs_NOINTEGER;
+    // moo: always the table without integer, whatever FFlag says: one number type (docs/DESIGN.md "integer",
+    // DETERMINISM.md 23); neither table holds the float32 vector library (layer 3).
+    const luaL_Reg* lib = lualibs_NOINTEGER;
 
     for (; lib->func; lib++)
     {
@@ -85,23 +83,7 @@ void luaL_sandbox(lua_State* L)
         lua_pop(L, 1);
     }
 
-    if (FFlag::LuauSandboxFreezesVectorMetatable)
-    {
-#if LUA_VECTOR_SIZE == 4
-        lua_pushvector(L, 0.0f, 0.0f, 0.0f, 0.0f);
-#else
-        lua_pushvector(L, 0.0f, 0.0f, 0.0f);
-#endif
-        if (lua_getmetatable(L, -1))
-        {
-            lua_setreadonly(L, -1, true);
-            lua_pop(L, 2);
-        }
-        else
-        {
-            lua_pop(L, 1);
-        }
-    }
+    // moo: the LuauSandboxFreezesVectorMetatable block is removed here: no vector can be made from a script (layer 3).
 
     // set globals to readonly and activate safeenv since the env is immutable
     lua_setreadonly(L, LUA_GLOBALSINDEX, true);
