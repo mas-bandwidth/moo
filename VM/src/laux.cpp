@@ -274,18 +274,7 @@ unsigned luaL_optunsigned(lua_State* L, int narg, unsigned def)
     return luaL_opt(L, luaL_checkunsigned, narg, def);
 }
 
-const LUA_VECTOR_TYPE* luaL_checkvector(lua_State* L, int narg)
-{
-    const LUA_VECTOR_TYPE* v = lua_tovector(L, narg);
-    if (!v)
-        tag_error(L, narg, LUA_TVECTOR);
-    return v;
-}
-
-const LUA_VECTOR_TYPE* luaL_optvector(lua_State* L, int narg, const LUA_VECTOR_TYPE* def)
-{
-    return luaL_opt(L, luaL_checkvector, narg, def);
-}
+// moo: luaL_checkvector and luaL_optvector are removed with the vector C API (layer 3, docs/DESIGN.md "vec3, quat and transform")
 
 int luaL_getmetafield(lua_State* L, int obj, const char* event)
 {
@@ -646,24 +635,7 @@ const char* luaL_tolstring(lua_State* L, int idx, size_t* len)
         lua_pushlstring(L, s, e - s);
         break;
     }
-    case LUA_TVECTOR:
-    {
-        const LUA_VECTOR_TYPE* v = lua_tovector(L, idx);
-
-        char s[LUAI_MAXNUM2STR * LUA_VECTOR_SIZE];
-        char* e = s;
-        for (int i = 0; i < LUA_VECTOR_SIZE; ++i)
-        {
-            if (i != 0)
-            {
-                *e++ = ',';
-                *e++ = ' ';
-            }
-            e = luai_num2str(e, v[i]);
-        }
-        lua_pushlstring(L, s, e - s);
-        break;
-    }
+    // moo: the LUA_TVECTOR case is removed; no vector can be made (layer 3, docs/DESIGN.md "vec3, quat and transform")
     case LUA_TSTRING:
         lua_pushvalue(L, idx);
         break;

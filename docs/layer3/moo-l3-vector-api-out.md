@@ -1,60 +1,76 @@
-# moo-l3-vector-api-out: note (attempt 1)
+# moo-l3-vector-api-out: no vector in the C API
 
-## Blocked: moo-l3-libs-out has not landed
+## Decision
 
-This card removes the float vector from the C API: `lua_pushvector`, `lua_tovector`,
-`lua_isvector`, `luaL_checkvector` (and `luaL_optvector`) leave `VM/include/lua.h` and
-`VM/include/lualib.h`, their bodies leave `VM/src/lapi.cpp` and `VM/src/laux.cpp`, `CLI/src/Repl.cpp`
-stops printing vectors, and `tests/Conformance.test.cpp` stops calling `lua_pushvector`.
+The float vector is now refused at every surface layer 3 names: the library is out
+(`moo-l3-libs-out`), the bytecode constant is refused (`moo-l3-vector-constant-refused`), and this
+card removes the C API. A host that calls `lua_pushvector`, `lua_tovector`, `lua_isvector`,
+`luaL_checkvector` or `luaL_optvector` fails to compile, because the declarations are gone rather
+than stubbed. `LUA_TVECTOR` stays in the tag enum, unused, for the same reason DESIGN.md
+"integer" keeps `LUA_TINTEGER`: upstream merges stay mechanical. The type itself leaves in a later
+layer 3 card.
 
-The card's premise (SOURCE, DESIGN.md "vec3, quat and transform"): "After the library
-(moo-l3-libs-out) and the constant (moo-l3-vector-constant-refused) are gone, only the C API can
-still make a vector." The constant is gone (`land moo-l3-vector-constant-refused`).
-The library is not.
+The conformance host still runs the upstream userdata cases that pass vectors around. Since the
+public C API is gone, `tests/Conformance.test.cpp` builds those test vectors through the VM's
+internal `TValue` seam (`lapi.h`, `setvvalue`, `luaA_toobject`), not through a second public path.
+Those helpers are test-only and marked `moo:`. `CLI/src/Repl.cpp` needed no change: its vector
+printing was `luaL_tolstring`/the vector library, and neither can receive a vector now.
 
-At the base (`a8f2dfd7`), the float vector library is fully present:
-- `VM/src/lveclib.cpp` defines `luaopen_vector` and calls `lua_pushvector`, `luaL_checkvector`,
-  `luaL_optvector` throughout, and is built into `Luau.VM` (`Sources.cmake` line 436).
-- `VM/src/linit.cpp` registers `LUA_VECLIBNAME`/`luaopen_vector` in both `lualibs` and
-  `lualibs_NOINTEGER`, and `luaL_sandbox` pushes a dummy vector for the metatable freeze.
-  `VM/src/linit.cpp` is not in this card's PATHS.
-- `VM/src/lvector.cpp`, `VM/src/lvector.h` implement the GC vector object.
+## What changed
 
-Removing the four names from the public headers breaks the build of `VM/src/lveclib.cpp` and
-`VM/src/linit.cpp`, which call them and are outside this card's PATHS (PATHS: `VM/include/lua.h`,
-`VM/include/lualib.h`, `VM/src/lapi.cpp`, `VM/src/laux.cpp`, `CLI/src/Repl.cpp`,
-`tests/Conformance.test.cpp`). `tests/Conformance.test.cpp` likewise uses `lua_pushvector` and
-`luaL_checkvector` in `setupVectorHelpers` and the vector conformance cases, which the card orders
-adapted.
-
-So `DONE-WHEN` cannot hold: the three Luau suites and `Moo.Test` build `Luau.VM`, which links
-`lveclib.cpp`. The card should run after `moo-l3-libs-out` lands (it removes `lveclib.cpp`,
-`lvector.cpp`/`lvector.h` from `Sources.cmake`, the vector entries from `linit.cpp`, and
-`luaopen_vector` from `lualib.h`).
-
-## What was verified (red, unchanged base `a8f2dfd7`)
-
-- `tools/revendor-fixed.sh --check` passes (extern/fixed matches pin `2f1ed913374a`).
-- `cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DLUAU_WERROR=ON
-  -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++` configures.
-- `cmake --build build --target Moo.Test Luau.VM` builds; `build/Moo.Test` runs; the only
-  failures are the pre-existing named base reds `MooPowIntCertainEverywhere` and
-  `MooPowIntVmFractionalBridge` (moo-l4-pow-integer-math/vm), unrelated to vectors.
-- `tools/moo-check-no-clock.sh build/libLuau.VM.a` passes.
-- `git grep -c 'lua_pushvector' -- VM/include` prints `VM/include/lua.h:2` (the red line).
-
-## Not done
-
-The task itself (the removal and the adaptation) was not done: the card is blocked on the unmet
-dependency `moo-l3-libs-out`. No code change was made beyond this note.
+- `VM/include/lua.h`: removed `lua_tovector`, `lua_pushvector` (both width arms) and the
+  `lua_isvector` macro. `LUA_TVECTOR` in the tag enum is untouched.
+- `VM/include/lualib.h`: removed `luaL_checkvector` and `luaL_optvector` (the second had no
+  callers once the first was gone).
+- `VM/src/lapi.cpp`: removed `lua_tovector` and `lua_pushvector`; no other body used them.
+- `VM/src/laux.cpp`: removed `luaL_checkvector`, `luaL_optvector`, and the now-unreachable
+  `LUA_TVECTOR` case of `luaL_tolstring`.
+- `tests/Conformance.test.cpp`: replaced the `lua_pushvector3` macro and every
+  `lua_pushvector`/`luaL_checkvector` call with the test-only `mooTestPushVector`,
+  `mooTestPushVector3` and `mooTestCheckVector`; `setupVectorHelpers` still installs the test-only
+  `vector.create` the upstream scripts call.
+- New `tests/moo/moo-l3-vector-api-out.test.cpp`: `OpenlibsLeavesNoVectorInGlobals` and
+  `SandboxLeavesNoVectorInGlobals` scan the globals table (and one table level down) for
+  `LUA_TVECTOR` and check `vector` is nil.
+- New `tests/conformance/moo/l3/moo-l3-vector-api-out.luau`: no script-visible path makes a vector.
 
 ## Sentences the closing card must fold in
 
-`docs/DESIGN.md` "Layer 3 as built", TEMPORARY bridges bullet: "the float `vector` type convert
-through doubles (`moo_numbridgetodouble`, `moo_numbridgefromdouble`), until the math library is
-rebuilt on fixed and the vector type is removed." And "vec3, quat and transform": "Luau's `vector`
-is three float32 components packed into the `TValue`. moo removes it in layer 3 (the library, the
-type and the bytecode constant, each refused by name)."
+`docs/DESIGN.md`, "Layer 3 as built", TEMPORARY bridges bullet, currently:
 
-`docs/DETERMINISM.md` section 17, "The `vector` type is float32" (`#17`): "in layer 3 the float
-vector type is removed. Layer 3b brings `vec3`, `quat` and ..."
+> the libm functions of `math`, `^`, `math.noise`, and the float `vector` type convert through doubles
+> (`moo_numbridgetodouble`, `moo_numbridgefromdouble`), until the math library is rebuilt on fixed and the vector
+> type is removed;
+
+the `vector` half is now unreachable (no library, constant or C API can make one); drop it so the
+bullet reads "the libm functions of `math`, `^`, `math.noise` ... until the math library is rebuilt
+on fixed".
+
+`docs/DESIGN.md`, "vec3, quat and transform", currently:
+
+> Luau's `vector` is three float32 components packed into the `TValue`. moo removes it in layer 3
+> (the library, the type and the bytecode constant, each refused by name).
+
+add the C API to that list: "(the library, the type, the bytecode constant and the C API, each
+refused by name)".
+
+`docs/DETERMINISM.md` section 17, "The `vector` type is float32", Fix bullet, currently:
+
+> **Fix:** in layer 3 the float vector type is removed. Layer 3b brings `vec3`, `quat` and
+> `transform` back with full Q48.16 components (DESIGN.md, "vec3, quat and transform").
+
+append: "The library, the bytecode constant and the C API (`lua_pushvector`, `lua_tovector`,
+`lua_isvector`, `luaL_checkvector`) are removed first; `LUA_TVECTOR` stays unused in the tag enum
+for upstream merges."
+
+`docs/DETERMINISM.md`, "Status", the moved-script list currently names "(basic, buffers, math,
+tables, errors, events, bitwise, tpack, debug, strconv, iter, vector, vector_library)"; `libs-out`
+deleted `vector_library.luau` and this card leaves only `vector.luau` (the remaining Vector case),
+so drop `vector_library` from that list.
+
+## Not changed
+
+`VM/src/lveclib.cpp` still calls the removed names, but `Sources.cmake` and the `Makefile` already
+leave it out of the build (`moo-l3-libs-out` kept the file in the tree unbuilt). `VM/src/lvector.cpp`
+still implements the GC vector object and `LUA_TVECTOR` still exists; removing them is a later
+layer 3 card.
