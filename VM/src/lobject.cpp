@@ -8,6 +8,9 @@
 #include "lgc.h"
 #include "ldo.h"
 #include "lnumutils.h"
+#include "lmem.h"       // moo: luaM_newgcofixed for MooVec3 (docs/layer3b/moo-v2-l3b-vec3-object.md)
+#include "moo_format.h" // moo: moo_numtostr for moo_vec3_tostring (docs/layer3b/moo-v2-l3b-vec3-object.md)
+#include "moo_vec3.h"   // moo: vec3 GC object (docs/layer3b/moo-v2-l3b-vec3-object.md)
 
 #include <ctype.h>
 #include <string.h>
@@ -34,7 +37,40 @@ int luaO_log2(unsigned int x)
     return l + log_2[x];
 }
 
-// moo: raw equality has no vector arm because the public API no longer creates vector values.
+// moo: vec3 allocation, value equality and tostring (docs/DESIGN.md "vec3, quat and transform (layer 3b)",
+// "Number formatting"; docs/layer3b/moo-v2-l3b-vec3-object.md, decisions 2, 3, 5 and "Card moo-v2-l3b-vec3-object-gc").
+MooVec3* moo_vec3_new(lua_State* L, fixed_t x, fixed_t y, fixed_t z)
+{
+    MooVec3* v = luaM_newgcofixed(L, MooVec3, sizeof(MooVec3), L->activememcat, LUA_TVEC3);
+    luaC_init(L, v, LUA_TVEC3);
+    v->x = x;
+    v->y = y;
+    v->z = z;
+    return v;
+}
+
+int moo_vec3_equal(const MooVec3* a, const MooVec3* b)
+{
+    return a->x == b->x && a->y == b->y && a->z == b->z;
+}
+
+char* moo_vec3_tostring(char* buf, const MooVec3* v)
+{
+    memcpy(buf, "vec3(", 5);
+    char* p = moo_numtostr(buf + 5, v->x);
+    *p++ = ',';
+    *p++ = ' ';
+    p = moo_numtostr(p, v->y);
+    *p++ = ',';
+    *p++ = ' ';
+    p = moo_numtostr(p, v->z);
+    *p++ = ')';
+    return p;
+}
+
+// moo: raw equality has no vector arm because the public API no longer creates vector values; a vec3 compares
+// its three raw components by value (docs/DESIGN.md "vec3, quat and transform (layer 3b)";
+// docs/layer3b/moo-v2-l3b-vec3-object.md, decision 3).
 int luaO_rawequalObj(const TValue* t1, const TValue* t2)
 {
     if (ttype(t1) != ttype(t2))
@@ -52,6 +88,8 @@ int luaO_rawequalObj(const TValue* t1, const TValue* t2)
             return bvalue(t1) == bvalue(t2); // boolean true must be 1 !!
         case LUA_TLIGHTUSERDATA:
             return pvalue(t1) == pvalue(t2) && lightuserdatatag(t1) == lightuserdatatag(t2);
+        case LUA_TVEC3:
+            return moo_vec3_equal(vec3value(t1), vec3value(t2));
         default:
             LUAU_ASSERT(iscollectable(t1));
             return gcvalue(t1) == gcvalue(t2);
@@ -75,6 +113,8 @@ int luaO_rawequalKey(const TKey* t1, const TValue* t2)
             return bvalue(t1) == bvalue(t2); // boolean true must be 1 !!
         case LUA_TLIGHTUSERDATA:
             return pvalue(t1) == pvalue(t2) && lightuserdatatag(t1) == lightuserdatatag(t2);
+        case LUA_TVEC3:
+            return moo_vec3_equal(vec3value(t1), vec3value(t2));
         default:
             LUAU_ASSERT(iscollectable(t1));
             return gcvalue(t1) == gcvalue(t2);
