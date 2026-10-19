@@ -30,7 +30,7 @@ publishes.
 - `Common/include/moo_number.h`: deleted `moo_numbridgefromdouble` and `moo_numbridgetodouble`
   and their TEMPORARY BRIDGE comment. Added `moo_numtodouble` (decodes `moo_numtodoublebits`) and
   `moo_numfromdoublevalue` (delegates to `moo_numfromdouble`).
-- `VM/src/lgcdebug.cpp`: `enumedge`'s `ttisnumber` key branch formats the key through
+- `VM/src/lgcdebug.cpp`: `enumtable`'s `ttisnumber` key branch formats the key through
   `moo_numtostr` (from `moo_format.h`) instead of `snprintf("%.14g", ...)` on a double.
 - `VM/src/lmathlib.cpp`: deleted the stale header paragraph that said sqrt and noise still used a
   temporary libm bridge. They do not; this file calls no bridge.
@@ -52,7 +52,7 @@ publishes.
 - This card changed what two earlier cards' tests expect. `moo-l4-pow-integer-math` and
   `moo-l4-pow-integer-vm` each had a fractional-exponent test that compared `^` against the host
   libm double through the bridge (`MathPowFractionalStaysOnBridge` and
-  `MooPowIntVmFractionalBridge`); both were red at BASE, because the landed `moo-l4-pow-fractional`
+  `MooPowIntVmFractionalBridge`); both were red at BASE (`5b816928`), because the landed `moo-l4-pow-fractional`
   computes a fractional `^` with fixed math (`fixPow`). With the bridge gone they are renamed
   `MathPowFractionalUsesFixed` (`tests/moo/moo-l4-pow-integer-math.test.cpp`) and
   `MooPowIntVmFractionalUsesFixed` (`tests/moo/moo-l4-pow-integer-vm.test.cpp`) and now expect the
@@ -63,8 +63,9 @@ publishes.
   rounding and half-even ties; `BridgeBoundaryNonFinite` pins NaN -> 0 and infinity -> saturation;
   `BridgeHeapDumpUsesExactFormatter` pins the `moo_numtostr` output used by the heap dump: it runs
   the real heap enumeration, `luaC_enumheap`, which reaches the numeric-key branch through
-  `lgcdebug.cpp`'s real `enumtable`, and checks that the edge names are `-1.5` and `0.1` (a regression
-  to `%.14g` would print `0.10000610351563`).
+  `lgcdebug.cpp`'s real `enumtable`, and checks that the edge names are `-1.5` and `0.1`. The `0.1`
+  key (raw 6554) is the one that catches a regression to `%.14g`, which would print
+  `0.10000610351562`.
 - NEW `tests/conformance/moo/l3/moo-l4-bridge-removed.luau`: exercises the fixed math library,
   `^`, the exact formatter/parser, and the raw values behind them, then returns `OK`.
 
