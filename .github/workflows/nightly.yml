@@ -18,6 +18,9 @@ jobs:
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     runs-on: ${{ matrix.os }}
     timeout-minutes: 60
+    # the moo-oracle suite: 2^24 seeded random pairs on every platform
+    env:
+      MOO_ORACLE_N: "16777216"
     strategy:
       fail-fast: false
       matrix:
@@ -85,6 +88,9 @@ jobs:
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     runs-on: windows-latest
     timeout-minutes: 90
+    # the moo-oracle suite: 2^24 seeded random pairs on every platform
+    env:
+      MOO_ORACLE_N: "16777216"
     strategy:
       fail-fast: false
       matrix:
