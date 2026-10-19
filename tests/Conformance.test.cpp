@@ -79,6 +79,8 @@ LUAU_FASTFLAG(LuauBytecodeCostModel)
 LUAU_FASTFLAG(LuauVirtualBcBuilder)
 LUAU_FASTFLAG(LuauNewPointerEncode)
 LUAU_FASTFLAG(LuauExperimentalIfLocalSyntax)
+// moo: the LuauSandboxFreezesVectorMetatable declarations are removed here with the two tests that used them:
+// no vector can be made from a script (layer 3), so luaL_sandbox no longer freezes its metatable.
 LUAU_FASTFLAG(LuauBufferCage)
 LUAU_FASTFLAG(LuauCompileUndoEmitAdjust)
 LUAU_FASTFLAG(DebugLuauCoroutineFinally)
