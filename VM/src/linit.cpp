@@ -39,6 +39,8 @@ static const luaL_Reg lualibs_NOINTEGER[] = {
 
 void luaL_openlibs(lua_State* L)
 {
+    // moo: always the table without integer, whatever FFlag says: one number type (docs/DESIGN.md "integer",
+    // DETERMINISM.md 23); neither table holds the float32 vector library (layer 3).
     const luaL_Reg* lib = lualibs_NOINTEGER;
 
     for (; lib->func; lib++)
@@ -79,6 +81,8 @@ void luaL_sandbox(lua_State* L)
     {
         lua_pop(L, 1);
     }
+
+    // moo: the LuauSandboxFreezesVectorMetatable block is removed here: no vector can be made from a script (layer 3).
 
     // set globals to readonly and activate safeenv since the env is immutable
     lua_setreadonly(L, LUA_GLOBALSINDEX, true);

@@ -1170,6 +1170,8 @@ static int luauF_tunpack(lua_State* L, StkId res, TValue* arg0, int nresults, St
     return -1;
 }
 
+// moo: luauF_vector (vector.create) is deleted here: the float32 vector library is out in layer 3, and its LBF slot
+// answers luauF_missing (docs/DESIGN.md, "vec3, quat and transform").
 static int luauF_countlz(lua_State* L, StkId res, TValue* arg0, int nresults, StkId args, int nparams)
 {
     if (nparams >= 1 && nresults <= 1 && ttisnumber(arg0))
@@ -1579,6 +1581,9 @@ static int luauF_writefp(lua_State* L, StkId res, TValue* arg0, int nresults, St
     return -1;
 }
 
+// moo: the vector fastcall bodies (magnitude, normalize, cross, dot, floor, ceil, abs, sign, clamp, min, max, and
+// the vector lerp) are deleted here: the float32 vector library is out in layer 3, and each LBF slot answers
+// luauF_missing (docs/DESIGN.md, "vec3, quat and transform").
 static int luauF_lerp(lua_State* L, StkId res, TValue* arg0, int nresults, StkId args, int nparams)
 {
     if (nparams >= 3 && nresults <= 1 && ttisnumber(arg0) && ttisnumber(args) && ttisnumber(args + 1))
@@ -2509,6 +2514,7 @@ const luau_FastFunction luauF_table[256] = {
     luauF_tinsert,
     luauF_tunpack,
 
+    // moo: LBF_VECTOR answers no-fastcall; the slow path finds `vector` nil (layer 3, docs/DESIGN.md "vec3, quat and transform").
     luauF_missing,
 
     luauF_countlz,
@@ -2542,6 +2548,8 @@ const luau_FastFunction luauF_table[256] = {
     luauF_readfp<double>,
     luauF_writefp<double>,
 
+    // moo: the eleven vector LBFs (magnitude, normalize, cross, dot, floor, ceil, abs, sign, clamp, min, max) answer
+    // no-fastcall; the slow path finds `vector` nil (layer 3, docs/DESIGN.md "vec3, quat and transform").
     luauF_missing,
     luauF_missing,
     luauF_missing,
@@ -2556,6 +2564,7 @@ const luau_FastFunction luauF_table[256] = {
 
     luauF_lerp,
 
+    // moo: LBF_VECTOR_LERP answers no-fastcall; the slow path finds `vector` nil (layer 3).
     luauF_missing,
 
     luauF_isnan,

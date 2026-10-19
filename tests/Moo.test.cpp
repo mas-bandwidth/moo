@@ -294,6 +294,7 @@ TEST_CASE("ObjectKeyOrderIgnoresAddresses")
     CHECK(order == mooRun(b.L, kObjectKeyOrder));
 
     // Pinned: a change here changes the iteration order of every object-keyed table.
+    // moo: re-pinned when layer 3 removed the vector and integer libraries: fewer startup objects shift every creation number.
     CHECK(order == "43,28,42,57,9,10,34,24,49,22,47,17,59,8,46,58,36,56,13,52,55,54,37,53,1,41,35,50,15,51,60,16,45,2,44,48,40,39,6,32,4,19,12,5,29,21,3");
 }
 
@@ -303,6 +304,7 @@ TEST_CASE("TostringPrintsCreationNumber")
     MooState s;
 
     std::string pair = mooRun(s.L, "local a, b = {}, {} return tostring(a) .. ' ' .. tostring(b)");
+    // moo: re-pinned #400/#401 -> #375/#376 when layer 3 removed the vector and integer libraries (fewer startup objects).
     CHECK(pair == "table: #375 table: #376");
 
     const char* const kinds = R"(
@@ -413,6 +415,7 @@ TEST_CASE("DestructorsRunInCreationOrder")
     for (uint64_t seq : log)
         text += std::to_string(seq) + ",";
     // Pinned: a change here changes when and in what order every host's destructors run.
+    // moo: re-pinned when layer 3 removed the vector and integer libraries: fewer startup objects shift every creation number.
     CHECK(mooHash(text) == 10826925009745639169ull);
 }
 
@@ -459,6 +462,7 @@ TEST_CASE("WeakTableOrderIsAFunctionOfTheProgram")
     CHECK(trace == mooRun(b.L, weak));
 
     // Pinned.
+    // moo: re-pinned when layer 3 removed the vector and integer libraries: fewer startup objects shift every creation number.
     CHECK(mooHash(trace) == 4589104574784354874ull);
 }
 

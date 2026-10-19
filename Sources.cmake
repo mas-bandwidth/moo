@@ -433,6 +433,8 @@ target_sources(Luau.VM PRIVATE
     VM/src/ltm.cpp
     VM/src/ludata.cpp
     VM/src/lutf8lib.cpp
+    # moo: the vector library source (lveclib) leaves the build here and stays in the tree unbuilt, as CodeGen did
+    # (the float32 vector library is out in layer 3; docs/DESIGN.md, "vec3, quat and transform").
     VM/src/lintlib.cpp
     VM/src/lvmexecute.cpp
     VM/src/lclass.cpp
