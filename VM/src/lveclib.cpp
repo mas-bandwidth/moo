@@ -12,7 +12,6 @@ static int vector_create(lua_State* L)
     // checking argument count to avoid accepting 'nil' as a valid value
     int count = lua_gettop(L);
 
-    // TEMPORARY: the float vector goes in layer 3; its components cross through the double bridge
     double x = moo_numbridgetodouble(luaL_checknumber(L, 1));
     double y = moo_numbridgetodouble(luaL_checknumber(L, 2));
     double z = count >= 3 ? moo_numbridgetodouble(luaL_checknumber(L, 3)) : 0.0;
