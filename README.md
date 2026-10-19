@@ -1,4 +1,4 @@
-<p align="center"><img src="docs/logo/moo-logo.svg" width="128" alt="moo"></p>
+<img src="docs/logo/moo-logo.svg" width="128" alt="moo">
 
 # moo
 
