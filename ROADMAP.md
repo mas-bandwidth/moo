@@ -6,7 +6,7 @@ Planned work for mas-bandwidth/moo. Landed work is in git.
 
 ## Contents
 
-- [Sprint work deferred to the roadmap](#sprint-work-deferred-to-the-roadmap) (14)
+- [Sprint work deferred to the roadmap](#sprint-work-deferred-to-the-roadmap) (15)
 
 ## Sprint work deferred to the roadmap
 
@@ -123,3 +123,9 @@ RESULT: moo-l6-virtualgo-nightly tier: pro REPO: mas-bandwidth/moo BASE: sprint/
 Target: after v1.4
 
 From: card moved out of the sprint (work record, 2026-10-19)
+
+### Decide the vec3 representation and pin it in code, so two pro cards can build it mechanically
+
+Carried: branch sprint/moo-l3b-vec3-object-design.w2.g1.e21 head a1c6c089f205c529318519561487daa91e44ba6c (attempt 2, review). Decide the vec3 representation and pin it in code, so two pro cards can build it mechanically.
+
+From: sprint card moo-l3b-vec3-object-design, moved out of the sprint 2026-10-19 (Glenn: not for the rocketnet v1.0.0 release)
