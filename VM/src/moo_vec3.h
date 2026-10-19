@@ -7,7 +7,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
-// moo: immutable 3-component Q48.16 fixed-point vector GC object (docs/layer3b/moo-l3b-vec3-object.md).
+// moo: immutable 3-component Q48.16 fixed-point vector GC object (docs/layer3b/moo-v2-l3b-vec3-object.md).
 // CommonHeader is 16 bytes on 64-bit moo (8-byte gcseq + 3 bytes tt/marked/memcat + 5 bytes padding),
 // followed by three 8-byte signed Q48.16 components x, y, z (24 bytes) = 40 bytes total.
 typedef struct moo_Vec3
