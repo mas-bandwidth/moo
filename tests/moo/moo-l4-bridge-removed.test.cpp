@@ -5,6 +5,7 @@
 // exist; the remaining conversions are the permanent boundary rule (moo_number.h moo_numfromdouble,
 // moo_numtodoublebits) and these cases pin the values MOO.Test can reach without the bridge.
 #include "moo_number.h"
+#include "lualib.h"
 #include "lgc.h"
 
 #include "doctest.h"
@@ -67,10 +68,10 @@ TEST_CASE("BridgeHeapDumpUsesExactFormatter")
     lua_State* L = luaL_newstate();
     REQUIRE(L != nullptr);
     lua_createtable(L, 0, 2);
-    lua_pushnumber(L, -98304);
+    lua_pushnumber(L, lua_Number(-98304));
     lua_pushstring(L, "negative");
     lua_settable(L, -3);
-    lua_pushnumber(L, 6554);
+    lua_pushnumber(L, lua_Number(6554));
     lua_pushstring(L, "fractional");
     lua_settable(L, -3);
 
