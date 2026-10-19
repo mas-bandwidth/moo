@@ -162,11 +162,11 @@ TEST_CASE("MooAstConstantNumberFormsKeepTheirInvariant")
     CHECK_EQ(tool.rawValue, moo_numbridgefromdouble(tool.value));
 
     AstExprConstantNumber huge{Location(), double(INFINITY)};
-    AstExprConstantNumber tiny{Location(), -double(INFINITY)};
+    AstExprConstantNumber negHuge{Location(), -double(INFINITY)};
     AstExprConstantNumber nan{Location(), double(NAN)};
     CHECK(huge.value == double(INFINITY));
     CHECK_EQ(huge.rawValue, MOO_NUMBER_MAX);
-    CHECK_EQ(tiny.rawValue, MOO_NUMBER_MIN);
+    CHECK_EQ(negHuge.rawValue, MOO_NUMBER_MIN);
     CHECK(nan.value != nan.value);
     CHECK_EQ(nan.rawValue, int64_t(0));
 }

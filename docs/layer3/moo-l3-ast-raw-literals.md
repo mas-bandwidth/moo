@@ -30,7 +30,7 @@ example `8.1999999999999993` and `Infinity`). Rewriting `value` to the nearest d
 what those tests and any outside tool read back, would turn infinity into 2^47 and NaN into 0, and would need
 `tests/AstJsonEncoder.test.cpp`, which this card does not own. The raw value, the one the compiler emits, is the
 nearest Q48.16 value to the tool's double in both readings. `MooAstConstantNumberFormsKeepTheirInvariant` pins both
-invariants (attempt 5, after a reader found the earlier header comment claimed the parsed-node invariant for every
+invariants (pass 5, after a reader found the earlier header comment claimed the parsed-node invariant for every
 node).
 
 ## Integer literals are refused
@@ -73,9 +73,9 @@ deleted; Luau's integer type is out (DESIGN.md "integer").
 - DETERMINISM.md: no sentence changes. No frozen hash or `tests/determinism/expected.txt` changes; the literal is
   now the value the run time already computed for the same decimal.
 
-## Gate at attempt 5
+## Gate at pass 5
 
-Head `57e1fb4f` (attempt 5's commit `99629856` with sprint/moo `e7ac1b4e` merged in; the eleven base commits touch no
+Head `57e1fb4f` (pass 5's commit `99629856` with sprint/moo `e7ac1b4e` merged in; the eleven base commits touch no
 file of this card) on amd-3, and the unchanged BASE `e7ac1b4e` on vision, both with clang, every DONE-WHEN command.
 The new cases and script are green. Two suites carry failures that already exist at BASE, so the all-green DONE-WHEN
 line is not met by this card alone; no failure at head is new:
