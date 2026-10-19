@@ -9,3 +9,4 @@ library.luau 9ce6b3fc5ed7d5fe 039fbc53f46d1d5a
 objectkeys.luau c026a789bb37c024 38780e98f3910393
 coroutines2.luau 2ca405a9600143fa dc579a5432f7898e
 errors.luau ee7b3d6f2b3bfb9e 4d4a67e1614c5a55
+math.luau a005f1cb6d366b18 bb3e5e4465819cce
