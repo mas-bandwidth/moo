@@ -802,4 +802,8 @@ Report what was not done.
    :date "2026-10-19"
    :release "after v1.4"
    :origin "card moved out of the sprint (work record, 2026-10-19)")
+  (item "moo-l3b-vec3-object-design" :group "sprint" :date "2026-10-19"
+   :title "Decide the vec3 representation and pin it in code, so two pro cards can build it mechanically"
+   :text "Carried: branch sprint/moo-l3b-vec3-object-design.w2.g1.e21 head a1c6c089f205c529318519561487daa91e44ba6c (attempt 2, review). Decide the vec3 representation and pin it in code, so two pro cards can build it mechanically."
+   :origin "sprint card moo-l3b-vec3-object-design, moved out of the sprint 2026-10-19 (Glenn: not for the rocketnet v1.0.0 release)")
 ))
