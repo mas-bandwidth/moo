@@ -5,7 +5,7 @@
 // exist; the remaining conversions are the permanent boundary rule (moo_number.h moo_numfromdouble,
 // moo_numtodoublebits) and these cases pin the values MOO.Test can reach without the bridge.
 #include "moo_number.h"
-#include "moo_format.h"
+#include "lgc.h"
 
 #include "doctest.h"
 
@@ -62,17 +62,35 @@ TEST_CASE("BridgeBoundaryNonFinite")
 
 TEST_CASE("BridgeHeapDumpUsesExactFormatter")
 {
-    // lgcdebug.cpp's heap dump prints a numeric key through moo_format.h (moo_numtostr), not printf
-    char buf[40];
-    char* end = moo_numtostr(buf, -98304);
-    *end = 0;
-    CHECK(std::string(buf) == "-1.5");
+    // moo: enumerate a live table's collectable values through lgcdebug.cpp's enumtable path.
+    // The fractional edge catches a regression to %.14g: that would print 0.10000610351563.
+    lua_State* L = luaL_newstate();
+    REQUIRE(L != nullptr);
+    lua_createtable(L, 0, 2);
+    lua_pushnumber(L, -98304);
+    lua_pushstring(L, "negative");
+    lua_settable(L, -3);
+    lua_pushnumber(L, 6554);
+    lua_pushstring(L, "fractional");
+    lua_settable(L, -3);
 
-    end = moo_numtostr(buf, 6554);
-    *end = 0;
-    CHECK(std::string(buf) == "0.1");
-
-    end = moo_numtostr(buf, kOne);
-    *end = 0;
-    CHECK(std::string(buf) == "1");
+    struct EdgeNames
+    {
+        bool negative = false;
+        bool fractional = false;
+    } names;
+    luaC_enumheap(
+        L, &names,
+        [](void*, void*, uint8_t, uint8_t, size_t, const char*) {},
+        [](void* context, void*, void*, const char* name)
+        {
+            EdgeNames& seen = *static_cast<EdgeNames*>(context);
+            if (name && strcmp(name, "-1.5") == 0)
+                seen.negative = true;
+            if (name && strcmp(name, "0.1") == 0)
+                seen.fractional = true;
+        });
+    CHECK(names.negative);
+    CHECK(names.fractional);
+    lua_close(L);
 }

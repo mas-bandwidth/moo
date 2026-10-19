@@ -1,19 +1,19 @@
 // This file is part of moo, a fork of the Luau programming language; moo's changes are licensed under MIT License; see LICENSE-moo.txt for details
 //
 // Layer 4 integer-exponent pow in the VM (docs/DESIGN.md "math library", "pow and ^"): luai_numpow calls
-// moo_pow_int for an integer-valued exponent, and a fractional exponent stays on the libm bridge. The
+// moo_pow_int for an integer-valued exponent, and moo: a fractional exponent uses fixed's fixPow. The
 // scripts run through the VM (`^` and the constant-exponent opcode); the reference is moo_pow_int called
-// directly and the bridge itself.
+// directly and fixPow itself.
 #include "lua.h"
 #include "lualib.h"
 #include "moo_number.h"
 #include "moo_pow.h"
+#include "fixed/fixed_math.h"
 
 #include "MooHost.h"
 
 #include "doctest.h"
 
-#include <math.h>
 #include <stdint.h>
 
 #include <string>
@@ -80,8 +80,8 @@ TEST_CASE("MooPowIntVmMatchesMooPowInt")
     lua_close(L);
 }
 
-// a fractional exponent still takes the libm bridge
-TEST_CASE("MooPowIntVmFractionalBridge")
+// moo: the opcode's fractional exponent uses fixPow, including its release value 0 for a nonpositive base.
+TEST_CASE("MooPowIntVmFractionalUsesFixed")
 {
     lua_State* L = luaL_newstate();
     REQUIRE(L != nullptr);
@@ -95,11 +95,11 @@ TEST_CASE("MooPowIntVmFractionalBridge")
     for (fixed_t a : bases)
         for (fixed_t b : exponents)
         {
-            fixed_t ref = moo_numfromdoublevalue(pow(moo_numtodouble(a), moo_numtodouble(b)));
+            fixed_t ref = fixPow(a, b);
             std::string got = runPow(L, a, b);
             CAPTURE(a);
             CAPTURE(b);
-            CHECK_MESSAGE(got == std::to_string(ref), "bridge: vm " << got << " ref " << ref);
+            CHECK_MESSAGE(got == std::to_string(ref), "fixed: vm " << got << " ref " << ref);
         }
 
     lua_close(L);
