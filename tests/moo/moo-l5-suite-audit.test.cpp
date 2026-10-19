@@ -315,8 +315,8 @@ TEST_CASE("MooL5SkippedCasesNameAReason")
             checkReferences(root, record, reference, failures);
     }
 
-    // moo: current sprint/moo has 42; the three integer-literal refusals add three (docs/layer3/moo-l3-ast-raw-literals.md)
-    CHECK_MESSAGE(doctestSkips == 45, "expected 45 doctest skip decorators, found " << doctestSkips);
+    // moo: current sprint/moo has 45; moo-l3-unittest-base-reds-named adds eleven (docs/layer3/moo-l3-unittest-base-reds-named.md)
+    CHECK_MESSAGE(doctestSkips == 56, "expected 56 doctest skip decorators, found " << doctestSkips);
     CHECK_MESSAGE(earlyReturns == 2, "expected 2 marked early returns, found " << earlyReturns);
     CHECK_MESSAGE(unmarkedIfZero == 11, "expected 11 unmarked upstream #if 0 blocks, found " << unmarkedIfZero);
     for (const std::string& failure : failures)

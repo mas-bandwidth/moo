@@ -814,7 +814,8 @@ TEST_CASE_FIXTURE(Fixture, "narrow_property_of_a_bounded_variable")
     LUAU_REQUIRE_NO_ERRORS(result);
 }
 
-TEST_CASE_FIXTURE(BuiltinsFixture, "type_narrow_to_vector")
+// moo: vector is not a moo builtin (DESIGN.md "Analyzer")
+TEST_CASE_FIXTURE(BuiltinsFixture, "type_narrow_to_vector" * doctest::skip())
 {
     CheckResult result = check(R"(
         local function f(x)
@@ -3325,7 +3326,8 @@ TEST_CASE_FIXTURE(Fixture, "cli_184413_refinement_of_union_of_read_types_is_read
     )"));
 }
 
-TEST_CASE_FIXTURE(BuiltinsFixture, "type_vector_refine")
+// moo: vector is not a moo builtin (DESIGN.md "Analyzer")
+TEST_CASE_FIXTURE(BuiltinsFixture, "type_vector_refine" * doctest::skip())
 {
     ScopedFastFlag _[] = {{FFlag::DebugLuauForceOldSolver, false}};
 
