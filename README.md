@@ -1,3 +1,5 @@
+<img src="docs/logo/moo-logo.svg" width="128" alt="moo">
+
 # moo
 
 <img width="559" height="510" alt="image" src="https://github.com/user-attachments/assets/f8f8e7c8-04fe-40a3-8050-f9f698ab4e04" />
