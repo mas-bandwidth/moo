@@ -37,4 +37,4 @@ static_assert(sizeof(LuauClass) == 96, "class layout changed");
 static_assert(sizeof(LuauObject) == 48, "class object layout changed");
 static_assert(sizeof(lua_State) == 144, "thread layout changed");
 static_assert(sizeof(CallInfo) == 48, "call frame layout changed");
-static_assert(sizeof(global_State) == 19216, "global state layout changed (the initial totalbytes includes it)");
+static_assert(sizeof(global_State) == 19232, "global state layout changed (the initial totalbytes includes it)");

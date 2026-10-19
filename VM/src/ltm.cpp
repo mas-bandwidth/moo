@@ -42,6 +42,8 @@ const char* const luaT_typenames[] = {
 #if LUA_VECTOR_DOUBLE == 1
     "vector",
 #endif
+
+    "vec3", // moo: LUA_TVEC3's name (docs/layer3b/moo-v2-l3b-vec3-object.md, decision 1)
 };
 
 const char* const luaT_eventname[] = {

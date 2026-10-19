@@ -16,7 +16,7 @@ edits them, except where a row above records the seam.
 
 | file | why |
 |---|---|
-| `VM/include/lua.h` | `lua_Number` is `fixed_t` and a host float crosses only through `moo_fromdouble`; the vector C API is removed (DESIGN.md "Boundary", "Layer 3 as built", "vec3, quat and transform"). |
+| `VM/include/lua.h` | `lua_Number` is `fixed_t` and a host float crosses only through `moo_fromdouble`; the vector C API is removed, and `LUA_TVEC3` follows `LUA_TOBJECT` (DESIGN.md "Boundary", "Layer 3 as built", "vec3, quat and transform"). |
 | `VM/include/lualib.h` | the vector library entry points are removed with the vector API; the name stays defined for merges (DESIGN.md "vec3, quat and transform"). |
 | `VM/src/lapi.cpp` | numbers cross the C API as raw Q48.16, integer arguments refuse a fraction by name, and `lua_pushvector`/`lua_tovector` are gone (DESIGN.md "Boundary", "Exact integers", "vec3, quat and transform"). |
 | `VM/src/laux.cpp` | `luaL_checkinteger` and the unsigned variant use the exact-integer rule, and the vector check helpers are removed (DESIGN.md "Exact integers", "vec3, quat and transform"). |
@@ -41,6 +41,7 @@ edits them, except where a row above records the seam.
 | `VM/src/lstate.h` | the global state carries `gcseq`, the allocation-count pacing fields and the destructor queue (DETERMINISM.md, 1, 4 and 13). |
 | `VM/src/lstrlib.cpp` | integer-only formats require an integer-valued number, and `string.pack`/`unpack` `f`/`d` use the boundary rule (DESIGN.md "Exact integers", "Boundary"). |
 | `VM/src/ltable.cpp` | a collectable key hashes by its creation number and a number by its raw value, never by address or IEEE bits (DETERMINISM.md, 1 and 2). |
+| `VM/src/ltm.cpp` | `luaT_typenames` names the new `LUA_TVEC3` tag `"vec3"`; interning it at startup shifts every creation number by one (DESIGN.md "vec3, quat and transform", docs/layer3b/moo-v2-l3b-vec3-object.md decision 1). |
 | `VM/src/ltablib.cpp` | the table library keeps counts and keys as raw Q48.16 values, not doubles (DESIGN.md "Exact integers"). |
 | `VM/src/ludata.cpp` | a dead userdata with a destructor is queued for the end of the GC step instead of running during the sweep (DETERMINISM.md, 13). |
 | `VM/src/ludata.h` | userdata holds the destructor-queue page pointer used by the ordered destructor queue (DETERMINISM.md, 13). |
