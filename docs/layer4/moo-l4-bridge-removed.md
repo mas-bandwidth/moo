@@ -42,9 +42,13 @@ publishes.
   the float-`vector` conversions use the same two boundary helpers. The float vector type itself
   is not removed by this card (`moo-l3-libs-out` has not landed); removing it is what will remove
   the remaining float arithmetic from these files.
-- Tests: `tests/moo/moo-l3-bytecode-version.test.cpp` and the two pow tests referenced the deleted
-  name; they now call the permanent helper, with the same values (their remaining failures are the
-  same ones recorded at BASE).
+- `Ast/src/Ast.cpp`, `Ast/include/Luau/Ast.h`: `AstExprConstantNumber`'s two-argument double
+  constructor (landed in `ad9e85a9` by `moo-l3-ast-raw-literals`) now uses
+  `moo_numfromdoublevalue(value)` instead of `moo_numbridgefromdouble(value)`, and the comments in
+  `Ast.h` name `moo_numtodouble` and `moo_numfromdoublevalue`.
+- Tests: `tests/moo/moo-l3-bytecode-version.test.cpp`, `tests/moo/moo-l3-ast-raw-literals.test.cpp`,
+  and the two pow tests referenced the deleted names; they now call the permanent helpers, with the
+  same values (the two pow tests' remaining failures are the same ones recorded at BASE).
 - NEW `tests/moo/moo-l4-bridge-removed.test.cpp`: four doctest cases.
   `BridgeBoundaryOutValues` pins exact raw-to-double values; `BridgeBoundaryInValues` pins
   rounding and half-even ties; `BridgeBoundaryNonFinite` pins NaN -> 0 and infinity -> saturation;
@@ -54,125 +58,111 @@ publishes.
 
 ### Scope note
 
-The card's PATHS name four files, but the DONE-WHEN grep is over all of `VM Common Compiler Ast
-Bytecode`. At BASE the bridge had 40 occurrences in eight files, including the compiler and three
-more VM vector files. Leaving those callers would fail to compile once the definitions were
-deleted, so the deletion necessarily edits those callers too. No new path was invented; the edits
-are the mechanical call-site substitutions above.
+At BASE (`ad9e85a9da922082cd6e4626b5b88f5fe5a76994`), `moo_numbridge` had 43 occurrences across
+ten files in `VM Common Compiler Ast Bytecode` plus 6 occurrences across four files in `tests/moo/`.
+Leaving any caller would fail to compile once the definitions in `Common/include/moo_number.h` were
+deleted, so the deletion updates those callers mechanically to `moo_numtodouble` and
+`moo_numfromdoublevalue`. Note: `ad9e85a9` (`moo-l3-ast-raw-literals`) added two bridge calls in
+`tests/moo/moo-l3-ast-raw-literals.test.cpp:156,162` alongside `Ast/src/Ast.cpp:169` and
+`Ast/include/Luau/Ast.h:362,364`; those two test lines are updated as well so `Moo.Test` compiles.
 
 ### Carry disposition
 
-The card's `CARRY:` names attempt 2's head `57b6c5a283696727f73e3a708a5df47606c717cb`. It is not an
-ancestor of this head, because `sprint/moo` advanced from `c9d154ab` to `e7ac1b4e` before attempt 4;
-the work was carried, not rebased. The carry commit `80a826de` replays attempt 3's work onto
-`e7ac1b4e`, and this head's change set is the same 15 files. For each of the 14 source and test files,
-`git diff c9d154ab..57b6c5a -- <file>` and `git diff e7ac1b4e..HEAD -- <file>` hash the same
-(`git hash-object`); the note differs only by this audit revision. Nothing from `57b6c5a` was
-dropped or rewritten.
+The card's `CARRY:` names attempt 6's head `701cb92c20da146fae37d43e18fbf23a4a7ed99e` (which is a
+direct parent of the merge with `ad9e85a9da922082cd6e4626b5b88f5fe5a76994`) and attempt 2's head
+`57b6c5a283696727f73e3a708a5df47606c717cb`. Attempt 2's head is not an ancestor because `sprint/moo`
+advanced from `c9d154ab` to `e7ac1b4e` before attempt 4; the carry commit `80a826de` replayed
+attempt 3's work onto `e7ac1b4e`, and for each of the 14 original source and test files from
+`57b6c5a`, `git diff c9d154ab..57b6c5a -- <file>` and `git diff ad9e85a9..HEAD -- <file>` hash
+identically (`git hash-object`). On top of `701cb92c`, this head merges `ad9e85a9` (`sprint/moo`),
+replaces the new bridge references from `moo-l3-ast-raw-literals` (`Ast/src/Ast.cpp`,
+`Ast/include/Luau/Ast.h`, `tests/moo/moo-l3-ast-raw-literals.test.cpp`), and updates this note for
+the coordinator's 2026-10-19 revision.
 
 ## Red first
 
-At the unchanged BASE (`e7ac1b4e324499b6564e9a1d139efc840287a539`), before any edit:
+At the unchanged BASE (`ad9e85a9da922082cd6e4626b5b88f5fe5a76994`), before any edit:
 
 ```
-$ git grep -c 'moo_numbridge' e7ac1b4e324499b6564e9a1d139efc840287a539 -- VM Common Compiler Ast Bytecode
-e7ac1b4e324499b6564e9a1d139efc840287a539:Common/include/moo_number.h:2
-e7ac1b4e324499b6564e9a1d139efc840287a539:Compiler/src/Compiler.cpp:4
-e7ac1b4e324499b6564e9a1d139efc840287a539:Compiler/src/CostModel.cpp:1
-e7ac1b4e324499b6564e9a1d139efc840287a539:VM/src/lbuiltins.cpp:9
-e7ac1b4e324499b6564e9a1d139efc840287a539:VM/src/lgcdebug.cpp:1
-e7ac1b4e324499b6564e9a1d139efc840287a539:VM/src/lveclib.cpp:11
-e7ac1b4e324499b6564e9a1d139efc840287a539:VM/src/lvmexecute.cpp:10
-e7ac1b4e324499b6564e9a1d139efc840287a539:VM/src/lvmutils.cpp:2
+$ git grep -c 'moo_numbridge' ad9e85a9da922082cd6e4626b5b88f5fe5a76994 -- VM Common Compiler Ast Bytecode
+ad9e85a9da922082cd6e4626b5b88f5fe5a76994:Ast/include/Luau/Ast.h:2
+ad9e85a9da922082cd6e4626b5b88f5fe5a76994:Ast/src/Ast.cpp:1
+ad9e85a9da922082cd6e4626b5b88f5fe5a76994:Common/include/moo_number.h:2
+ad9e85a9da922082cd6e4626b5b88f5fe5a76994:Compiler/src/Compiler.cpp:4
+ad9e85a9da922082cd6e4626b5b88f5fe5a76994:Compiler/src/CostModel.cpp:1
+ad9e85a9da922082cd6e4626b5b88f5fe5a76994:VM/src/lbuiltins.cpp:9
+ad9e85a9da922082cd6e4626b5b88f5fe5a76994:VM/src/lgcdebug.cpp:1
+ad9e85a9da922082cd6e4626b5b88f5fe5a76994:VM/src/lveclib.cpp:11
+ad9e85a9da922082cd6e4626b5b88f5fe5a76994:VM/src/lvmexecute.cpp:10
+ad9e85a9da922082cd6e4626b5b88f5fe5a76994:VM/src/lvmutils.cpp:2
 ```
 
-That is 40 occurrences, so the DONE-WHEN check did not hold at BASE. At this head the same command
-prints nothing (exit 1).
+That is 43 occurrences across ten files, so the DONE-WHEN check did not hold at BASE. At this head
+the same command prints nothing (exit 1).
 
 ## Gate
 
 - `tools/revendor-fixed.sh --check`: `extern/fixed matches pin 2f1ed913374a -- clean`.
-- configure (clang, RelWithDebInfo, `LUAU_WERROR=ON`): "Build files have been written to: .../build".
-- `cmake --build build --target Moo.Test Luau.VM`: green (`[25/26] Linking CXX executable Moo.Test`).
-- `build/Moo.Test`: 159 test cases, 156 passed, 3 failed; 67,105,660 assertions, 43 failed. The 3
-  failing cases are the ones already red at BASE and owned by earlier cards:
-  `MathPowFractionalStaysOnBridge` and `MooPowIntVmFractionalBridge` (they still compare a
-  fractional `^` against the host libm double, while the landed `moo-l4-pow-fractional` uses fixed
-  math), and `MooL5SkippedCasesNameAReason` (42 skip decorators where it expects 29). The same three cases
-  were rerun at the unchanged BASE (`e7ac1b4e`, detached worktree, same clang configure) and each
-  fails already there (`MathPowFractionalStaysOnBridge` 28 assertions,
-  `MooPowIntVmFractionalBridge` 14, `MooL5SkippedCasesNameAReason` 1). The four new
-  `moo-l4-bridge-removed` cases pass: 4 cases, 23 assertions. `MooL3Scripts` now passes, including
-  `moo-l4-bridge-removed.luau`, because `sprint/moo`'s `moo-l4-pow-integer-math.luau` was pinned to
-  the fixed `9 ^ 1.5`.
+- configure (clang 18.1.3, RelWithDebInfo, `LUAU_WERROR=ON`): "Build files have been written to: .../build".
+- `cmake --build build --target Moo.Test Luau.VM`: green.
+- `build/Moo.Test`: 163 test cases, 161 passed, 2 failed; 67,105,725 assertions, 67,105,683 passed,
+  42 failed. The 2 failing cases are the ones already red at BASE (`ad9e85a9da92`) and owned by
+  earlier cards: `MathPowFractionalStaysOnBridge` (28 assertions) and `MooPowIntVmFractionalBridge`
+  (14 assertions), which still compare a fractional `^` against the host libm double while the
+  landed `moo-l4-pow-fractional` uses fixed math (`fixPow`). `MooL5SkippedCasesNameAReason` and
+  `MooL3Scripts` (including `moo-l4-bridge-removed.luau`) pass, as do all four new
+  `moo-l4-bridge-removed` cases (4 cases, 23 assertions).
 - `tools/moo-check-no-clock.sh build/libLuau.VM.a`: `moo-check-no-clock: build/libLuau.VM.a references no clock`.
 - `cmake --build build --target Luau.Conformance Luau.UnitTest Luau.CLI.Test Luau.Repl.CLI Luau.Analyze.CLI Luau.Compile.CLI`: green.
 - `build/Luau.Conformance`: 109 cases, 109 passed; 9,143 assertions, 0 failed.
 - `build/Luau.CLI.Test`: 113 cases, 113 passed; 461 assertions, 0 failed.
-- `build/Luau.UnitTest`: 5,162 cases, 5,149 passed, 13 failed; 22,953 assertions, 14 failed. The 13
-  names are the BASE-red set recorded in `docs/layer4/moo-l4-math-noise.md`: `fold_constants_div_by_zero`,
-  `MooBuiltinsDoNotFold`, the four `udtf_integer*` cases, `issubtypeof`, `type_tostring`,
-  `compound_assign_reports_invalid_vector_arithmetic`, `type_narrow_to_vector`, `type_vector_refine`,
-  `builtin_table_names`, `persistent_sealed_table_is_immutable`.
+- `build/Luau.UnitTest`: 5,159 cases, 5,146 passed, 13 failed (44 skipped); 22,947 assertions,
+  22,933 passed, 14 failed. The 13 names are the BASE-red set recorded in
+  `docs/layer4/moo-l4-math-noise.md` and `docs/layer3/moo-l3-ast-raw-literals.md`:
+  `fold_constants_div_by_zero`, `MooBuiltinsDoNotFold`, the four `udtf_integer*` cases,
+  `issubtypeof`, `type_tostring`, `compound_assign_reports_invalid_vector_arithmetic`,
+  `type_narrow_to_vector`, `type_vector_refine`, `builtin_table_names`,
+  `persistent_sealed_table_is_immutable`.
 - `git grep -c 'moo_numbridge' -- VM Common Compiler Ast Bytecode`: no output (exit 1).
 
 ## The VM `double` audit
 
-**Decision (held for coordinator revision).** The brief asks for "a check in the note that
-`git grep -n 'double' -- VM/src` hits only the C API boundary (moo_api.cpp, moo.h's declarations)
-and comments: list every hit". That check, as written, cannot pass on this tree, and this card does
-not land claiming it does. The 84 lines that contain the C/C++ keyword `double` outside
-`moo_api.cpp` and comments are pre-existing users owned by other mechanisms and other cards, not by
-the double bridge, which is fully removed here. This card therefore HOLDS and requests a coordinator
-revision of the check: the check this card satisfies is that no bridge symbol survives and that the
-number-conversion boundary is the only place a machine `double` enters or leaves Q48.16. The
-catch-all `-- VM/src` grep will keep hitting legitimate `double` users until the owning cards below
-land; removing those users is that work, not this one's. The facts on which that request rests are
-recorded here so the revision can be judged:
+Per the coordinator's 2026-10-19 revision (`list every hit, grouped by the card or area that owns it
+(C API boundary, comments, GC/clock timing, vector library, string.pack, lnumutils, other). Hits in
+code other cards own are recorded, not removed here; only the bridge and its callers are this
+card's`), `git grep -n 'double' -- VM/src` prints **151** lines at this head (153 at BASE; the
+two-line difference is `lgcdebug.cpp:827`'s deleted bridge call and `lveclib.cpp:15`'s deleted
+bridge comment).
 
-- `git grep -n 'double' -- VM/src` prints **151** lines at this head (153 at BASE). The two-line
-  difference is exactly what this card removes in `VM/src`: `lgcdebug.cpp:827`'s bridge call and
-  `lveclib.cpp:15`'s bridge comment. No other `double` line changed.
-- Split by what the matched text actually is:
-  - **6** lines in `VM/src/moo_api.cpp`, the C API boundary (`moo_fromdouble`, `moo_todouble`).
-  - **19** comment lines.
-  - **32** lines whose only `double` text is the name of the permanent integer boundary helpers
-    `moo_numtodouble`, `moo_numtodoublebits`, `moo_numfromdouble` and `moo_numfromdoublevalue`; the
-    helpers themselves do no floating-point arithmetic (any surrounding float arithmetic on those
-    lines is the float `vector` code counted under the keyword below).
-  - **10** lines that only name the compile-time `condvectordouble` macro (the vector-width switch).
-  - **84** lines that contain the C/C++ keyword `double` as a word (`git grep -n '\bdouble\b' --
-    VM/src`), outside `moo_api.cpp` and comments. These are the finding.
+Grouped by the card or area that owns each hit:
 
-The 84 keyword lines are pre-existing and owned by other mechanisms, not by this card:
-
-| file | lines | mechanism |
-| --- | ---: | --- |
-| `VM/src/lapi.cpp` | 4 | GC metrics timing |
-| `VM/src/lbuflib.cpp` | 5 | `buffer` f32/f64 bit patterns and the boundary call |
-| `VM/src/lbuiltins.cpp` | 8 | SSE float round helpers (5), f64 fastcalls (2), one boundary call |
-| `VM/src/lgc.cpp` | 6 | GC metrics timing |
-| `VM/src/lgc.h` | 1 | GC goal comment |
-| `VM/src/lmem.cpp` | 1 | block-header alignment |
-| `VM/src/lnumprint.cpp` | 2 | float formatting |
-| `VM/src/lnumutils.h` | 9 | `luai_num*` / vector compatibility helpers |
-| `VM/src/lobject.h` | 1 | vector literal macro |
-| `VM/src/lperf.cpp` | 10 | clock |
-| `VM/src/lstate.h` | 19 | GC metrics |
-| `VM/src/lstrlib.cpp` | 8 | `string.pack` float/double |
-| `VM/src/ltable.cpp` | 1 | vector key hashing |
-| `VM/src/lveclib.cpp` | 7 | float `vector` library |
-| `VM/src/lvector.cpp` | 1 | float `vector` type |
-| `VM/src/lvector.h` | 1 | float `vector` type |
-
-`VM/include/moo.h`'s boundary declarations (`moo_fromdouble`, `moo_todouble`) are outside
-`VM/src`; its only `double` lines are those two declarations and their comment. The diff for this
-card adds no `double` arithmetic: the two new inlines decode `moo_numtodoublebits` and delegate to
-`moo_numfromdouble`, and the float `vector` type it rewrites was already a `double` user. Removing
-the float `vector` type (`moo-l3-libs-out`), the GC/clock timing, the float formatting and the
-alignment uses is those cards' work. The check's literal wording is therefore unsatisfiable; the
-card holds for the coordinator to revise it as above, with every hit enumerated below so the
-revision has the full evidence.
+- **C API boundary (`VM/src/moo_api.cpp`, 6 hits; `VM/include/moo.h` declarations outside `VM/src`)**:
+  `moo_fromdouble` and `moo_todouble` (`moo_api.cpp:17,19,24,27,31,32`).
+- **Comments (19 hits)**:
+  `lbuflib.cpp:171,197,198`, `lbuiltins.cpp:1750`, `lgc.cpp:146`, `lgc.h:22`, `lmem.cpp:149`,
+  `lnumprint.cpp:395`, `lnumutils.h:15,17,45,46,61`, `lobject.h:89`, `lperf.cpp:94`,
+  `lstate.h:90`, `lstrlib.cpp:1572,1581,1735,1741`.
+- **GC/clock timing (39 hits — `lapi.cpp`, `lgc.cpp`, `lperf.cpp`, `lstate.h`)**:
+  - `VM/src/lapi.cpp` (4 hits): lines `1467,1468,1491,1492` (`gcmetrics` mark/sweep times).
+  - `VM/src/lgc.cpp` (6 hits): lines `948,1081,1083,1095,1122,1268` (`gcmetrics` timestamps/intervals).
+  - `VM/src/lperf.cpp` (10 hits): lines `28,53,73,83,96,105,114,129,144,151` (`lua_clock` / high-precision timer).
+  - `VM/src/lstate.h` (19 hits): lines `95,97,100,101,104,106,107,109,110,113,115,116,119,120,121,122,123,124,132` (`GCMetrics` struct fields).
+- **Vector library & float `vector` type (`moo-l3-libs-out`, 59 hits — `lbuiltins.cpp`, `lobject.h`, `ltable.cpp`, `lveclib.cpp`, `lvector.cpp`, `lvector.h`, `lvmexecute.cpp`, `lvmutils.cpp`)**:
+  - `VM/src/lbuiltins.cpp` (22 non-comment hits): boundary helper calls for vector fastcalls (`1177,1178,1185,1194,1623,1625,1679,1681,1880`), `condvectordouble` macro uses (`1597,1648,1699,1740,1767,1819,1863,1905,1947,1999`), SSE float round helpers and f64 fastcalls (`1751,1754,1757,1759,1760,1796,1840` — note `1751,1754,1757,1759,1760,1796,1840` also listed under `other` below).
+  - `VM/src/lobject.h` (1 hit): line `205` (`setvvalue` macro `double`).
+  - `VM/src/ltable.cpp` (1 hit): line `192` (`hashvec(const LuaTable* t, const double* v)`).
+  - `VM/src/lveclib.cpp` (18 hits): boundary conversions and float `vector` operations (`16,17,18,21,36,38,81,83,98,99,100,108,276,288,337,338,339,340`).
+  - `VM/src/lvector.cpp` (1 hit) and `VM/src/lvector.h` (1 hit): `luaVec_newvector` signature (`lvector.cpp:7`, `lvector.h:8`).
+  - `VM/src/lvmexecute.cpp` (10 hits): boundary helper calls (`moo_numfromdoublevalue` / `moo_numtodouble`) on `vvalue` vector components (`631,1871,1884,1933,1946,1995,2138,2185,2232,3137`).
+  - `VM/src/lvmutils.cpp` (2 hits): boundary helper calls (`moo_numtodouble`) in `luaV_doarithimpl` vector branches (`616,647`).
+- **`string.pack` / `string.unpack` (`VM/src/lstrlib.cpp`, 12 non-comment hits)**:
+  float/double pack/unpack format specifiers `f`, `d`, `n` and boundary bit-pattern helpers (`1512,1582,1585,1586,1594,1595,1738,1742,1744,1756,1757,1759`).
+- **`lnumutils.h` (`VM/src/lnumutils.h`, 9 non-comment hits)**:
+  `luai_num*` compatibility inline helpers (`23,28,33,38,43,49,54,59,62`).
+- **Other (`lbuflib.cpp`, `lnumprint.cpp`, `lmem.cpp`)**:
+  - `VM/src/lbuflib.cpp` (7 non-comment hits): `buffer.readf32`/`readf64`/`writef32`/`writef64` boundary bit-pattern conversions and table entries (`174,203,405,413,437,445` plus template instantiations).
+  - `VM/src/lnumprint.cpp` (2 non-comment hits): legacy `luai_num2str` double formatting (`397,462`).
+  - `VM/src/lmem.cpp` (1 non-comment hit): block-header alignment union (`152`).
 
 Every hit follows, exactly as `git grep -n 'double' -- VM/src` prints it at this head:
 

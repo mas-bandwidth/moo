@@ -153,13 +153,13 @@ TEST_CASE("MooAstConstantNumberFormsKeepTheirInvariant")
         int64_t raw = expectedRaw[i] < 0 ? -expectedRaw[i] : expectedRaw[i];
         INFO(i);
         CHECK_EQ(n->rawValue, raw);
-        CHECK_EQ(n->value, moo_numbridgetodouble(n->rawValue));
+        CHECK_EQ(n->value, moo_numtodouble(n->rawValue));
     }
 
     AstExprConstantNumber tool{Location(), 8.2};
     CHECK_EQ(tool.value, 8.2);
     CHECK_EQ(tool.rawValue, int64_t(537395));
-    CHECK_EQ(tool.rawValue, moo_numbridgefromdouble(tool.value));
+    CHECK_EQ(tool.rawValue, moo_numfromdoublevalue(tool.value));
 
     AstExprConstantNumber huge{Location(), double(INFINITY)};
     AstExprConstantNumber negHuge{Location(), -double(INFINITY)};
