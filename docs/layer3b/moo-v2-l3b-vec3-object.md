@@ -22,7 +22,7 @@ tags", so before `LUA_TDEADKEY`. In moo's build (`LUA_VECTOR_DOUBLE == 0`) it is
 Why:
 
 - **It has to be a `TValue` tag and collectable.** A vec3 sits in registers, tables and upvalues, so its tag must be
-  below `LUA_T_COUNT`: `lua_type`'s `api_check` (`VM/src/lapi.cpp:351`), the per-type metatables `g->mt[]`, the type
+  below `LUA_T_COUNT`: `lua_typename`'s `api_check` (`VM/src/lapi.cpp:351`), the per-type metatables `g->mt[]`, the type
   names `g->ttname[]` (`VM/src/lstate.h:217-218`) and `luaT_typenames` all index by it. It must also be at or above
   `LUA_TSTRING`, because `iscollectable(o)` is `ttype(o) >= LUA_TSTRING`. The only range that meets both is between
   `LUA_TOBJECT` and `LUA_TDEADKEY`, which is where upstream put its own last GC types (`LUA_TCLASS`, `LUA_TOBJECT`,
@@ -39,7 +39,7 @@ Why:
   goes from 14 to 15, `LUA_TPROTO` from 15 to 16, `LUA_TUPVAL` from 16 to 17), and nothing outside the VM sees
   those.
 - **Not after `LUA_TUPVAL`.** The carried attempt 2 head (`a1c6c089`) put the tag there, at 17. That is at or above
-  `LUA_T_COUNT`, so it is not a `TValue` tag: `g->mt[17]` would read past the array, `lua_type` would trip its
+  `LUA_T_COUNT`, so it is not a `TValue` tag: `g->mt[17]` would read past the array, `lua_typename` would trip its
   `api_check`, and `TKey::tt` (4 bits) cannot hold 17, so a vec3 could never be a table key. This attempt removes
   it.
 - **Not one shared tag for vec3, quat and transform** (with a kind byte in the header's padding). `type()`, the
@@ -96,18 +96,28 @@ no NaN and no negative zero, so value equality is plain integer equality, and `a
 
 ### 4. Table keys: hashed by the three raw components
 
-`moo_vec3_hash(v)` runs each raw component `c` through hashint's MurmurHash64B finalizer. Call that `f(c)`: the low
-and high 32-bit halves go through the four steps in `VM/src/ltable.cpp` `hashint`, including its `ALT_HASH_FUNCTION`
-switch, and the result is `h2`. The three results are then combined with hashvec's spatial-hash primes, in 32-bit
+`moo_vec3_hash(v)` runs each raw component `c` through hashint's MurmurHash64B finalizer. Call that `f(c)`: with
+`h1 = uint32_t(c)` and `h2 = uint32_t(uint64_t(c) >> 32)`, the four steps of `VM/src/ltable.cpp` `hashint`, including
+its `ALT_HASH_FUNCTION` switch, run on `h1` and `h2`, and the result is `h2`. The halves are taken arithmetically. The
+`memcpy` that `hashint` uses would swap them on a big-endian target. The three results are then combined with hashvec's spatial-hash primes, in 32-bit
 unsigned arithmetic: `f(x) * 73856093 ^ f(y) * 19349663 ^ f(z) * 83492791`. `mainposition` passes that to
 `hashpow2`. Two equal vec3 have the same hash and match by value, so they are one key. The hash depends only on the
 raw integers, so it is deterministic by construction (no address and no creation number). Q48.16 has no NaN, so
 unlike `LUA_TVECTOR` (`ltable.cpp:1376`) there is no "table index contains NaN" refusal. Every vec3 is a valid key.
 
 - **Dead keys stay identity-only.** `findindex` (`ltable.cpp:380`) matches a dead key by pointer identity
-  (`gcvalue(gkey(n)) == gcvalue(key)`). It must never read a dead key's object, which may already be freed. So
-  `next(t, k)` after `t[k] = nil` works with the same object, which is what `pairs` passes. A different vec3 with
-  equal components raises "invalid key to 'next'", as upstream's double vectors do.
+  (`gcvalue(gkey(n)) == gcvalue(key)`). It must never read a dead key's object, which may already be freed. Until a
+  GC turns the emptied entry into a dead key, `luaO_rawequalKey` still matches it by value. After that, `next(t, k)`
+  works only with the same object, which is what `pairs` passes. A different vec3 with equal components raises
+  "invalid key to 'next'", as upstream's double vectors do.
+- **An emptied entry's key must die before its object is freed.** Value equality reads the key's object, which
+  identity equality never does. Today an entry with a nil value can keep a live collectable tag on a key whose
+  object the sweep has freed. `traversetable` returns early for `"kv"` tables (`lgc.cpp:369`), so it never calls
+  `removeentry` on them. `cleartable` skips nil-valued nodes (`lgc.cpp:740`). So a `"k"` or `"kv"` table that sets
+  `t[k] = nil` after it was traversed leaves `k` unmarked and still tagged vec3. A later lookup through
+  `luaO_rawequalKey` or `rawequalkeyvalue<LUA_TVEC3>` would then compare against freed memory. Strings never hit
+  this because they compare by pointer. Card gc closes it: `cleartable` calls `removeentry(n)` on every
+  nil-valued node with a collectable key, so such a key is `LUA_TDEADKEY` before the sweep frees its object.
 - **Never weak.** A vec3 is a value, so like a string it is never cleared from a weak table: `isobjcleared`
   (`VM/src/lgc.cpp:665`) marks it and returns 0. Otherwise a key `vec3(1, 2, 3)` in a weak-keyed table would vanish
   while an equal vec3 is still live elsewhere.
@@ -166,12 +176,18 @@ card has landed them, this card makes them first.
 3. `VM/src/lobject.cpp`: define `moo_vec3_new` (`luaM_newgcofixed(L, MooVec3, sizeof(MooVec3), L->activememcat,
    LUA_TVEC3)`, `luaC_init(L, v, LUA_TVEC3)`, then x, y, z), `moo_vec3_equal`, and `moo_vec3_tostring` (decision 5).
    In `luaO_rawequalObj` and `luaO_rawequalKey`, add `case LUA_TVEC3:` returning `moo_vec3_equal` on the two objects.
-4. `VM/src/lvmutils.cpp`, `luaV_equalval`: `case LUA_TVEC3:` returns `moo_vec3_equal`, with no `__eq` lookup. The
-   interpreter's `LOP_JUMPIFEQ` and `LOP_JUMPIFNOTEQ` reach it through their slow path (`lvmexecute.cpp:1322`,
-   `:1450`). A fast-path case there is optional and is not required.
+4. `VM/src/lvmutils.cpp`, `luaV_equalval`: `case LUA_TVEC3:` returns `moo_vec3_equal`, with no `__eq` lookup.
+   **Required:** `VM/src/lvmexecute.cpp`, `LOP_JUMPIFEQ` and `LOP_JUMPIFNOTEQ`. Their type switches end in
+   `default: LUAU_ASSERT(!"Unknown value type"); LUAU_UNREACHABLE();` (`:1428`, and the same in `LOP_JUMPIFNOTEQ`),
+   so a vec3 has to get its own case. Use `case LUA_TVEC3:` that compares with `moo_vec3_equal` and jumps, or one
+   that `break`s to the `luaV_equalval` slow path. Without the case, `==` on two vec3 is undefined behaviour in a
+   release build.
 5. `VM/src/lgc.cpp`: in `reallymarkobject`, `case LUA_TVEC3:` does `gray2black` and returns. In `freeobj`,
    `case LUA_TVEC3:` calls `luaM_freegcofixed(L, gco2vec3(o), sizeof(MooVec3), gco2vec3(o)->memcat, page)`. In
-   `isobjcleared`, a vec3 is marked and returns 0, like a string (decision 4).
+   `isobjcleared`, a vec3 is marked and returns 0, like a string (decision 4). In `cleartable`, call `removeentry(n)`
+   on every nil-valued node with a collectable key (decision 4, "An emptied entry's key must die"). Test it with a
+   weak `"k"` table and a weak `"kv"` table: set `t[k] = nil`, drop `k`, run a full collect, set
+   `t[vec3 equal to k] = 1`, and check that `luaC_validate` passes.
 6. `VM/src/lgcdebug.cpp`: `validateobj` gets `case LUA_TVEC3: break;` (no edges), `dumpobj` gets `return;`, and
    `enumobj` gets `enumnode(ctx, o, sizeof(MooVec3), NULL)`, beside each `LUA_TVECTOR` case (`:205`, `:675`,
    `:1103`).
@@ -180,16 +196,18 @@ card has landed them, this card makes them first.
    `default` would print `vec3: #N`.
 8. `VM/src/moo_layout.cpp`: include `moo_vec3.h` and add `static_assert(sizeof(MooVec3) == 40, ...)` beside
    `LuauVector`'s, so that one file lists every pinned size.
-9. `tests/Determinism.test.cpp`, `hashObject`: `case LUA_TVEC3:` hashes x, y and z. Today's programs make no vec3,
+9. `VM/src/lapi.cpp`, `lua_topointer`: its `default` returns the object's address, so two equal vec3 give two
+   different pointers. Add `case LUA_TVEC3: return NULL;`, which is what a value gets, like a number.
+10. `tests/Determinism.test.cpp`, `hashObject`: `case LUA_TVEC3:` hashes x, y and z. Today's programs make no vec3,
    so the pinned hashes do not move.
-10. NEW `tests/moo/moo-v2-l3b-vec3-object-gc.test.cpp`. The test makes vec3s with `moo_vec3_new` and pushes them with
+11. NEW `tests/moo/moo-v2-l3b-vec3-object-gc.test.cpp`. The test makes vec3s with `moo_vec3_new` and pushes them with
     `setvec3value` into a `TValue` and `luaA_pushvalue`, because there is no script constructor yet. It checks: `type` is
     `"vec3"`; `tostring` gives `vec3(1, -2.5, 0.1)`; `==` and `rawequal` are true for distinct equal objects and
     false when one component differs; the creation number goes up by one per vec3; `totalbytes` goes up by 40 per
     vec3; a full collect frees an unreachable vec3 (heap enumeration count); `luaC_validate` passes; and a vec3 key
     or value is never cleared from a weak table.
-11. Append a "Card gc" section to this note. List the PATCHES.md rows the change needs: `lstate.h`, `lobject.cpp`,
-    `lvmutils.cpp`, `lgc.cpp`, `lgcdebug.cpp` and `laux.cpp` already have rows, and each row's reason gains
+12. Append a "Card gc" section to this note. List the PATCHES.md rows the change needs: `lstate.h`, `lobject.cpp`,
+    `lvmutils.cpp`, `lvmexecute.cpp`, `lapi.cpp`, `lgc.cpp`, `lgcdebug.cpp` and `laux.cpp` already have rows, and each row's reason gains
     "vec3 (layer 3b)".
 
 ## Card moo-v2-l3b-vec3-object-key
@@ -209,7 +227,8 @@ Precondition: card gc has landed (`luaO_rawequalKey` matches vec3 by value, and 
 5. NEW `tests/moo/moo-v2-l3b-vec3-object-key.test.cpp`. It checks: two distinct equal vec3 are one key (`t[a] = 1`
    gives `t[b] == 1`, and `next` visits one entry); `moo_vec3_hash` is frozen for a few vectors, including
    zero, the range ends and a single raw unit; the `next` order of a vec3-keyed table through inserts, deletes and
-   a rehash is pinned by a hash; and `next` after `t[k] = nil` works with the same object.
+   a rehash is pinned by a hash; and `next` after `t[k] = nil` and a full collect works with the same object and raises
+   with an equal different one.
 6. Append a "Card key" section to this note. The `ltable.cpp` row in `docs/PATCHES.md` gains "and a vec3 by its
    components".
 
@@ -250,6 +269,10 @@ Precondition: card gc has landed (`luaO_rawequalKey` matches vec3 by value, and 
    values are under "Measured").
 
 ## Measured
+
+The raw logs (build, Moo.Test on both compilers, the experiment diff, the patch check) are kept with the card's
+receipts under `nova-reads/moo-v2-l3b-vec3-object-design.work/logs/experiment-tag14`. The card that lands the tag
+re-measures them; these numbers are evidence for the decision, not values to paste.
 
 Experiment on amd-3 (Linux; clang 18 and gcc 13; Moo.Test). The tree was BASE `efc69470` with three edits that were
 not committed: `LUA_TVEC3` after `LUA_TOBJECT` in `lua.h`, `"vec3"` in `luaT_typenames`, and `sizeof(global_State)
