@@ -1,6 +1,6 @@
 # Named Luau.UnitTest reds after analyzer builtins were removed
 
-The eleven disposition causes below were recorded in the preceding checkpoint at `0ca1115f552eef25ddb231b2833459ddb2479409`, after `moo-l3-analyzer-builtins` removed `os`, `vector`, and `integer` from analyzer builtins. The w5 working base is now `e2581b9f05fadf16eab9975a1133b819a83b68db`; Captain has not released a gate allocation, so single-case output at this exact base is not yet available. These rows are historical cause evidence and are not represented as current-base test output.
+The eleven disposition causes below were first recorded in checkpoint `0ca1115f552eef25ddb231b2833459ddb2479409`, after `moo-l3-analyzer-builtins` removed `os`, `vector`, and `integer` from analyzer builtins. The exact w5 base was `e2581b9f05fadf16eab9975a1133b819a83b68db`. These rows preserve that historical cause evidence; they are not represented as current-base test output. See the task REPORT.md for the latest exact-base and current-head gate evidence.
 
 | Case | File | Cause in prior checkpoint | Disposition | Reason |
 |---|---|---|---|---|
@@ -16,6 +16,6 @@ The eleven disposition causes below were recorded in the preceding checkpoint at
 | `udtf_integer_is_distinct_from_number` | `tests/TypeFunction.user.test.cpp` | Both `types.integer` and the `integer` annotation are unknown | skipped | `integer` is not a moo builtin (`docs/DESIGN.md`, “Analyzer”) |
 | `udtf_integer_methods_work` | `tests/TypeFunction.user.test.cpp` | Both `types.integer` and the `integer` annotation are unknown | skipped | `integer` is not a moo builtin (`docs/DESIGN.md`, “Analyzer”) |
 
-`MooBuiltinsDoNotFold` is the coordinator-added twelfth case, first reported red after `moo-l3-vector-compiler-out`. The compiler source maps removed vector builtins to no fastcall; the `MooBuiltinsDoNotFold` expectation is corrected to `GETIMPORT` with a `moo:` rationale. Exact-base execution remains pending the Captain allocation.
+`MooBuiltinsDoNotFold` is the coordinator-added twelfth case, first reported red after `moo-l3-vector-compiler-out`. The compiler source maps removed vector builtins to no fastcall; the `MooBuiltinsDoNotFold` expectation is corrected to `GETIMPORT` with a `moo:` rationale. Exact-base execution status is recorded in the task REPORT.md.
 
-The required exact-base reds, current-head whole `Luau.UnitTest` summary, the named-case reruns, `Moo.Test`, and GCC parity remain pending the Captain allocation. See `REPORT.md` for current evidence and status.
+The required exact-base reds, current-head whole `Luau.UnitTest` summary, the named-case reruns, `Moo.Test`, and GCC parity are gate requirements. Their status and raw outputs are recorded in the task REPORT.md and evidence directory.
