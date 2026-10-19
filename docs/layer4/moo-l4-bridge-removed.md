@@ -39,9 +39,10 @@ publishes.
   boundary (`luau_set_compile_constant_number`) still takes a `double`, as the C API requires.
 - `Compiler/src/CostModel.cpp`: `getNumber` uses `moo_numtodouble`.
 - `VM/src/lbuiltins.cpp`, `VM/src/lveclib.cpp`, `VM/src/lvmexecute.cpp`, `VM/src/lvmutils.cpp`:
-  the float-`vector` conversions use the same two boundary helpers. The float vector type itself
-  is not removed by this card (`moo-l3-libs-out` has not landed); removing it is what will remove
-  the remaining float arithmetic from these files.
+  the former float-`vector` bridge call sites were mechanically changed to the permanent boundary
+  helpers. `moo-l3-libs-out` is already in the current sprint base and removes obsolete vector
+  fastcall bodies from `lbuiltins.cpp`; the float vector representation and its remaining sites are
+  still owned by that layer, not removed by this card.
 - `Ast/src/Ast.cpp`, `Ast/include/Luau/Ast.h`: `AstExprConstantNumber`'s two-argument double
   constructor (landed in `ad9e85a9` by `moo-l3-ast-raw-literals`) now uses
   `moo_numfromdoublevalue(value)` instead of `moo_numbridgefromdouble(value)`, and the comments in
@@ -68,16 +69,15 @@ deleted, so the deletion updates those callers mechanically to `moo_numtodouble`
 
 ### Carry disposition
 
-The card's `CARRY:` names attempt 6's head `701cb92c20da146fae37d43e18fbf23a4a7ed99e` (which is a
-direct parent of the merge with `ad9e85a9da922082cd6e4626b5b88f5fe5a76994`) and attempt 2's head
-`57b6c5a283696727f73e3a708a5df47606c717cb`. Attempt 2's head is not an ancestor because `sprint/moo`
-advanced from `c9d154ab` to `e7ac1b4e` before attempt 4; the carry commit `80a826de` replayed
-attempt 3's work onto `e7ac1b4e`, and for each of the 14 original source and test files from
-`57b6c5a`, `git diff c9d154ab..57b6c5a -- <file>` and `git diff ad9e85a9..HEAD -- <file>` hash
-identically (`git hash-object`). On top of `701cb92c`, this head merges `ad9e85a9` (`sprint/moo`),
-replaces the new bridge references from `moo-l3-ast-raw-literals` (`Ast/src/Ast.cpp`,
-`Ast/include/Luau/Ast.h`, `tests/moo/moo-l3-ast-raw-literals.test.cpp`), and updates this note for
-the coordinator's 2026-10-19 revision.
+The packet's old `CARRY:` field names attempt 2's head `57b6c5a283696727f73e3a708a5df47606c717cb`,
+while its route note identifies attempt 6's head `701cb92c20da146fae37d43e18fbf23a4a7ed99e`; the
+latest continuation `42306174` descends from 701 and contains the approved Ast conversion and grouped
+audit. The two carry heads diverged at `c9d154ab`, so 57b6 was not initially an ancestor of 701.
+This branch started from 423, merged current `sprint/moo` (`6f2ec188`) in `42a98aa3`, and then
+merged 57b6 genuinely in `21efed16`; both carry histories are ancestors now. The two conflicts were
+resolved by keeping the current base's deleted vector fastcall bodies and the latest grouped audit
+note, without restoring obsolete vector behavior. The earlier 14-file comparison remains recorded
+in the previous attempt's evidence; no cherry-pick, reset, or rebase was used.
 
 ## Red first
 
