@@ -550,14 +550,9 @@ struct ConstantVisitor : AstVisitor
         }
         else if (AstExprConstantNumber* expr = node->as<AstExprConstantNumber>())
         {
-            // moo: the AST still hands the compiler a double; convert it once by the boundary rule (docs/DESIGN.md
-            // "Literals"), the next card (moo-l3-ast-raw-literals) removes it.
+            // moo: the AST carries the exact raw Q48.16 value the parser read (docs/DESIGN.md "Literals")
             result.type = Constant::Type_Number;
-            // moo: LUAU_ASSERT discards its argument in release, so the conversion runs here, outside the assert
-            fixed_t raw = 0;
-            int status = moo_numfromdouble(expr->value, &raw);
-            LUAU_ASSERT(status == 0);
-            result.valueNumber = raw;
+            result.valueNumber = expr->rawValue;
         }
         else if (AstExprConstantInteger* expr = node->as<AstExprConstantInteger>())
         {

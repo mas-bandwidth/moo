@@ -3185,13 +3185,8 @@ struct Compiler
         }
         else if (AstExprConstantNumber* expr = node->as<AstExprConstantNumber>())
         {
-            // moo: the AST still hands the compiler a double; convert it once by the boundary rule (docs/DESIGN.md
-            // "Literals"); the next card (moo-l3-ast-raw-literals) removes it. LUAU_ASSERT discards its argument in
-            // release, so the conversion runs here, outside the assert.
-            int64_t raw = 0;
-            int status = moo_numfromdouble(expr->value, &raw);
-            LUAU_ASSERT(status == 0);
-            int32_t cid = bytecode.addConstantNumberRaw(raw);
+            // moo: the AST carries the exact raw Q48.16 value the parser read (docs/DESIGN.md "Literals")
+            int32_t cid = bytecode.addConstantNumberRaw(expr->rawValue);
             if (cid < 0)
                 CompileError::raise(expr->location, "Exceeded constant limit; simplify the code to compile");
 
