@@ -549,10 +549,19 @@ with Glenn.
    `Moo.Test` (the determinism suite and the math oracle) under both compilers and fails when
    either hash differs from `tests/determinism/expected.txt`.
 6. **First adoption.** An existing Luau consumer switches from Luau to moo, and its own
-   determinism checks pass. *Held (re-confirmed on the nightly adoption attempt):* the
-   Virtual Go pin named in this card's source is moo `c4b81e6` (end of layer 2,
-   robotgamedevelopers/virtualgo PR #11); no Virtual Go commit is known to pin moo at or past
-   the layer 5 lock, and robotgamedevelopers/virtualgo is not publicly readable (GitHub returns
-   404), so no qualifying commit exists to check out. This waits for the separate Virtual Go
-   repin card that moves that pin to the lock, which the nightly adoption job needs before it
-   can check out a qualifying commit.
+   determinism checks pass. *Held, measured 2026-10-19 on a Linux bench (clang, Ninja):*
+   robotgamedevelopers/virtualgo is a private repository (readable with fleet credentials, not
+   anonymously). Its main at `dd59cad` pins moo at `8317486` (the merge of moo PR #15, layer 3,
+   179 commits before the layer 5 lock at `9001182`) in `script/CMakeLists.txt`
+   (`VG_MOO_COMMIT`, `VG_MOO_SHA256`); no branch pins anything later. Virtual Go's own checks
+   are the `script/` CTest suite (`script_test`, `script_determinism`, `script_test_fixed` and
+   three plants that must go red): at its own pin all six pass. Swapped by hand to moo at the
+   lock (a local `git archive` of `9001182`, its sha256 written into a scratch copy of the pin),
+   the host does not compile: `script/vg_script.cpp:413: use of undeclared identifier
+   'luaopen_vector'` (the vector library and its C API left moo in layer 3, `moo-l3-libs-out`,
+   `moo-l3-vector-api-out`). So the adoption is not a pin move alone: Virtual Go's host must drop
+   `luaopen_vector` (and anything else the build then shows) and repin to the lock. That is a
+   Virtual Go card, not yet carded (proposed id `vg-script-repin-moo-l5`). The nightly job here
+   waits for it: it checks out the first Virtual Go commit that pins moo at or past the lock,
+   needs a repository secret with read access to the private Virtual Go repository, and runs on
+   the fleet's self-hosted Linux runners.
