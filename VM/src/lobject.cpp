@@ -34,6 +34,7 @@ int luaO_log2(unsigned int x)
     return l + log_2[x];
 }
 
+// moo: raw equality has no vector arm because the public API no longer creates vector values.
 int luaO_rawequalObj(const TValue* t1, const TValue* t2)
 {
     if (ttype(t1) != ttype(t2))
@@ -47,8 +48,6 @@ int luaO_rawequalObj(const TValue* t1, const TValue* t2)
             return luai_numeq(nvalue(t1), nvalue(t2));
         case LUA_TINTEGER:
             return luai_inteq(lvalue(t1), lvalue(t2));
-        case LUA_TVECTOR:
-            return luai_veceq(vvalue(t1), vvalue(t2));
         case LUA_TBOOLEAN:
             return bvalue(t1) == bvalue(t2); // boolean true must be 1 !!
         case LUA_TLIGHTUSERDATA:
@@ -72,8 +71,6 @@ int luaO_rawequalKey(const TKey* t1, const TValue* t2)
             return luai_numeq(nvalue(t1), nvalue(t2));
         case LUA_TINTEGER:
             return luai_inteq(lvalue(t1), lvalue(t2));
-        case LUA_TVECTOR:
-            return luai_veceq(vvalue(t1), vvalue(t2));
         case LUA_TBOOLEAN:
             return bvalue(t1) == bvalue(t2); // boolean true must be 1 !!
         case LUA_TLIGHTUSERDATA:
