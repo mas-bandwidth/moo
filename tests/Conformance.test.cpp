@@ -3,6 +3,9 @@
 #include "Luau/Type.h"
 #include "lua.h"
 #include "lualib.h"
+// moo: the public vector C API is gone (layer 3, docs/DESIGN.md "vec3, quat and transform"); the upstream
+// userdata tests still need vectors, so these test-only helpers build a TValue through the VM's internal seam.
+#include "lapi.h"
 #include "luacode.h"
 #include "luacodegen.h"
 #include "luajitinliner.h"
@@ -49,11 +52,33 @@ extern int optimizationLevel;
 // internal functions, declared in lgc.h - not exposed via lua.h
 void luaC_validate(lua_State* L);
 
+// moo: lua_pushvector and luaL_checkvector are removed (layer 3, docs/DESIGN.md "vec3, quat and transform");
+// these test-only helpers replace the handful of upstream vector cases without adding a public C API.
 #if LUA_VECTOR_SIZE == 4
-#define lua_pushvector3(L, x, y, z) lua_pushvector(L, x, y, z, 0.0)
+static void mooTestPushVector(lua_State* L, LUA_VECTOR_TYPE x, LUA_VECTOR_TYPE y, LUA_VECTOR_TYPE z, LUA_VECTOR_TYPE w)
+{
+    TValue value;
+    setvvalue(L, &value, x, y, z, w);
+    luaA_pushvalue(L, &value);
+}
+#define mooTestPushVector3(L, x, y, z) mooTestPushVector(L, x, y, z, LUA_VECTOR_TYPE(0.0))
 #else
-#define lua_pushvector3(L, x, y, z) lua_pushvector(L, x, y, z)
+static void mooTestPushVector(lua_State* L, LUA_VECTOR_TYPE x, LUA_VECTOR_TYPE y, LUA_VECTOR_TYPE z)
+{
+    TValue value;
+    setvvalue(L, &value, x, y, z, LUA_VECTOR_TYPE(0.0));
+    luaA_pushvalue(L, &value);
+}
+#define mooTestPushVector3(L, x, y, z) mooTestPushVector(L, x, y, z)
 #endif
+
+static const LUA_VECTOR_TYPE* mooTestCheckVector(lua_State* L, int narg)
+{
+    const TValue* value = luaA_toobject(L, narg);
+    if (!value || !ttisvector(value))
+        luaL_typeerror(L, narg, "vector");
+    return vvalue(value);
+}
 
 LUAU_FASTFLAG(DebugLuauAbortingChecks)
 LUAU_FASTFLAG(LuauBytecodeFold)
@@ -192,8 +217,8 @@ static int lua_loadstring(lua_State* L)
 
 static int lua_vector_dot(lua_State* L)
 {
-    const LUA_VECTOR_TYPE* a = luaL_checkvector(L, 1);
-    const LUA_VECTOR_TYPE* b = luaL_checkvector(L, 2);
+    const LUA_VECTOR_TYPE* a = mooTestCheckVector(L, 1);
+    const LUA_VECTOR_TYPE* b = mooTestCheckVector(L, 2);
 
     lua_pushnumber(L, mooHostNumber(a[0] * b[0] + a[1] * b[1] + a[2] * b[2]));
     return 1;
@@ -201,13 +226,13 @@ static int lua_vector_dot(lua_State* L)
 
 static int lua_vector_cross(lua_State* L)
 {
-    const LUA_VECTOR_TYPE* a = luaL_checkvector(L, 1);
-    const LUA_VECTOR_TYPE* b = luaL_checkvector(L, 2);
+    const LUA_VECTOR_TYPE* a = mooTestCheckVector(L, 1);
+    const LUA_VECTOR_TYPE* b = mooTestCheckVector(L, 2);
 
 #if LUA_VECTOR_SIZE == 4
-    lua_pushvector(L, a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0], 0.0f);
+    mooTestPushVector(L, a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0], 0.0f);
 #else
-    lua_pushvector(L, a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]);
+    mooTestPushVector(L, a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]);
 #endif
 
     return 1;
@@ -215,7 +240,7 @@ static int lua_vector_cross(lua_State* L)
 
 static int lua_vector_index(lua_State* L)
 {
-    const LUA_VECTOR_TYPE* v = luaL_checkvector(L, 1);
+    const LUA_VECTOR_TYPE* v = mooTestCheckVector(L, 1);
     const char* name = luaL_checkstring(L, 2);
 
     if (strcmp(name, "Magnitude") == 0)
@@ -233,11 +258,11 @@ static int lua_vector_index(lua_State* L)
 #if LUA_VECTOR_SIZE == 4
         float invSqrt = 1.0f / sqrtf(v[0] * v[0] + v[1] * v[1] + v[2] * v[2] + v[3] * v[3]);
 
-        lua_pushvector(L, v[0] * invSqrt, v[1] * invSqrt, v[2] * invSqrt, v[3] * invSqrt);
+        mooTestPushVector(L, v[0] * invSqrt, v[1] * invSqrt, v[2] * invSqrt, v[3] * invSqrt);
 #else
         float invSqrt = 1.0f / sqrtf(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]);
 
-        lua_pushvector(L, v[0] * invSqrt, v[1] * invSqrt, v[2] * invSqrt);
+        mooTestPushVector(L, v[0] * invSqrt, v[1] * invSqrt, v[2] * invSqrt);
 #endif
         return 1;
     }
@@ -582,9 +607,9 @@ static int lua_vector_create_testonly(lua_State* L)
 
 #if LUA_VECTOR_SIZE == 4
     double w = count >= 4 ? moo_todouble(luaL_checknumber(L, 4)) : 0.0;
-    lua_pushvector(L, LUA_VECTOR_TYPE(x), LUA_VECTOR_TYPE(y), LUA_VECTOR_TYPE(z), LUA_VECTOR_TYPE(w));
+    mooTestPushVector(L, LUA_VECTOR_TYPE(x), LUA_VECTOR_TYPE(y), LUA_VECTOR_TYPE(z), LUA_VECTOR_TYPE(w));
 #else
-    lua_pushvector(L, LUA_VECTOR_TYPE(x), LUA_VECTOR_TYPE(y), LUA_VECTOR_TYPE(z));
+    mooTestPushVector(L, LUA_VECTOR_TYPE(x), LUA_VECTOR_TYPE(y), LUA_VECTOR_TYPE(z));
 #endif
 
     return 1;
@@ -593,9 +618,9 @@ static int lua_vector_create_testonly(lua_State* L)
 void setupVectorHelpers(lua_State* L)
 {
 #if LUA_VECTOR_SIZE == 4
-    lua_pushvector(L, 0.0f, 0.0f, 0.0f, 0.0f);
+    mooTestPushVector(L, 0.0f, 0.0f, 0.0f, 0.0f);
 #else
-    lua_pushvector(L, 0.0f, 0.0f, 0.0f);
+    mooTestPushVector(L, 0.0f, 0.0f, 0.0f);
 #endif
     luaL_newmetatable(L, "vector");
 
@@ -789,8 +814,8 @@ Vertex* lua_vertex_get(lua_State* L, int idx)
 
 static int lua_vertex(lua_State* L)
 {
-    const LUA_VECTOR_TYPE* pos = luaL_checkvector(L, 1);
-    const LUA_VECTOR_TYPE* normal = luaL_checkvector(L, 2);
+    const LUA_VECTOR_TYPE* pos = mooTestCheckVector(L, 1);
+    const LUA_VECTOR_TYPE* normal = mooTestCheckVector(L, 2);
     Vec2* uv = lua_vec2_get(L, 3);
 
     Vertex* data = lua_vertex_push(L);
@@ -821,13 +846,13 @@ static int lua_vertex_index(lua_State* L)
 
     if (strcmp(name, "pos") == 0)
     {
-        lua_pushvector3(L, v->pos[0], v->pos[1], v->pos[2]);
+        mooTestPushVector3(L, v->pos[0], v->pos[1], v->pos[2]);
         return 1;
     }
 
     if (strcmp(name, "normal") == 0)
     {
-        lua_pushvector3(L, v->normal[0], v->normal[1], v->normal[2]);
+        mooTestPushVector3(L, v->normal[0], v->normal[1], v->normal[2]);
         return 1;
     }
 
@@ -855,14 +880,14 @@ static int lua_vertex_newindex(lua_State* L)
 
     if (strcmp(name, "pos") == 0)
     {
-        const LUA_VECTOR_TYPE* pos = luaL_checkvector(L, 3);
+        const LUA_VECTOR_TYPE* pos = mooTestCheckVector(L, 3);
         v->pos[0] = float(pos[0]);
         v->pos[1] = float(pos[1]);
         v->pos[2] = float(pos[2]);
     }
     else if (strcmp(name, "normal") == 0)
     {
-        const LUA_VECTOR_TYPE* normal = luaL_checkvector(L, 3);
+        const LUA_VECTOR_TYPE* normal = mooTestCheckVector(L, 3);
         v->normal[0] = float(normal[0]);
         v->normal[1] = float(normal[1]);
         v->normal[2] = float(normal[2]);
@@ -1187,10 +1212,10 @@ static void vertexDirectIndex(lua_State* L, void* data, int atom, uint16_t* cach
     switch (DirectSlot(*cachedslot))
     {
     case DirectSlot::Pos:
-        lua_pushvector3(L, self->pos[0], self->pos[1], self->pos[2]);
+        mooTestPushVector3(L, self->pos[0], self->pos[1], self->pos[2]);
         break;
     case DirectSlot::Normal:
-        lua_pushvector3(L, self->normal[0], self->normal[1], self->normal[2]);
+        mooTestPushVector3(L, self->normal[0], self->normal[1], self->normal[2]);
         break;
     case DirectSlot::UV:
     {
@@ -1218,7 +1243,7 @@ static void vertexDirectNewindex(lua_State* L, void* data, int atom, uint16_t* c
     {
     case DirectSlot::Pos:
     {
-        const LUA_VECTOR_TYPE* pos = luaL_checkvector(L, 3);
+        const LUA_VECTOR_TYPE* pos = mooTestCheckVector(L, 3);
         self->pos[0] = float(pos[0]);
         self->pos[1] = float(pos[1]);
         self->pos[2] = float(pos[2]);
@@ -1226,7 +1251,7 @@ static void vertexDirectNewindex(lua_State* L, void* data, int atom, uint16_t* c
     }
     case DirectSlot::Normal:
     {
-        const LUA_VECTOR_TYPE* normal = luaL_checkvector(L, 3);
+        const LUA_VECTOR_TYPE* normal = mooTestCheckVector(L, 3);
         self->normal[0] = float(normal[0]);
         self->normal[1] = float(normal[1]);
         self->normal[2] = float(normal[2]);
