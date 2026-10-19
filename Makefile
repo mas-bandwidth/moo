@@ -44,7 +44,8 @@ CODEGEN_SOURCES=CodeGen/src/moo_codegen_off.cpp
 CODEGEN_OBJECTS=$(CODEGEN_SOURCES:%=$(BUILD)/%.o)
 CODEGEN_TARGET=$(BUILD)/libluaucodegen.a
 
-VM_SOURCES=$(wildcard VM/src/*.cpp)
+# moo: the float vector library leaves the build in layer 3, as in Sources.cmake (docs/DESIGN.md, "vec3, quat and transform")
+VM_SOURCES=$(filter-out VM/src/lveclib.cpp,$(wildcard VM/src/*.cpp))
 FIXED_SOURCES=extern/fixed/src/fixed_math.c extern/fixed/src/fixed_vec.c
 FIXED_OBJECTS=$(FIXED_SOURCES:%=$(BUILD)/%.o)
 VM_OBJECTS=$(VM_SOURCES:%=$(BUILD)/%.o)

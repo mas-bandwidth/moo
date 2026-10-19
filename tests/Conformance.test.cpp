@@ -78,9 +78,9 @@ LUAU_FASTFLAG(LuauCallFeedback)
 LUAU_FASTFLAG(LuauBytecodeCostModel)
 LUAU_FASTFLAG(LuauVirtualBcBuilder)
 LUAU_FASTFLAG(LuauNewPointerEncode)
-LUAU_FASTFLAG(LuauSandboxFreezesVectorMetatable)
 LUAU_FASTFLAG(LuauExperimentalIfLocalSyntax)
-LUAU_FASTFLAG(LuauSandboxFreezesVectorMetatable)
+// moo: the LuauSandboxFreezesVectorMetatable declarations are removed here with the two tests that used them:
+// no vector can be made from a script (layer 3), so luaL_sandbox no longer freezes its metatable.
 LUAU_FASTFLAG(LuauBufferCage)
 LUAU_FASTFLAG(LuauCompileUndoEmitAdjust)
 LUAU_FASTFLAG(DebugLuauCoroutineFinally)
@@ -571,6 +571,25 @@ static void* limitedRealloc(void* ud, void* ptr, size_t osize, size_t nsize)
     }
 }
 
+// moo: the vector library is out (layer 3), but the userdata direct-access tests still need to build
+// vector fields; this test-only create is the same bridge the library used, installed by setup only.
+static int lua_vector_create_testonly(lua_State* L)
+{
+    int count = lua_gettop(L);
+    double x = moo_todouble(luaL_checknumber(L, 1));
+    double y = moo_todouble(luaL_checknumber(L, 2));
+    double z = count >= 3 ? moo_todouble(luaL_checknumber(L, 3)) : 0.0;
+
+#if LUA_VECTOR_SIZE == 4
+    double w = count >= 4 ? moo_todouble(luaL_checknumber(L, 4)) : 0.0;
+    lua_pushvector(L, LUA_VECTOR_TYPE(x), LUA_VECTOR_TYPE(y), LUA_VECTOR_TYPE(z), LUA_VECTOR_TYPE(w));
+#else
+    lua_pushvector(L, LUA_VECTOR_TYPE(x), LUA_VECTOR_TYPE(y), LUA_VECTOR_TYPE(z));
+#endif
+
+    return 1;
+}
+
 void setupVectorHelpers(lua_State* L)
 {
 #if LUA_VECTOR_SIZE == 4
@@ -591,6 +610,13 @@ void setupVectorHelpers(lua_State* L)
     lua_setreadonly(L, -1, true);
     lua_setmetatable(L, -2);
     lua_pop(L, 1);
+
+    // moo: a script can no longer reach the vector library (layer 3), so this setup provides the
+    // one function the upstream userdata tests call.
+    lua_createtable(L, 0, 1);
+    lua_pushcfunction(L, lua_vector_create_testonly, "create");
+    lua_setfield(L, -2, "create");
+    lua_setglobal(L, "vector");
 }
 
 Vec2* lua_vec2_push(lua_State* L)
@@ -1980,93 +2006,9 @@ TEST_CASE("CYield")
 
 TEST_CASE("Vector")
 {
-    ScopedFastFlag luauCompileEmitVectorDouble{FFlag::LuauCompileEmitVectorDouble, true};
-    ScopedFastFlag luauCompileNoFoldVectorEqW{FFlag::LuauCompileNoFoldVectorEqW, true};
-
-    lua_CompileOptions copts = defaultOptions();
-    Luau::CodeGen::CompilationOptions nativeOpts = defaultCodegenOptions();
-
-    SUBCASE("NoIrHooks")
-    {
-        SUBCASE("O0")
-        {
-            copts.optimizationLevel = 0;
-        }
-        SUBCASE("O1")
-        {
-            copts.optimizationLevel = 1;
-        }
-        SUBCASE("O2")
-        {
-            copts.optimizationLevel = 2;
-        }
-    }
-    SUBCASE("IrHooks")
-    {
-#ifdef MOO_CODEGEN // moo: the IR hooks build native code, which is excluded (MOO_CODEGEN)
-        nativeOpts.hooks.vectorAccessBytecodeType = vectorAccessBytecodeType;
-        nativeOpts.hooks.vectorNamecallBytecodeType = vectorNamecallBytecodeType;
-        nativeOpts.hooks.vectorAccess = vectorAccess;
-        nativeOpts.hooks.vectorNamecall = vectorNamecall;
-#endif
-
-        SUBCASE("O0")
-        {
-            copts.optimizationLevel = 0;
-        }
-        SUBCASE("O1")
-        {
-            copts.optimizationLevel = 1;
-        }
-        SUBCASE("O2")
-        {
-            copts.optimizationLevel = 2;
-        }
-    }
-
+    // moo: the float32 vector library is out (layer 3); this one file replaces upstream Vector and VectorLibrary.
     runConformance(
-        "moo/vector.luau",
-        [](lua_State* L)
-        {
-            setupVectorHelpers(L);
-            setupNativeHelpers(L);
-        },
-        nullptr,
-        nullptr,
-        &copts,
-        false,
-        &nativeOpts
-    );
-}
-
-TEST_CASE("VectorLibrary")
-{
-    ScopedFastFlag luauCompileEmitVectorDouble{FFlag::LuauCompileEmitVectorDouble, true};
-
-    lua_CompileOptions copts = defaultOptions();
-
-    SUBCASE("O0")
-    {
-        copts.optimizationLevel = 0;
-    }
-    SUBCASE("O1")
-    {
-        copts.optimizationLevel = 1;
-    }
-    SUBCASE("O2")
-    {
-        copts.optimizationLevel = 2;
-    }
-
-    runConformance(
-        "moo/vector_library.luau",
-        [](lua_State* L)
-        {
-            setupNativeHelpers(L);
-        },
-        nullptr,
-        nullptr,
-        &copts
+        "moo/vector.luau"
     );
 }
 
@@ -5509,28 +5451,7 @@ TEST_CASE("BytecodeDumpLinked")
     CHECK_EQ(toString(rbc, true), "; function() maxstacksize: 0 upvalues: 0 flags: 0\n");
 }
 
-TEST_CASE("SandboxFreezesVectorMetatable")
-{
-    ScopedFastFlag freezeVectorMetatable{FFlag::LuauSandboxFreezesVectorMetatable, true};
-
-    StateRef globalState(luaL_newstate(), lua_close);
-    lua_State* L = globalState.get();
-
-    lua_pushvector3(L, 0.0f, 0.0f, 0.0f);
-
-    luaL_newmetatable(L, "Vector7");
-    lua_pushboolean(L, true);
-    lua_setfield(L, -2, "Supported");
-
-    lua_setmetatable(L, -2);
-
-    luaL_sandbox(L);
-
-    lua_pushvector3(L, 0.0f, 0.0f, 0.0f);
-
-    CHECK(lua_getmetatable(L, -1));
-    CHECK(lua_getreadonly(L, -1));
-}
+// moo: the vector metatable freeze is gone (no vector can be made from a script; layer 3), so this test is removed.
 
 TEST_CASE("ClassInheritanceRepeatedCallMemberOffsetCorruption")
 {
@@ -5573,27 +5494,6 @@ TEST_CASE("ClassInheritanceRepeatedCallMemberOffsetCorruption")
     }
 }
 
-TEST_CASE("SandboxFreezesVectorMetatable")
-{
-    ScopedFastFlag freezeVectorMetatable{FFlag::LuauSandboxFreezesVectorMetatable, true};
-
-    StateRef globalState(luaL_newstate(), lua_close);
-    lua_State* L = globalState.get();
-
-    lua_pushvector3(L, 0.0f, 0.0f, 0.0f);
-
-    luaL_newmetatable(L, "Vector7");
-    lua_pushboolean(L, true);
-    lua_setfield(L, -2, "Supported");
-
-    lua_setmetatable(L, -2);
-
-    luaL_sandbox(L);
-
-    lua_pushvector3(L, 0.0f, 0.0f, 0.0f);
-
-    CHECK(lua_getmetatable(L, -1));
-    CHECK(lua_getreadonly(L, -1));
-}
+// moo: the vector metatable freeze is gone (no vector can be made from a script; layer 3), so this test is removed.
 
 TEST_SUITE_END();
