@@ -110,10 +110,6 @@ enum lua_Type
     LUA_TPROTO,
     LUA_TUPVAL,
 
-    // moo layer 3b: heap-allocated 24-byte Q48.16 3-vector (fixedVec3).
-    // Placed after LUA_TUPVAL (>= LUA_TSTRING for iscollectable) so existing tags andLUA_T_COUNT stay invariant until moo-l3b-vec3-object-gc.
-    LUA_TVEC3,
-
     // the count of all Luau types (including those that are never TValue type tags)
     LUA_T_ALL,
 

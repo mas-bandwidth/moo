@@ -1,52 +1,58 @@
 // This file is part of moo, a fork of the Luau programming language; moo's changes are licensed under MIT License; see LICENSE-moo.txt for details
+//
+// moo: the vec3 object of layer 3b (docs/DESIGN.md "vec3, quat and transform (layer 3b)", option (a) of
+// "Representations costed"). The decisions and their reasons are in docs/layer3b/moo-v2-l3b-vec3-object.md.
+//
+// A vec3 is one immutable GC object: the common header (with its creation number, docs/DETERMINISM.md 1)
+// and three Q48.16 components. It holds no reference to another object, so the GC treats it as a leaf, as
+// it treats a string. Nothing here creates one yet: card moo-v2-l3b-vec3-object-gc defines the functions
+// declared below (and the tag LUA_TVEC3, see the note) and card moo-v2-l3b-vec3-object-key defines the hash.
 #pragma once
 
 #include "lobject.h"
-#include "lgc.h"
+
+#include "fixed/fixed.h"
+#include "fixed/fixed_vec.h"
 
 #include <stddef.h>
-#include <stdint.h>
 
-// moo: immutable 3-component Q48.16 fixed-point vector GC object (docs/layer3b/moo-v2-l3b-vec3-object.md).
-// CommonHeader is 16 bytes on 64-bit moo (8-byte gcseq + 3 bytes tt/marked/memcat + 5 bytes padding),
-// followed by three 8-byte signed Q48.16 components x, y, z (24 bytes) = 40 bytes total.
-typedef struct moo_Vec3
+typedef struct MooVec3
 {
     CommonHeader;
+    // 5 bytes of padding: the header is gcseq (8) then tt, marked, memcat (3), and the payload is 8-aligned
 
-    int64_t x;
-    int64_t y;
-    int64_t z;
-} moo_Vec3;
+    fixed_t x;
+    fixed_t y;
+    fixed_t z;
+} MooVec3;
 
-static_assert(sizeof(GCheader) == 16, "moo_Vec3 header relies on 16-byte GCheader");
-static_assert(sizeof(moo_Vec3) == 40, "moo_Vec3 layout changed (expected 16-byte GCheader + 24-byte Q48.16 payload)");
-static_assert(alignof(moo_Vec3) == 8, "moo_Vec3 alignment changed");
-static_assert(offsetof(moo_Vec3, x) == 16, "moo_Vec3::x offset changed");
-static_assert(offsetof(moo_Vec3, y) == 24, "moo_Vec3::y offset changed");
-static_assert(offsetof(moo_Vec3, z) == 32, "moo_Vec3::z offset changed");
-static_assert(LUA_TVEC3 >= LUA_TSTRING, "LUA_TVEC3 must sit in the collectable GC tag range (>= LUA_TSTRING)");
+// The payload is fixed's fixVec3, component for component (DESIGN.md table: 24 bytes). An operation copies the
+// components into a fixVec3 by value and calls fixed's function on it; it never casts the object's address.
+static_assert(sizeof(fixVec3) == 24, "fixVec3 is three fixed_t");
+static_assert(offsetof(MooVec3, x) == sizeof(GCheader), "the payload starts right after the GC header");
+static_assert(offsetof(MooVec3, y) == offsetof(MooVec3, x) + sizeof(fixed_t), "components are packed in order x, y, z");
+static_assert(offsetof(MooVec3, z) == offsetof(MooVec3, y) + sizeof(fixed_t), "components are packed in order x, y, z");
+static_assert(sizeof(MooVec3) - offsetof(MooVec3, x) == 24, "vec3 payload is 24 bytes (docs/DESIGN.md, vec3, quat and transform)");
+// totalbytes counts this size per vec3 (docs/DETERMINISM.md 5), so it is pinned like every struct in moo_layout.cpp
+static_assert(sizeof(MooVec3) == 40, "vec3 object layout changed");
 
-#define sizevec3() (sizeof(moo_Vec3))
+// Longest tostring: "vec3(" + 3 numbers of at most 34 characters (moo_numtostr) + 2 ", " + ")".
+#define MOO_VEC3_TOSTR_MAX (5 + 3 * 34 + 2 * 2 + 1)
 
-#define ttisvec3(o) (ttype(o) == LUA_TVEC3)
-#define gco2vec3(o) check_exp((o)->gch.tt == LUA_TVEC3, cast_to(moo_Vec3*, (o)))
-#define vec3value(o) check_exp(ttisvec3(o), gco2vec3((o)->value.gc))
+// Allocates a vec3 (luaM_newgcofixed, then luaC_init, which takes the creation number) and stores the three
+// components; the object is never written again. In lobject.cpp, card moo-v2-l3b-vec3-object-gc; note, "Card gc".
+LUAI_FUNC MooVec3* moo_vec3_new(lua_State* L, fixed_t x, fixed_t y, fixed_t z);
 
-#define setvec3value(L, obj, x) \
-    { \
-        TValue* i_o = (obj); \
-        moo_Vec3* i_v = (x); \
-        i_o->value.gc = cast_to(GCObject*, i_v); \
-        i_o->tt = LUA_TVEC3; \
-        checkliveness((L)->global, i_o); \
-    }
+// 1 when the three raw components are equal, else 0: equality is by value, never by address or creation number
+// (note, decision 3). In lobject.cpp, card moo-v2-l3b-vec3-object-gc.
+LUAI_FUNC int moo_vec3_equal(const MooVec3* a, const MooVec3* b);
 
-// Value equality compares the three Q48.16 components, never pointer identity or gcseq.
-inline bool moo_vec3equal(const moo_Vec3* a, const moo_Vec3* b)
-{
-    return a->x == b->x && a->y == b->y && a->z == b->z;
-}
+// Writes "vec3(x, y, z)", each component through moo_numtostr (the shortest decimal that reads back exactly,
+// docs/DESIGN.md "Number formatting"), into buf of at least MOO_VEC3_TOSTR_MAX bytes; returns the end, not
+// terminated, as moo_numtostr does (note, decision 5). In lobject.cpp, card moo-v2-l3b-vec3-object-gc.
+LUAI_FUNC char* moo_vec3_tostring(char* buf, const MooVec3* v);
 
-LUAI_FUNC moo_Vec3* moo_newvec3(lua_State* L, int64_t x, int64_t y, int64_t z);
-LUAI_FUNC void moo_freevec3(lua_State* L, moo_Vec3* v, struct lua_Page* page);
+// The 32-bit table hash of the three raw components, before hashpow2: each component through hashint's
+// MurmurHash64B finalizer, combined with the spatial-hash primes of hashvec, so equal vec3 are one key (note,
+// decision 4). In ltable.cpp, card moo-v2-l3b-vec3-object-key.
+LUAI_FUNC unsigned int moo_vec3_hash(const MooVec3* v);
