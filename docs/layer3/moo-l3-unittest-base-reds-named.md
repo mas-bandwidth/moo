@@ -25,3 +25,14 @@ Replacement coverage for the skipped integer/vector cases lives in
 `tests/moo/moo-l3-unittest-base-reds-named.test.cpp` (`Moo.Test`). `Moo.Test` links the VM and the
 compiler, not the analyzer, so the case pins the VM side of the seam, matching
 `moo-l3-analyzer-builtins.test.cpp`: the removed `os` and `integer` names resolve to no global.
+
+## Gate re-verified on attempt 8
+
+The CARRY head (attempt 7, `c1c6e827`) was rebuilt and re-run with clang 18 (build) and gcc 13
+(build-gcc). `build/Luau.UnitTest` prints `5147 passed | 1 failed | 55 skipped`; the one failure is
+`fold_constants_div_by_zero` (`tests/BytecodeCallInliner.test.cpp`, waived by the coordinator).
+`build/Moo.Test` prints `158 passed | 2 failed`; the two are `MathPowFractionalStaysOnBridge` and
+`MooPowIntVmFractionalBridge` (waived). Each of the twelve cases named above shows skipped or passing
+alone. The strict gcc build stops in untouched upstream `Analysis/src/BuiltinTypeFunctions.cpp`
+(`-Werror=free-nonheap-object`) at the unmodified BASE tip `ad9e85a9` in `build-gcc-base` (exit 1),
+so GCC parity is waived; the warning is not suppressed.
