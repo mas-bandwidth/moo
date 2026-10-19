@@ -7,7 +7,6 @@
 #include "ltable.h"
 #include "lfunc.h"
 #include "lstring.h"
-#include "lvector.h"
 #include "lgc.h"
 #include "lmem.h"
 #include "ldebug.h"
@@ -613,46 +612,7 @@ reentry:
                         VM_PATCH_C(pc - 2, L->cachedslot);
                         VM_NEXT();
                     }
-                    else if (ttisvector(rb))
-                    {
-                        // fast-path: quick case-insensitive comparison with "X"/"Y"/"Z"
-                        const char* name = getstr(tsvalue(kv));
-                        int ic = (name[0] | ' ') - 'x';
 
-#if LUA_VECTOR_SIZE == 4
-                        // 'w' is before 'x' in ascii, so ic is -1 when indexing with 'w'
-                        if (ic == -1)
-                            ic = 3;
-#endif
-
-                        if (unsigned(ic) < LUA_VECTOR_SIZE && name[1] == '\0')
-                        {
-                            const LUA_VECTOR_TYPE* v = vvalue(rb); // silences ubsan when indexing v[]
-                            setnvalue(ra, moo_numfromdoublevalue(v[ic])); // TEMPORARY: the float vector goes in layer 3
-                            VM_NEXT();
-                        }
-
-                        fn = fasttm(L, L->global->mt[LUA_TVECTOR], TM_INDEX);
-
-                        if (fn && ttisfunction(fn) && clvalue(fn)->isC)
-                        {
-                            // note: it's safe to push arguments past top for complicated reasons (see top of the file)
-                            LUAU_ASSERT(L->top + 3 < L->stack + L->stacksize);
-                            StkId top = L->top;
-                            setobj2s(L, top + 0, fn);
-                            setobj2s(L, top + 1, rb);
-                            setobj2s(L, top + 2, kv);
-                            L->top = top + 3;
-
-                            L->cachedslot = LUAU_INSN_C(insn);
-                            VM_PROTECT(luaV_callTM(L, 2, LUAU_INSN_A(insn)));
-                            // save cachedslot to accelerate future lookups; patches currently executing instruction since pc-2 rolls back two pc++
-                            VM_PATCH_C(pc - 2, L->cachedslot);
-                            VM_NEXT();
-                        }
-
-                        // fall through to slow path
-                    }
                     else if (LUAU_UNLIKELY(FFlag::DebugLuauUserDefinedClassesRuntime && ttisobject(rb)))
                     {
                         // fast-path: the "hash line" is an offset that points
@@ -1391,11 +1351,6 @@ reentry:
                         VM_ASSERT_PC(pc);
                         VM_NEXT();
 
-                    case LUA_TVECTOR:
-                        pc += luai_veceq(vvalue(ra), vvalue(rb)) ? LUAU_INSN_D(insn) : 1;
-                        VM_ASSERT_PC(pc);
-                        VM_NEXT();
-
                     case LUA_TSTRING:
                     case LUA_TFUNCTION:
                     case LUA_TTHREAD:
@@ -1521,11 +1476,6 @@ reentry:
 
                     case LUA_TNUMBER:
                         pc += nvalue(ra) != nvalue(rb) ? LUAU_INSN_D(insn) : 1;
-                        VM_ASSERT_PC(pc);
-                        VM_NEXT();
-
-                    case LUA_TVECTOR:
-                        pc += !luai_veceq(vvalue(ra), vvalue(rb)) ? LUAU_INSN_D(insn) : 1;
                         VM_ASSERT_PC(pc);
                         VM_NEXT();
 
@@ -1764,18 +1714,12 @@ reentry:
                 VM_CASE_STKID rb = VM_REG(LUAU_INSN_B(insn));
                 VM_CASE_STKID rc = VM_REG(LUAU_INSN_C(insn));
 
+                // moo: vector operands are unreachable after the vector C API and library were removed; arithmetic now uses the fixed-number path or metamethods.
                 // fast-path
                 // moo: a checked build leaves it when the operation saturates (docs/DESIGN.md, "Overflow")
                 if (LUAU_LIKELY(ttisnumber(rb) && ttisnumber(rc) && luai_numnosat(add, nvalue(rb), nvalue(rc))))
                 {
                     setnvalue(ra, luai_numadd(nvalue(rb), nvalue(rc)));
-                    VM_NEXT();
-                }
-                else if (ttisvector(rb) && ttisvector(rc))
-                {
-                    const LUA_VECTOR_TYPE* vb = vvalue(rb);
-                    const LUA_VECTOR_TYPE* vc = vvalue(rc);
-                    setvvalue(L, ra, vb[0] + vc[0], vb[1] + vc[1], vb[2] + vc[2], vb[3] + vc[3]);
                     VM_NEXT();
                 }
                 else
@@ -1818,13 +1762,6 @@ reentry:
                     setnvalue(ra, luai_numsub(nvalue(rb), nvalue(rc)));
                     VM_NEXT();
                 }
-                else if (ttisvector(rb) && ttisvector(rc))
-                {
-                    const LUA_VECTOR_TYPE* vb = vvalue(rb);
-                    const LUA_VECTOR_TYPE* vc = vvalue(rc);
-                    setvvalue(L, ra, vb[0] - vc[0], vb[1] - vc[1], vb[2] - vc[2], vb[3] - vc[3]);
-                    VM_NEXT();
-                }
                 else
                 {
                     // fast-path for userdata with C functions
@@ -1863,27 +1800,6 @@ reentry:
                 if (LUAU_LIKELY(ttisnumber(rb) && ttisnumber(rc) && luai_numnosat(mul, nvalue(rb), nvalue(rc))))
                 {
                     setnvalue(ra, luai_nummul(nvalue(rb), nvalue(rc)));
-                    VM_NEXT();
-                }
-                else if (ttisvector(rb) && ttisnumber(rc))
-                {
-                    const LUA_VECTOR_TYPE* vb = vvalue(rb);
-                    LUA_VECTOR_TYPE vc = cast_to(LUA_VECTOR_TYPE, moo_numtodouble(nvalue(rc)));
-                    setvvalue(L, ra, vb[0] * vc, vb[1] * vc, vb[2] * vc, vb[3] * vc);
-                    VM_NEXT();
-                }
-                else if (ttisvector(rb) && ttisvector(rc))
-                {
-                    const LUA_VECTOR_TYPE* vb = vvalue(rb);
-                    const LUA_VECTOR_TYPE* vc = vvalue(rc);
-                    setvvalue(L, ra, vb[0] * vc[0], vb[1] * vc[1], vb[2] * vc[2], vb[3] * vc[3]);
-                    VM_NEXT();
-                }
-                else if (ttisnumber(rb) && ttisvector(rc))
-                {
-                    LUA_VECTOR_TYPE vb = cast_to(LUA_VECTOR_TYPE, moo_numtodouble(nvalue(rb)));
-                    const LUA_VECTOR_TYPE* vc = vvalue(rc);
-                    setvvalue(L, ra, vb * vc[0], vb * vc[1], vb * vc[2], vb * vc[3]);
                     VM_NEXT();
                 }
                 else
@@ -1927,27 +1843,6 @@ reentry:
                     setnvalue(ra, luai_numdiv(nvalue(rb), nvalue(rc)));
                     VM_NEXT();
                 }
-                else if (ttisvector(rb) && ttisnumber(rc))
-                {
-                    const LUA_VECTOR_TYPE* vb = vvalue(rb);
-                    LUA_VECTOR_TYPE vc = cast_to(LUA_VECTOR_TYPE, moo_numtodouble(nvalue(rc)));
-                    setvvalue(L, ra, vb[0] / vc, vb[1] / vc, vb[2] / vc, vb[3] / vc);
-                    VM_NEXT();
-                }
-                else if (ttisvector(rb) && ttisvector(rc))
-                {
-                    const LUA_VECTOR_TYPE* vb = vvalue(rb);
-                    const LUA_VECTOR_TYPE* vc = vvalue(rc);
-                    setvvalue(L, ra, vb[0] / vc[0], vb[1] / vc[1], vb[2] / vc[2], vb[3] / vc[3]);
-                    VM_NEXT();
-                }
-                else if (ttisnumber(rb) && ttisvector(rc))
-                {
-                    LUA_VECTOR_TYPE vb = cast_to(LUA_VECTOR_TYPE, moo_numtodouble(nvalue(rb)));
-                    const LUA_VECTOR_TYPE* vc = vvalue(rc);
-                    setvvalue(L, ra, vb / vc[0], vb / vc[1], vb / vc[2], vb / vc[3]);
-                    VM_NEXT();
-                }
                 else
                 {
                     // fast-path for userdata with C functions
@@ -1987,20 +1882,6 @@ reentry:
                 if (LUAU_LIKELY(ttisnumber(rb) && ttisnumber(rc) && nvalue(rc) != 0 && luai_numnosat(idiv, nvalue(rb), nvalue(rc))))
                 {
                     setnvalue(ra, luai_numidiv(nvalue(rb), nvalue(rc)));
-                    VM_NEXT();
-                }
-                else if (ttisvector(rb) && ttisnumber(rc))
-                {
-                    const LUA_VECTOR_TYPE* vb = vvalue(rb);
-                    LUA_VECTOR_TYPE vc = cast_to(LUA_VECTOR_TYPE, moo_numtodouble(nvalue(rc)));
-                    setvvalue(
-                        L,
-                        ra,
-                        LUA_VECTOR_TYPE(luai_numidiv(vb[0], vc)),
-                        LUA_VECTOR_TYPE(luai_numidiv(vb[1], vc)),
-                        LUA_VECTOR_TYPE(luai_numidiv(vb[2], vc)),
-                        LUA_VECTOR_TYPE(luai_numidiv(vb[3], vc))
-                    );
                     VM_NEXT();
                 }
                 else
@@ -2132,13 +2013,6 @@ reentry:
                     setnvalue(ra, luai_nummul(nvalue(rb), nvalue(kv)));
                     VM_NEXT();
                 }
-                else if (ttisvector(rb))
-                {
-                    const LUA_VECTOR_TYPE* vb = vvalue(rb);
-                    LUA_VECTOR_TYPE vc = cast_to(LUA_VECTOR_TYPE, moo_numtodouble(nvalue(kv)));
-                    setvvalue(L, ra, vb[0] * vc, vb[1] * vc, vb[2] * vc, vb[3] * vc);
-                    VM_NEXT();
-                }
                 else
                 {
                     // fast-path for userdata with C functions
@@ -2179,13 +2053,6 @@ reentry:
                     setnvalue(ra, luai_numdiv(nvalue(rb), nvalue(kv)));
                     VM_NEXT();
                 }
-                else if (ttisvector(rb))
-                {
-                    const LUA_VECTOR_TYPE* vb = vvalue(rb);
-                    LUA_VECTOR_TYPE nc = cast_to(LUA_VECTOR_TYPE, moo_numtodouble(nvalue(kv)));
-                    setvvalue(L, ra, vb[0] / nc, vb[1] / nc, vb[2] / nc, vb[3] / nc);
-                    VM_NEXT();
-                }
                 else
                 {
                     // fast-path for userdata with C functions
@@ -2224,20 +2091,6 @@ reentry:
                 if (LUAU_LIKELY(ttisnumber(rb) && nvalue(kv) != 0 && luai_numnosat(idiv, nvalue(rb), nvalue(kv))))
                 {
                     setnvalue(ra, luai_numidiv(nvalue(rb), nvalue(kv)));
-                    VM_NEXT();
-                }
-                else if (ttisvector(rb))
-                {
-                    const LUA_VECTOR_TYPE* vb = vvalue(rb);
-                    LUA_VECTOR_TYPE vc = cast_to(LUA_VECTOR_TYPE, moo_numtodouble(nvalue(kv)));
-                    setvvalue(
-                        L,
-                        ra,
-                        LUA_VECTOR_TYPE(luai_numidiv(vb[0], vc)),
-                        LUA_VECTOR_TYPE(luai_numidiv(vb[1], vc)),
-                        LUA_VECTOR_TYPE(luai_numidiv(vb[2], vc)),
-                        LUA_VECTOR_TYPE(luai_numidiv(vb[3], vc))
-                    );
                     VM_NEXT();
                 }
                 else
@@ -2391,12 +2244,6 @@ reentry:
                 if (LUAU_LIKELY(ttisnumber(rb)))
                 {
                     setnvalue(ra, luai_numunm(nvalue(rb)));
-                    VM_NEXT();
-                }
-                else if (ttisvector(rb))
-                {
-                    const LUA_VECTOR_TYPE* vb = vvalue(rb);
-                    setvvalue(L, ra, -vb[0], -vb[1], -vb[2], -vb[3]);
                     VM_NEXT();
                 }
                 else
@@ -3130,13 +2977,6 @@ reentry:
                 if (LUAU_LIKELY(ttisnumber(rc) && nvalue(rc) != 0 && luai_numnosat(div, nvalue(kv), nvalue(rc))))
                 {
                     setnvalue(ra, luai_numdiv(nvalue(kv), nvalue(rc)));
-                    VM_NEXT();
-                }
-                else if (ttisvector(rc))
-                {
-                    LUA_VECTOR_TYPE nb = cast_to(LUA_VECTOR_TYPE, moo_numtodouble(nvalue(kv)));
-                    const LUA_VECTOR_TYPE* vc = vvalue(rc);
-                    setvvalue(L, ra, nb / vc[0], nb / vc[1], nb / vc[2], nb / vc[3]);
                     VM_NEXT();
                 }
                 else

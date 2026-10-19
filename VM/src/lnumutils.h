@@ -158,13 +158,14 @@ inline double luai_lerpd(double a, double b, double t)
 
 #define luai_num2long(i, d) ((i) = moo_numtrunc(d))
 
-#define luai_fabs condvectordouble(fabs, fabsf)
-#define luai_sqrt condvectordouble(sqrt, sqrtf)
-#define luai_floor condvectordouble(floor, floorf)
-#define luai_ceil condvectordouble(ceil, ceilf)
-#define luai_sign condvectordouble(luai_signd, luai_signf)
-#define luai_clamp condvectordouble(luai_clampd, luai_clampf)
-#define luai_lerp condvectordouble(luai_lerpd, luai_lerpf)
+// moo: vector math is no longer selected by VM values; the remaining unregistered vector source uses the double scalar helpers.
+#define luai_fabs fabs
+#define luai_sqrt sqrt
+#define luai_floor floor
+#define luai_ceil ceil
+#define luai_sign luai_signd
+#define luai_clamp luai_clampd
+#define luai_lerp luai_lerpd
 
 // On MSVC in 32-bit, double to unsigned cast compiles into a call to __dtoui3, so we invoke x87->int64 conversion path manually
 #if defined(_MSC_VER) && defined(_M_IX86)

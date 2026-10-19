@@ -267,6 +267,19 @@ static int lua_vector_index(lua_State* L)
         return 1;
     }
 
+    // moo: the VM no longer has a vector component arm (layer 3, docs/DESIGN.md "Layer 3 as built"), so this
+    // test-only metatable resolves X/Y/Z/W for the upstream userdata scripts that still build vectors here.
+    int component = (name[0] | ' ') == 'x' ? 0 : (name[0] | ' ') == 'y' ? 1 : (name[0] | ' ') == 'z' ? 2 : -1;
+#if LUA_VECTOR_SIZE == 4
+    if ((name[0] | ' ') == 'w')
+        component = 3;
+#endif
+    if (component >= 0 && name[1] == '\0')
+    {
+        lua_pushnumber(L, mooHostNumber(v[component]));
+        return 1;
+    }
+
     if (strcmp(name, "Dot") == 0)
     {
         lua_pushcfunction(L, lua_vector_dot, "Dot");
