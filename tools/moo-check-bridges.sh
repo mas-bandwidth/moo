@@ -16,6 +16,14 @@
 # definition and does not count it. A hit that is only inside a comment is not a call either.
 # A TEMPORARY marker beside an allowlisted bridge line is allowed with it.
 #
+# The scan population is the built sources. A .cpp translation unit is scanned only when
+# Sources.cmake names it (the CMake build this card's DONE-WHEN runs); every header is scanned,
+# because a header reaches the build through an includer. A translation unit that left the build
+# stays in the tree unbuilt and cannot hold a remaining bridge in the product: VM/src/lveclib.cpp
+# left with the float vector library (Sources.cmake; docs/DESIGN.md, "vec3, quat and transform";
+# docs/layer3/moo-l3-vector-vm-out.md). This is not an allowlist entry: the allowlist below is
+# still exactly the math library and ^.
+#
 # usage: tools/moo-check-bridges.sh [root]
 #   root defaults to the checkout this script is in.
 #
@@ -37,19 +45,38 @@ if ! git -C "$root" rev-parse --git-dir >/dev/null 2>&1; then
     exit 2
 fi
 
+if [ ! -f "$root/Sources.cmake" ]; then
+    echo "moo-check-bridges: $root has no Sources.cmake" >&2
+    exit 2
+fi
+
 work=$(mktemp "${TMPDIR:-.}/moo-check-bridges.XXXXXX") || exit 2
-trap 'rm -f "$work" "$work.calls" "$work.marks" "$work.all"' EXIT HUP INT TERM
+trap 'rm -f "$work" "$work.calls" "$work.marks" "$work.all" "$work.built"' EXIT HUP INT TERM
 calls=$work.calls
 marks=$work.marks
 all=$work.all
+built=$work.built
 : >"$calls"
 : >"$marks"
 : >"$all"
+
+# the .cpp translation units in the build, by the same list CMakeLists.txt includes
+grep -oE '(VM|Compiler|Common|Ast|Bytecode)/[A-Za-z0-9_./-]+\.cpp' "$root/Sources.cmake" \
+    | LC_ALL=C sort -u >"$built"
 
 git -C "$root" grep -n -E 'moo_numbridgetodouble|moo_numbridgefromdouble' -- \
     VM Compiler Common Ast Bytecode >"$calls" 2>/dev/null || true
 git -C "$root" grep -n 'TEMPORARY' -- \
     VM Compiler Common Ast Bytecode >"$marks" 2>/dev/null || true
+
+# a translation unit that is not in the build is not a remaining bridge in the product
+in_build()
+{
+    case "$1" in
+        *.cpp) grep -qxF -- "$1" "$built" ;;
+        *) return 0 ;;
+    esac
+}
 
 # the last luauF_* function whose definition is at or above a line in lbuiltins.cpp
 func_at()
@@ -72,6 +99,7 @@ while IFS= read -r rec; do
     rest=${rec#*:}
     line=${rest%%:*}
     text=${rest#*:}
+    in_build "$file" || continue
     code=$(printf '%s\n' "$text" | sed -e 's@/\*[^*]*\*/@@g' -e 's@//.*@@')
     case "$code" in
         *moo_numbridge*) ;;
@@ -125,6 +153,7 @@ while IFS= read -r rec; do
     rest=${rec#*:}
     line=${rest%%:*}
     text=${rest#*:}
+    in_build "$file" || continue
     next=$(sed -n "$((line + 1))p" "$root/$file" 2>/dev/null || true)
     nearby=$(sed -n "${line},$((line + 4))p" "$root/$file" 2>/dev/null || true)
 
