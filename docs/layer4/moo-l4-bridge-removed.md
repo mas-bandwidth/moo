@@ -105,10 +105,26 @@ prints nothing (exit 1).
 ## The VM `double` audit does not hold
 
 The card asks that `git grep -n 'double' -- VM/src` hit only the C API boundary and comments. That
-is not true at this BASE or this head: the command prints 152 lines, 121 of them not comments. The
+is not true at this BASE or this head: the command prints 151 lines, 133 of them not comments (127
+outside `moo_api.cpp`). The
 bridge deletion removes no `double` keyword outside its own definition; the remaining sites belong
 to other work (float-`vector` arithmetic, the `luai_num*` compatibility helpers, GC metrics timing,
-`lnumprint`/`lstrlib` float formatting, `lperf`). This is recorded as a finding and not done here.
+`lnumprint`/`lstrlib` float formatting, `lperf`).
+
+## Hold
+
+Per the card's stop rule ("Any remaining call is a finding: list it and HOLD rather than keep the
+bridge"), this card is HELD. The bridge itself is gone, every DONE-WHEN gate passes, and the scope
+of this attempt (the expanded PATHS) is fully respected, but the card's VM `double` audit cannot be
+made to hold: `git grep -n 'double' -- VM/src` still reports 151 hits, of which 127 are neither
+comments nor the C API boundary (`moo_api.cpp`). Those 127 are pre-existing `double` uses owned by
+other cards, not by this one: the float-`vector` type (`lveclib`, `lvmexecute`, `lvmutils`,
+`lbuiltins`, `lobject.h`, `lnumutils.h`, `lvector.h`, `lvector.cpp`) which `moo-l3-libs-out`
+removes; the GC/collector metrics (`lstate.h`, `lgc.cpp`, `lapi.cpp`); the number and string float
+formatting (`lnumprint`, `lstrlib`, `lbuflib`); the timer (`lperf`); and alignment helpers
+(`lmem`, `ltable`). Making the check hold would require those cards' work and is out of scope here,
+so this card ends as a finding, not a land. The full hit list is below.
+
 Every hit follows, exactly as `git grep -n 'double' -- VM/src` prints it at this head:
 
 ```
