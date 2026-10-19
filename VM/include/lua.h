@@ -536,6 +536,8 @@ LUA_API int lua_unref(lua_State* L, int ref);
 #define lua_isnoneornil(L, n) (lua_type(L, (n)) <= LUA_TNIL)
 #define lua_isclass(L, n) (lua_type(L, (n)) == LUA_TCLASS)
 #define lua_isobject(L, n) (lua_type(L, (n)) == LUA_TOBJECT)
+// moo: a vec3 is a value tag the host can test for (layer 3b); moo_pushvec3/moo_tovec3 are card moo-v2-l3b-vec3-ops
+#define lua_isvec3(L, n) (lua_type(L, (n)) == LUA_TVEC3)
 
 #define lua_pushliteral(L, s) lua_pushlstring(L, "" s, (sizeof(s) / sizeof(char)) - 1)
 #define lua_pushcfunction(L, fn, debugname) lua_pushcclosurek(L, fn, debugname, 0, NULL)
