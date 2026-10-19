@@ -357,7 +357,8 @@ class AstExprConstantNumber : public AstExpr
 public:
     LUAU_RTTI(AstExprConstantNumber)
 
-    // moo: a tool that builds a number node from a double gets the boundary rule's raw value; the parser passes
+    // moo: a tool that builds a number node from a double gets the saturating bridge's raw value (moo_numbridgefromdouble,
+    // NaN to 0); the parser passes
     // moo_numparse's exact raw value to the four-argument form (docs/DESIGN.md "Literals")
     AstExprConstantNumber(const Location& location, double value, ConstantNumberParseResult parseResult = ConstantNumberParseResult::Ok);
     AstExprConstantNumber(

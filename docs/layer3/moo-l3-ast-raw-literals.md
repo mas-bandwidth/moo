@@ -14,7 +14,8 @@ on the representation. The compiler reads `rawValue` in both places it reads a l
 `analyze` and `Compiler.cpp` `compileExpr`. Both `moo_numfromdouble` calls and their `moo:` comments are gone.
 
 A node built directly by a tool from a double (the AST JSON encoder tests do this) keeps the two-argument
-constructor, which takes the boundary rule's raw value; the parser uses the four-argument form with the exact raw
+constructor, which takes the saturating bridge's raw value (`moo_numbridgefromdouble`, NaN to 0, because those
+tests pass infinity and NaN); the parser uses the four-argument form with the exact raw
 value, so no conversion happens on the program path.
 
 ## Integer literals are refused
@@ -26,7 +27,7 @@ deleted; Luau's integer type is out (DESIGN.md "integer").
 ## What changed
 
 - `Ast/include/Luau/Ast.h`, `Ast/src/Ast.cpp`: `AstExprConstantNumber::rawValue`; the four-argument constructor;
-  the two-argument constructor applies the boundary rule for tools that build a node from a double.
+  the two-argument constructor applies the saturating bridge for tools that build a node from a double.
 - `Ast/src/Parser.cpp`: `parseDouble` returns the raw value as well as the double; `parseNumber` passes it to the
   AST; the "Until the moo bytecode version" sentence is deleted; the integer-literal branch is the named error.
 - `Compiler/src/ConstantFolding.cpp` `analyze` and `Compiler/src/Compiler.cpp` `compileExpr`: the literal constant
