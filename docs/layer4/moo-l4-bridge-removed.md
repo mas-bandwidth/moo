@@ -118,10 +118,17 @@ prints nothing (exit 1).
 
 ## The VM `double` audit
 
-The card's brief asks for "a check in the note that `git grep -n 'double' -- VM/src` hits only the C
-API boundary (moo_api.cpp, moo.h's declarations) and comments: list every hit". That check does
-**not** pass, and this card does not claim it does. It is a finding against the brief. The brief's
-phrasing is formally revised here so the finding can be judged:
+**Decision (held for coordinator revision).** The brief asks for "a check in the note that
+`git grep -n 'double' -- VM/src` hits only the C API boundary (moo_api.cpp, moo.h's declarations)
+and comments: list every hit". That check, as written, cannot pass on this tree, and this card does
+not land claiming it does. The 84 lines that contain the C/C++ keyword `double` outside
+`moo_api.cpp` and comments are pre-existing users owned by other mechanisms and other cards, not by
+the double bridge, which is fully removed here. This card therefore HOLDS and requests a coordinator
+revision of the check: the check this card satisfies is that no bridge symbol survives and that the
+number-conversion boundary is the only place a machine `double` enters or leaves Q48.16. The
+catch-all `-- VM/src` grep will keep hitting legitimate `double` users until the owning cards below
+land; removing those users is that work, not this one's. The facts on which that request rests are
+recorded here so the revision can be judged:
 
 - `git grep -n 'double' -- VM/src` prints **151** lines at this head (153 at BASE). The two-line
   difference is exactly what this card removes in `VM/src`: `lgcdebug.cpp:827`'s bridge call and
@@ -163,8 +170,9 @@ The 84 keyword lines are pre-existing and owned by other mechanisms, not by this
 card adds no `double` arithmetic: the two new inlines decode `moo_numtodoublebits` and delegate to
 `moo_numfromdouble`, and the float `vector` type it rewrites was already a `double` user. Removing
 the float `vector` type (`moo-l3-libs-out`), the GC/clock timing, the float formatting and the
-alignment uses is those cards' work, so this card reports the brief's check as **not done**, with
-every hit enumerated below.
+alignment uses is those cards' work. The check's literal wording is therefore unsatisfiable; the
+card holds for the coordinator to revise it as above, with every hit enumerated below so the
+revision has the full evidence.
 
 Every hit follows, exactly as `git grep -n 'double' -- VM/src` prints it at this head:
 
