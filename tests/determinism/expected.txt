@@ -1,10 +1,11 @@
 # The determinism suite's pinned hashes: program, effects hash, state hash (tests/Determinism.test.cpp).
 # Every platform and compiler must produce these exact values.
 # Re-pinned when number became Q48.16 (layer 3): every effects hash held; the state hashes moved with the raw
-# representation of numbers and the hashing of number keys.
-coroutines.luau c2101c58c9141949 d81a1f4ae7546667
-gcchurn.luau 3fb416325297900d 190fe5a4371020c2
-library.luau 009401661dac79ec 66d1c7cf8da050e5
-objectkeys.luau c33c0a917acf2ebf 4d2f33e10754ac67
-coroutines2.luau 45af4a6f2428da59 d835a456666b53fd
-errors.luau f7037948e0d4bea2 a36df0b1b7d7553c
+# representation of numbers and the hashing of number keys. Re-pinned when layer 3 removed
+# the vector and integer libraries: their startup objects shifted every creation number.
+coroutines.luau a2351a1850f47a3e eae7f9734f410e3a
+gcchurn.luau 6d789a68240b8976 5ee2eb0d2642bda5
+library.luau 9ce6b3fc5ed7d5fe 039fbc53f46d1d5a
+objectkeys.luau c026a789bb37c024 38780e98f3910393
+coroutines2.luau 2ca405a9600143fa dc579a5432f7898e
+errors.luau ee7b3d6f2b3bfb9e 4d4a67e1614c5a55
