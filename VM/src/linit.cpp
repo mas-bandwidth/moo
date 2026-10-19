@@ -20,6 +20,7 @@ LUAU_FASTFLAGVARIABLE(LuauSandboxFreezesVectorMetatable)
     {LUA_UTF8LIBNAME, luaopen_utf8},
     {LUA_BITLIBNAME, luaopen_bit32},
     {LUA_BUFFERLIBNAME, luaopen_buffer},
+    // moo: the float32 vector library entry is removed here (layer 3, docs/DESIGN.md "vec3, quat and transform").
     {LUA_INTLIBNAME, luaopen_integer},
     {NULL, NULL},
 };

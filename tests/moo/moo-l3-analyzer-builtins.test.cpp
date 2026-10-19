@@ -26,7 +26,7 @@ TEST_CASE("OsAndIntegerAreNotGlobals")
     lua_close(L);
 }
 
-// DESIGN.md "Analyzer": both analyzer and VM omit the vector global after moo-l3-libs-out.
+// moo: DESIGN.md "Analyzer": both analyzer and VM omit the vector global after moo-l3-libs-out (the library is out in layer 3).
 TEST_CASE("VectorIsNotAVmGlobal")
 {
     lua_State* L = luaL_newstate();

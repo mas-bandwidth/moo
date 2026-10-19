@@ -2,7 +2,7 @@
 -- moo: layer 3 removes the script-visible vector library; the compiler and VM vector halves remain separate.
 print('testing the float vector library is out')
 
--- layer 3b: the float32 vector library, type and bytecode constant are each refused by name (docs/DESIGN.md)
+-- layer 3: the float32 vector library is out (docs/DESIGN.md "vec3, quat and transform"); vec3/quat/transform return on Q48.16 in layer 3b
 assert(vector == nil)
 
 -- vector.create raises the index error on nil

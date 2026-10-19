@@ -356,7 +356,9 @@ TEST_CASE("GcPacingIsAFunctionOfTheProgram")
     CHECK(trace == mooRun(b.L, kWeakChurn));
 
     // Pinned: a change here changes when the GC runs for every program.
-    CHECK(mooHash(trace) == 8555275115460150344ull); // re-pinned when number became Q48.16 and layer 3 removed the vector and integer libraries
+    // moo: re-pinned when number became Q48.16, and again when layer 3 removed the vector and integer libraries
+    // (fewer startup objects shift every creation number).
+    CHECK(mooHash(trace) == 8555275115460150344ull);
 }
 
 // Replaces upstream ApiAllocationRateAfterFullGC, which checked that lua_allocationrate measures bytes
