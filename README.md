@@ -23,7 +23,7 @@ compiler, for every construct.** To keep it, moo will:
 Everything else stays as close to Luau as possible: syntax, tools and the C API.
 
 Layers 1 (the fork) and 2 (determinism without numbers) are built; layer 3 (`number` =
-Q48.16) is being built in small PRs, and [docs/DESIGN.md](docs/DESIGN.md), "Layer 3 as
+Q48.16) is built and awaiting its lock, and [docs/DESIGN.md](docs/DESIGN.md), "Layer 3 as
 built", is the state of `main`. The plan is [docs/DESIGN.md](docs/DESIGN.md), "Layers", and
 every source of non-determinism found so far, with its fix, is in
 [docs/DETERMINISM.md](docs/DETERMINISM.md).
