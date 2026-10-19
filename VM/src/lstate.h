@@ -3,6 +3,7 @@
 #pragma once
 
 #include "lobject.h"
+#include "moo_vec3.h" // moo: MooVec3 in union GCObject (docs/layer3b/moo-v2-l3b-vec3-object.md)
 #include "ltm.h"
 #include "ludata.h"
 
@@ -339,6 +340,7 @@ union GCObject
     struct LuauClass lclass;
     struct LuauObject lobject;
     struct LuauVector vec;
+    struct MooVec3 v3; // moo: vec3 GC object (docs/DESIGN.md "vec3, quat and transform (layer 3b)"; docs/layer3b/moo-v2-l3b-vec3-object.md)
 };
 
 // macros to convert a GCObject into a specific value
@@ -353,6 +355,8 @@ union GCObject
 #define gco2class(o) check_exp((o)->gch.tt == LUA_TCLASS, &((o)->lclass))
 #define gco2object(o) check_exp((o)->gch.tt == LUA_TOBJECT, &((o)->lobject))
 #define gco2vec(o) check_exp((o)->gch.tt == LUA_TVECTOR, &((o)->vec))
+// moo: vec3 GC object (docs/DESIGN.md "vec3, quat and transform (layer 3b)"; docs/layer3b/moo-v2-l3b-vec3-object.md)
+#define gco2vec3(o) check_exp((o)->gch.tt == LUA_TVEC3, &((o)->v3))
 
 // macro to convert any Lua object into a GCObject
 #define obj2gco(v) check_exp(iscollectable(v), cast_to(GCObject*, (v) + 0))
