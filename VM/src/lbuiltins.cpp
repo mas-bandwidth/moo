@@ -1174,15 +1174,15 @@ static int luauF_vector(lua_State* L, StkId res, TValue* arg0, int nresults, Stk
 {
     if (nparams >= 2 && nresults <= 1 && ttisnumber(arg0) && ttisnumber(args))
     {
-        LUA_VECTOR_TYPE x = LUA_VECTOR_TYPE(moo_numbridgetodouble(nvalue(arg0)));
-        LUA_VECTOR_TYPE y = LUA_VECTOR_TYPE(moo_numbridgetodouble(nvalue(args)));
+        LUA_VECTOR_TYPE x = LUA_VECTOR_TYPE(moo_numtodouble(nvalue(arg0)));
+        LUA_VECTOR_TYPE y = LUA_VECTOR_TYPE(moo_numtodouble(nvalue(args)));
         LUA_VECTOR_TYPE z = LUA_VECTOR_TYPE(0.0);
 
         if (nparams >= 3)
         {
             if (!ttisnumber(args + 1))
                 return -1;
-            z = LUA_VECTOR_TYPE(moo_numbridgetodouble(nvalue(args + 1)));
+            z = LUA_VECTOR_TYPE(moo_numtodouble(nvalue(args + 1)));
         }
 
 #if LUA_VECTOR_SIZE == 4
@@ -1191,7 +1191,7 @@ static int luauF_vector(lua_State* L, StkId res, TValue* arg0, int nresults, Stk
         {
             if (!ttisnumber(args + 2))
                 return -1;
-            w = LUA_VECTOR_TYPE(moo_numbridgetodouble(nvalue(args + 2)));
+            w = LUA_VECTOR_TYPE(moo_numtodouble(nvalue(args + 2)));
         }
         setvvalue(L, res, x, y, z, w);
 #else
@@ -1620,9 +1620,9 @@ static int luauF_vectormagnitude(lua_State* L, StkId res, TValue* arg0, int nres
         const LUA_VECTOR_TYPE* v = vvalue(arg0);
 
 #if LUA_VECTOR_SIZE == 4
-        setnvalue(res, moo_numbridgefromdouble(luai_sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2] + v[3] * v[3])));
+        setnvalue(res, moo_numfromdoublevalue(luai_sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2] + v[3] * v[3])));
 #else
-        setnvalue(res, moo_numbridgefromdouble(luai_sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2])));
+        setnvalue(res, moo_numfromdoublevalue(luai_sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2])));
 #endif
 
         return 1;
@@ -1676,9 +1676,9 @@ static int luauF_vectordot(lua_State* L, StkId res, TValue* arg0, int nresults, 
         const LUA_VECTOR_TYPE* b = vvalue(args);
 
 #if LUA_VECTOR_SIZE == 4
-        setnvalue(res, moo_numbridgefromdouble(a[0] * b[0] + a[1] * b[1] + a[2] * b[2] + a[3] * b[3]));
+        setnvalue(res, moo_numfromdoublevalue(a[0] * b[0] + a[1] * b[1] + a[2] * b[2] + a[3] * b[3]));
 #else
-        setnvalue(res, moo_numbridgefromdouble(a[0] * b[0] + a[1] * b[1] + a[2] * b[2]));
+        setnvalue(res, moo_numfromdoublevalue(a[0] * b[0] + a[1] * b[1] + a[2] * b[2]));
 #endif
 
         return 1;
@@ -1877,7 +1877,7 @@ static int luauF_vectorlerp(lua_State* L, StkId res, TValue* arg0, int nresults,
     {
         const LUA_VECTOR_TYPE* a = vvalue(arg0);
         const LUA_VECTOR_TYPE* b = vvalue(args);
-        const LUA_VECTOR_TYPE t = LUA_VECTOR_TYPE(moo_numbridgetodouble(nvalue(args + 1)));
+        const LUA_VECTOR_TYPE t = LUA_VECTOR_TYPE(moo_numtodouble(nvalue(args + 1)));
 
 #if LUA_VECTOR_SIZE == 4
         setvvalue(L, res, luai_lerp(a[0], b[0], t), luai_lerp(a[1], b[1], t), luai_lerp(a[2], b[2], t), luai_lerp(a[3], b[3], t));

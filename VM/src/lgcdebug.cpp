@@ -11,6 +11,8 @@
 #include "ludata.h"
 #include "lbuffer.h"
 
+#include "moo_format.h"
+
 #include <string.h>
 #include <stdio.h>
 
@@ -823,8 +825,9 @@ static void enumtable(EnumContext* ctx, LuaTable* h)
                     }
                     else if (ttisnumber(&n.key))
                     {
-                        char buf[32];
-                        snprintf(buf, sizeof(buf), "%.14g", moo_numbridgetodouble(nvalue(&n.key))); // moo: host debug output
+                        char buf[40];
+                        char* end = moo_numtostr(buf, nvalue(&n.key)); // moo: host debug output, exact formatter
+                        *end = 0;
                         enumedge(ctx, obj2gco(h), gcvalue(&n.val), buf);
                     }
                     else

@@ -4233,7 +4233,7 @@ struct Compiler
         int tripCount =
             (fromc.type == Constant::Type_Number && toc.type == Constant::Type_Number && stepc.type == Constant::Type_Number)
                 ? getTripCount(
-                      moo_numbridgetodouble(fromc.valueNumber), moo_numbridgetodouble(toc.valueNumber), moo_numbridgetodouble(stepc.valueNumber)
+                      moo_numtodouble(fromc.valueNumber), moo_numtodouble(toc.valueNumber), moo_numtodouble(stepc.valueNumber)
                   )
                 : -1;
 
@@ -4282,7 +4282,7 @@ struct Compiler
 
         bytecode.addDebugRemark("loop unroll succeeded (iterations %d, cost %d, profit %.2fx)", tripCount, unrolledCost, double(unrollProfit) / 100);
 
-        compileUnrolledFor(stat, tripCount, moo_numbridgetodouble(fromc.valueNumber), moo_numbridgetodouble(stepc.valueNumber));
+        compileUnrolledFor(stat, tripCount, moo_numtodouble(fromc.valueNumber), moo_numtodouble(stepc.valueNumber));
         return true;
     }
 
@@ -4303,7 +4303,7 @@ struct Compiler
         {
             // we need to re-fold constants in the loop body with the new value; this reuses computed constant values elsewhere in the tree
             locstants[var].type = Constant::Type_Number;
-            locstants[var].valueNumber = moo_numbridgefromdouble(from + iv * step);
+            locstants[var].valueNumber = moo_numfromdoublevalue(from + iv * step);
 
             if (iv == 0)
                 foldConstants(
@@ -6080,9 +6080,9 @@ void setCompileConstantNumber(CompileConstant* constant, double n)
 {
     Compile::Constant* target = reinterpret_cast<Compile::Constant*>(constant);
 
-    // moo: the constant is the raw Q48.16 value; a host double converts once by the bridge (docs/DESIGN.md "Boundary")
+    // moo: the constant is the raw Q48.16 value; a host double converts once by the boundary rule (docs/DESIGN.md "Boundary")
     target->type = Compile::Constant::Type_Number;
-    target->valueNumber = moo_numbridgefromdouble(n);
+    target->valueNumber = moo_numfromdoublevalue(n);
 }
 
 void setCompileConstantInteger64(CompileConstant* constant, int64_t l)

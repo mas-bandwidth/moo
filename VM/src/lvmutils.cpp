@@ -613,7 +613,7 @@ void luaV_doarithimpl(lua_State* L, StkId ra, const TValue* rb, const TValue* rc
 
         if (c)
         {
-            LUA_VECTOR_TYPE nc = cast_to(LUA_VECTOR_TYPE, moo_numbridgetodouble(nvalue(c))); // TEMPORARY: the float vector goes in layer 3
+            LUA_VECTOR_TYPE nc = cast_to(LUA_VECTOR_TYPE, moo_numtodouble(nvalue(c))); // TEMPORARY: the float vector goes in layer 3
 
             switch (op)
             {
@@ -644,7 +644,7 @@ void luaV_doarithimpl(lua_State* L, StkId ra, const TValue* rb, const TValue* rc
 
         if (b)
         {
-            LUA_VECTOR_TYPE nb = cast_to(LUA_VECTOR_TYPE, moo_numbridgetodouble(nvalue(b))); // TEMPORARY: the float vector goes in layer 3
+            LUA_VECTOR_TYPE nb = cast_to(LUA_VECTOR_TYPE, moo_numtodouble(nvalue(b))); // TEMPORARY: the float vector goes in layer 3
 
             switch (op)
             {

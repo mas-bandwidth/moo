@@ -400,9 +400,9 @@ struct CostVisitor : AstVisitor
         {
             if (constant->type == Constant::Type_Number)
             {
-                // moo: the constant is the raw Q48.16 value; the fixed->double bridge is the boundary rule, exact for
+                // moo: the constant is the raw Q48.16 value; the fixed->double conversion is the boundary rule, exact for
                 // the small integers the trip count cares about (docs/DESIGN.md "Layer 3 as built", "The compiler")
-                result = moo_numbridgetodouble(constant->valueNumber);
+                result = moo_numtodouble(constant->valueNumber);
                 return true;
             }
         }

@@ -319,7 +319,7 @@ TEST_CASE("MooBytecodeDoubleConstantsConvertByTheBoundaryRule")
     CHECK(BytecodeBuilder::mooNumberFromDouble(-std::numeric_limits<double>::infinity()) == -INT64_MAX);
     CHECK(BytecodeBuilder::mooNumberFromDouble(std::numeric_limits<double>::quiet_NaN()) == 0);
 
-    // exactly the old load-time bridge (moo_numbridgefromdouble), so the compiler's output values are unchanged: seeded
+    // exactly the old load-time bridge (moo_numfromdoublevalue), so the compiler's output values are unchanged: seeded
     // IEEE bit patterns of both signs, every exponent from the subnormals past 2^47, and the ties and edges by name
     std::vector<double> doubles = {0.0, -0.0, 140737488355328.0, -140737488355328.0, 140737488355327.99998474121,
         -140737488355327.99998474121, 1.0 / 131072.0, -1.0 / 131072.0, 3.0 / 131072.0, -3.0 / 131072.0, 5e-324, -5e-324};
@@ -336,7 +336,7 @@ TEST_CASE("MooBytecodeDoubleConstantsConvertByTheBoundaryRule")
         doubles.push_back(d);
     }
     for (double d : doubles)
-        CHECK_MESSAGE(BytecodeBuilder::mooNumberFromDouble(d) == moo_numbridgefromdouble(d), "double " << d);
+        CHECK_MESSAGE(BytecodeBuilder::mooNumberFromDouble(d) == moo_numfromdoublevalue(d), "double " << d);
 }
 
 // Bytecode.h "moo bytecode versions": a blob that ends after the moo version byte is refused by name, not read past.

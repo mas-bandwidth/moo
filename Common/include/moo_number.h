@@ -221,35 +221,6 @@ inline bool moo_numtoint(fixed_t a, int* out)
     return true;
 }
 
-// TEMPORARY BRIDGE until the math library is rebuilt on fixed (docs/DESIGN.md, "math library"): the
-// number nearest a double from libm, ties to even, saturating; NaN gives 0. Only the math library and
-// the float vector type call it, and both go in later layer 3 PRs.
-inline fixed_t moo_numbridgefromdouble(double d)
-{
-    if (d != d)
-        return 0;
-    if (d >= 140737488355328.0)
-        return MOO_NUMBER_MAX;
-    if (d <= -140737488355328.0)
-        return MOO_NUMBER_MIN;
-    double scaled = d * 65536.0; // exact
-    double r = scaled - double(int64_t(scaled));
-    int64_t t = int64_t(scaled); // toward zero, in range
-    double frac = r < 0 ? -r : r;
-    if (frac > 0.5 || (frac == 0.5 && (t & 1)))
-        t += scaled < 0 ? -1 : 1;
-    if (t > MOO_NUMBER_MAX)
-        return MOO_NUMBER_MAX;
-    if (t < MOO_NUMBER_MIN)
-        return MOO_NUMBER_MIN;
-    return t;
-}
-
-inline double moo_numbridgetodouble(fixed_t a)
-{
-    return double(a) * (1.0 / 65536.0);
-}
-
 // the boundary rule (moo.h moo_fromdouble): the IEEE bits decoded in integer arithmetic and rounded once, ties to even
 // returns 0 (0), 1 (NaN), 2 (infinite) or 3 (out of range); writes *out only on 0
 inline int moo_numfromdouble(double x, int64_t* out)
@@ -375,4 +346,27 @@ inline uint64_t moo_numtodoublebits(fixed_t raw)
     }
 
     return sign | uint64_t(E + 1023) << 52 | (M53 - (uint64_t(1) << 52));
+}
+
+// the boundary rule out of the VM as a value (moo.h moo_todouble): moo_numtodoublebits decoded
+// (docs/DESIGN.md, "Boundary"). The permanent replacement for the deleted temporary bridge.
+inline double moo_numtodouble(fixed_t raw)
+{
+    uint64_t bits = moo_numtodoublebits(raw);
+    double d;
+    memcpy(&d, &bits, sizeof(d));
+    return d;
+}
+
+// the boundary rule into the VM as a value (moo.h moo_fromdouble): the nearest Q48.16, ties to
+// even; NaN gives 0 and an infinity or out-of-range value saturates (docs/DESIGN.md, "Boundary").
+inline fixed_t moo_numfromdoublevalue(double x)
+{
+    int64_t out = 0;
+    int kind = moo_numfromdouble(x, &out);
+    if (kind == 0)
+        return out;
+    if (kind == 1)
+        return 0;
+    return x < 0 ? MOO_NUMBER_MIN : MOO_NUMBER_MAX;
 }
