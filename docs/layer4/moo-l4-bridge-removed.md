@@ -47,13 +47,24 @@ publishes.
   constructor (landed in `ad9e85a9` by `moo-l3-ast-raw-literals`) now uses
   `moo_numfromdoublevalue(value)` instead of `moo_numbridgefromdouble(value)`, and the comments in
   `Ast.h` name `moo_numtodouble` and `moo_numfromdoublevalue`.
-- Tests: `tests/moo/moo-l3-bytecode-version.test.cpp`, `tests/moo/moo-l3-ast-raw-literals.test.cpp`,
-  and the two pow tests referenced the deleted names; they now call the permanent helpers, with the
-  same values (the two pow tests' remaining failures are the same ones recorded at BASE).
+- Tests: `tests/moo/moo-l3-bytecode-version.test.cpp` and `tests/moo/moo-l3-ast-raw-literals.test.cpp`
+  referenced the deleted names; they now call the permanent helpers, with the same values.
+- This card changed what two earlier cards' tests expect. `moo-l4-pow-integer-math` and
+  `moo-l4-pow-integer-vm` each had a fractional-exponent test that compared `^` against the host
+  libm double through the bridge (`MathPowFractionalStaysOnBridge` and
+  `MooPowIntVmFractionalBridge`); both were red at BASE, because the landed `moo-l4-pow-fractional`
+  computes a fractional `^` with fixed math (`fixPow`). With the bridge gone they are renamed
+  `MathPowFractionalUsesFixed` (`tests/moo/moo-l4-pow-integer-math.test.cpp`) and
+  `MooPowIntVmFractionalUsesFixed` (`tests/moo/moo-l4-pow-integer-vm.test.cpp`) and now expect the
+  fixed-pow results: `fixPow`'s value (0 for `0 ^ -0.5`), and for a negative base in `math.pow` the
+  error "pow of a negative number to a fractional power". Both pass at this head.
 - NEW `tests/moo/moo-l4-bridge-removed.test.cpp`: four doctest cases.
   `BridgeBoundaryOutValues` pins exact raw-to-double values; `BridgeBoundaryInValues` pins
   rounding and half-even ties; `BridgeBoundaryNonFinite` pins NaN -> 0 and infinity -> saturation;
-  `BridgeHeapDumpUsesExactFormatter` pins the `moo_numtostr` output used by the heap dump.
+  `BridgeHeapDumpUsesExactFormatter` pins the `moo_numtostr` output used by the heap dump: it runs
+  the real heap enumeration, `luaC_enumheap`, which reaches the numeric-key branch through
+  `lgcdebug.cpp`'s real `enumtable`, and checks that the edge names are `-1.5` and `0.1` (a regression
+  to `%.14g` would print `0.10000610351563`).
 - NEW `tests/conformance/moo/l3/moo-l4-bridge-removed.luau`: exercises the fixed math library,
   `^`, the exact formatter/parser, and the raw values behind them, then returns `OK`.
 
@@ -105,24 +116,16 @@ the same command prints nothing (exit 1).
 - `tools/revendor-fixed.sh --check`: `extern/fixed matches pin 2f1ed913374a -- clean`.
 - configure (clang 18.1.3, RelWithDebInfo, `LUAU_WERROR=ON`): "Build files have been written to: .../build".
 - `cmake --build build --target Moo.Test Luau.VM`: green.
-- `build/Moo.Test`: 163 test cases, 161 passed, 2 failed; 67,105,725 assertions, 67,105,683 passed,
-  42 failed. The 2 failing cases are the ones already red at BASE (`ad9e85a9da92`) and owned by
-  earlier cards: `MathPowFractionalStaysOnBridge` (28 assertions) and `MooPowIntVmFractionalBridge`
-  (14 assertions), which still compare a fractional `^` against the host libm double while the
-  landed `moo-l4-pow-fractional` uses fixed math (`fixPow`). `MooL5SkippedCasesNameAReason` and
-  `MooL3Scripts` (including `moo-l4-bridge-removed.luau`) pass, as do all four new
-  `moo-l4-bridge-removed` cases (4 cases, 23 assertions).
+- `build/Moo.Test`: 171 test cases, 171 passed, 0 failed; 67,608,953 assertions, 0 failed. This
+  includes `MathPowFractionalUsesFixed`, `MooPowIntVmFractionalUsesFixed`, `MooL3Scripts` (with
+  `moo-l4-bridge-removed.luau`) and the four new `moo-l4-bridge-removed` cases.
 - `tools/moo-check-no-clock.sh build/libLuau.VM.a`: `moo-check-no-clock: build/libLuau.VM.a references no clock`.
 - `cmake --build build --target Luau.Conformance Luau.UnitTest Luau.CLI.Test Luau.Repl.CLI Luau.Analyze.CLI Luau.Compile.CLI`: green.
-- `build/Luau.Conformance`: 109 cases, 109 passed; 9,143 assertions, 0 failed.
-- `build/Luau.CLI.Test`: 113 cases, 113 passed; 461 assertions, 0 failed.
-- `build/Luau.UnitTest`: 5,159 cases, 5,146 passed, 13 failed (44 skipped); 22,947 assertions,
-  22,933 passed, 14 failed. The 13 names are the BASE-red set recorded in
-  `docs/layer4/moo-l4-math-noise.md` and `docs/layer3/moo-l3-ast-raw-literals.md`:
-  `fold_constants_div_by_zero`, `MooBuiltinsDoNotFold`, the four `udtf_integer*` cases,
-  `issubtypeof`, `type_tostring`, `compound_assign_reports_invalid_vector_arithmetic`,
-  `type_narrow_to_vector`, `type_vector_refine`, `builtin_table_names`,
-  `persistent_sealed_table_is_immutable`.
+- `build/Luau.Conformance`: 106 cases, 106 passed, 0 failed (1 skipped); 8,995 assertions, 0 failed.
+- `build/Luau.CLI.Test`: 113 cases, 113 passed, 0 failed; 461 assertions, 0 failed.
+- `build/Luau.UnitTest`: 5,148 cases, 5,147 passed, 1 failed (55 skipped); 22,928 assertions,
+  22,927 passed, 1 failed. The one red case is `fold_constants_div_by_zero`, which is red at BASE
+  (`5b816928`) too, with the same counts; this card does not touch it.
 - `git grep -c 'moo_numbridge' -- VM Common Compiler Ast Bytecode`: no output (exit 1).
 
 ## The VM `double` audit
