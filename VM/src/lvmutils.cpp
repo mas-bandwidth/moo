@@ -7,7 +7,6 @@
 #include "lstate.h"
 #include "lstring.h"
 #include "ltable.h"
-#include "lvector.h"
 #include "lgc.h"
 #include "ldo.h"
 #include "lnumutils.h"
@@ -49,14 +48,6 @@ int luaV_tostring(lua_State* L, StkId obj)
         setsvalue(L, obj, luaS_newlstr(L, s, e - s));
         return 1;
     }
-}
-
-const LUA_VECTOR_TYPE* luaV_tovector(const TValue* obj)
-{
-    if (ttisvector(obj))
-        return vvalue(obj);
-
-    return nullptr;
 }
 
 static LUAU_FORCEINLINE void callTMluau(lua_State* L, StkId top, Closure* ccl, int nresults)
@@ -460,8 +451,6 @@ int luaV_equalval(lua_State* L, const TValue* t1, const TValue* t2)
         return luai_numeq(nvalue(t1), nvalue(t2));
     case LUA_TINTEGER:
         return luai_inteq(lvalue(t1), lvalue(t2));
-    case LUA_TVECTOR:
-        return luai_veceq(vvalue(t1), vvalue(t2));
     case LUA_TBOOLEAN:
         return bvalue(t1) == bvalue(t2); // true must be 1 !!
     case LUA_TLIGHTUSERDATA:
@@ -566,110 +555,7 @@ void luaV_doarithimpl(lua_State* L, StkId ra, const TValue* rb, const TValue* rc
     TValue tempb, tempc;
     const TValue *b, *c;
 
-    // vector operations that we support:
-    // v+v  v-v  -v    (add/sub/neg)
-    // v*v  s*v  v*s   (mul)
-    // v/v  s/v  v/s   (div)
-    // v//v s//v v//s  (floor div)
-    const LUA_VECTOR_TYPE* vb = ttisvector(rb) ? vvalue(rb) : nullptr;
-    const LUA_VECTOR_TYPE* vc = ttisvector(rc) ? vvalue(rc) : nullptr;
-
-    if (vb && vc)
-    {
-        switch (op)
-        {
-        case TM_ADD:
-            setvvalue(L, ra, vb[0] + vc[0], vb[1] + vc[1], vb[2] + vc[2], vb[3] + vc[3]);
-            return;
-        case TM_SUB:
-            setvvalue(L, ra, vb[0] - vc[0], vb[1] - vc[1], vb[2] - vc[2], vb[3] - vc[3]);
-            return;
-        case TM_MUL:
-            setvvalue(L, ra, vb[0] * vc[0], vb[1] * vc[1], vb[2] * vc[2], vb[3] * vc[3]);
-            return;
-        case TM_DIV:
-            setvvalue(L, ra, vb[0] / vc[0], vb[1] / vc[1], vb[2] / vc[2], vb[3] / vc[3]);
-            return;
-        case TM_IDIV:
-            setvvalue(
-                L,
-                ra,
-                LUA_VECTOR_TYPE(luai_numidiv(vb[0], vc[0])),
-                LUA_VECTOR_TYPE(luai_numidiv(vb[1], vc[1])),
-                LUA_VECTOR_TYPE(luai_numidiv(vb[2], vc[2])),
-                LUA_VECTOR_TYPE(luai_numidiv(vb[3], vc[3]))
-            );
-            return;
-        case TM_UNM:
-            setvvalue(L, ra, -vb[0], -vb[1], -vb[2], -vb[3]);
-            return;
-        default:
-            break;
-        }
-    }
-    else if (vb)
-    {
-        c = ttisnumber(rc) ? rc : luaV_tonumber(rc, &tempc);
-
-        if (c)
-        {
-            LUA_VECTOR_TYPE nc = cast_to(LUA_VECTOR_TYPE, moo_numtodouble(nvalue(c))); // TEMPORARY: the float vector goes in layer 3
-
-            switch (op)
-            {
-            case TM_MUL:
-                setvvalue(L, ra, vb[0] * nc, vb[1] * nc, vb[2] * nc, vb[3] * nc);
-                return;
-            case TM_DIV:
-                setvvalue(L, ra, vb[0] / nc, vb[1] / nc, vb[2] / nc, vb[3] / nc);
-                return;
-            case TM_IDIV:
-                setvvalue(
-                    L,
-                    ra,
-                    LUA_VECTOR_TYPE(luai_numidiv(vb[0], nc)),
-                    LUA_VECTOR_TYPE(luai_numidiv(vb[1], nc)),
-                    LUA_VECTOR_TYPE(luai_numidiv(vb[2], nc)),
-                    LUA_VECTOR_TYPE(luai_numidiv(vb[3], nc))
-                );
-                return;
-            default:
-                break;
-            }
-        }
-    }
-    else if (vc)
-    {
-        b = ttisnumber(rb) ? rb : luaV_tonumber(rb, &tempb);
-
-        if (b)
-        {
-            LUA_VECTOR_TYPE nb = cast_to(LUA_VECTOR_TYPE, moo_numtodouble(nvalue(b))); // TEMPORARY: the float vector goes in layer 3
-
-            switch (op)
-            {
-            case TM_MUL:
-                setvvalue(L, ra, nb * vc[0], nb * vc[1], nb * vc[2], nb * vc[3]);
-                return;
-            case TM_DIV:
-                setvvalue(L, ra, nb / vc[0], nb / vc[1], nb / vc[2], nb / vc[3]);
-                return;
-            case TM_IDIV:
-                setvvalue(
-                    L,
-                    ra,
-                    LUA_VECTOR_TYPE(luai_numidiv(nb, vc[0])),
-                    LUA_VECTOR_TYPE(luai_numidiv(nb, vc[1])),
-                    LUA_VECTOR_TYPE(luai_numidiv(nb, vc[2])),
-                    LUA_VECTOR_TYPE(luai_numidiv(nb, vc[3]))
-                );
-                return;
-            default:
-                break;
-            }
-        }
-    }
-
+    // moo: vector arithmetic has no VM value producer; preserve only the fixed-number and metamethod paths.
     if ((b = luaV_tonumber(rb, &tempb)) != NULL && (c = luaV_tonumber(rc, &tempc)) != NULL)
     {
         lua_Number nb = nvalue(b), nc = nvalue(c);

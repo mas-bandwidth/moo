@@ -9,7 +9,6 @@
 #include "lnumutils.h"
 #include "ldo.h"
 #include "lbuffer.h"
-#include "lvector.h"
 
 #include "moo_pow.h"
 
@@ -1109,9 +1108,8 @@ static int luauF_rawset(lua_State* L, StkId res, TValue* arg0, int nresults, Stk
         const TValue* key = args;
         if (ttisnil(key))
             return -1;
+        // moo: rawset validates only representable scalar keys; vector keys are no longer constructible.
         else if (ttisnumber(key) && luai_numisnan(nvalue(key)))
-            return -1;
-        else if (ttisvector(key) && luai_vecisnan(vvalue(key)))
             return -1;
 
         LuaTable* t = hvalue(arg0);
