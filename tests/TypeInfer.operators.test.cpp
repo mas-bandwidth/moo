@@ -439,7 +439,8 @@ TEST_CASE_FIXTURE(Fixture, "compound_assign_mismatch_op")
     }
 }
 
-TEST_CASE_FIXTURE(BuiltinsFixture, "compound_assign_reports_invalid_vector_arithmetic")
+// moo: vector is not a moo builtin (DESIGN.md "Analyzer")
+TEST_CASE_FIXTURE(BuiltinsFixture, "compound_assign_reports_invalid_vector_arithmetic" * doctest::skip())
 {
     ScopedFastFlag sff{FFlag::LuauCompoundAssignSeedsAstTypes, true};
 

@@ -2191,7 +2191,8 @@ TEST_CASE_FIXTURE(Fixture, "hide_table_error_properties")
     CHECK_EQ("Cannot add property 'b' to table '{ x: number }'", toString(result.errors[1]));
 }
 
-TEST_CASE_FIXTURE(BuiltinsFixture, "builtin_table_names")
+// moo: os is not a moo builtin (DESIGN.md "Analyzer")
+TEST_CASE_FIXTURE(BuiltinsFixture, "builtin_table_names" * doctest::skip())
 {
     CheckResult result = check(R"(
         os.h = 2
@@ -2204,7 +2205,8 @@ TEST_CASE_FIXTURE(BuiltinsFixture, "builtin_table_names")
     CHECK_EQ("Cannot add property 'k' to table 'typeof(string)'", toString(result.errors[1]));
 }
 
-TEST_CASE_FIXTURE(BuiltinsFixture, "persistent_sealed_table_is_immutable")
+// moo: os is not a moo builtin (DESIGN.md "Analyzer")
+TEST_CASE_FIXTURE(BuiltinsFixture, "persistent_sealed_table_is_immutable" * doctest::skip())
 {
     CheckResult result = check(R"(
         function os:bad() end
