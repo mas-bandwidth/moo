@@ -357,9 +357,12 @@ class AstExprConstantNumber : public AstExpr
 public:
     LUAU_RTTI(AstExprConstantNumber)
 
-    // moo: a tool that builds a number node from a double gets the saturating bridge's raw value (moo_numbridgefromdouble,
-    // NaN to 0); the parser passes
-    // moo_numparse's exact raw value to the four-argument form (docs/DESIGN.md "Literals")
+    // moo: two forms, each with its own invariant (docs/DESIGN.md "Literals", docs/layer3/moo-l3-ast-raw-literals.md).
+    // The parser uses the four-argument form: rawValue is moo_numparse's exact raw value and value is
+    // moo_numbridgetodouble(rawValue), the nearest double to it. The two-argument form is for a tool that builds a node
+    // from a double (the AST JSON encoder tests pass 8.2, infinity and NaN): value is the tool's double, kept as given,
+    // and rawValue is moo_numbridgefromdouble(value), the nearest raw value to it, saturating, NaN to 0. The program
+    // path never uses it.
     AstExprConstantNumber(const Location& location, double value, ConstantNumberParseResult parseResult = ConstantNumberParseResult::Ok);
     AstExprConstantNumber(
         const Location& location, double value, fixed_t rawValue, ConstantNumberParseResult parseResult = ConstantNumberParseResult::Ok
@@ -368,8 +371,8 @@ public:
     void visit(AstVisitor* visitor) override;
 
     double value;
-    // moo: the exact raw Q48.16 value moo_numparse produced; `value` stays the nearest double for the analyzer and
-    // tools, which never depend on the representation (docs/DESIGN.md "Analyzer", "Literals")
+    // moo: the raw Q48.16 value the compiler emits; on a parsed node it is exact and `value` is the nearest double to it,
+    // for the analyzer and tools, which never depend on the representation (docs/DESIGN.md "Analyzer", "Literals")
     fixed_t rawValue;
     ConstantNumberParseResult parseResult;
 };

@@ -13,10 +13,25 @@ the nearest double to the raw value, because the analyzer and tools read it and 
 on the representation. The compiler reads `rawValue` in both places it reads a literal: `ConstantFolding.cpp`
 `analyze` and `Compiler.cpp` `compileExpr`. Both `moo_numfromdouble` calls and their `moo:` comments are gone.
 
-A node built directly by a tool from a double (the AST JSON encoder tests do this) keeps the two-argument
-constructor, which takes the saturating bridge's raw value (`moo_numbridgefromdouble`, NaN to 0, because those
-tests pass infinity and NaN); the parser uses the four-argument form with the exact raw
-value, so no conversion happens on the program path.
+## Decision: two constructors, two invariants
+
+The two constructor forms keep different invariants, and `Ast.h` states both at the constructors:
+
+- The four-argument form, which the parser uses: `rawValue` is `moo_numparse`'s exact raw value and `value` is
+  `moo_numbridgetodouble(rawValue)`, the nearest double to it. A parsed `8.2` holds raw 537395 and the double
+  537395 / 65536 = 8.1999969482421875. This is the only form on the program path, so no conversion happens there.
+- The two-argument form, for a tool that builds a node from a double: `value` is the tool's double as given and
+  `rawValue` is `moo_numbridgefromdouble(value)`, the nearest raw value to it, saturating, NaN to 0. A tool-built
+  `8.2` keeps the double 8.2 and has raw 537395.
+
+Reason: no program path builds a node from a double (the only callers of the two-argument form are the upstream AST
+JSON encoder tests, which pass 8.2, 0.1677721600000003, infinity and NaN and pin the double the encoder prints, for
+example `8.1999999999999993` and `Infinity`). Rewriting `value` to the nearest double to the raw value would change
+what those tests and any outside tool read back, would turn infinity into 2^47 and NaN into 0, and would need
+`tests/AstJsonEncoder.test.cpp`, which this card does not own. The raw value, the one the compiler emits, is the
+nearest Q48.16 value to the tool's double in both readings. `MooAstConstantNumberFormsKeepTheirInvariant` pins both
+invariants (attempt 5, after a reader found the earlier header comment claimed the parsed-node invariant for every
+node).
 
 ## Integer literals are refused
 
@@ -49,6 +64,12 @@ deleted; Luau's integer type is out (DESIGN.md "integer").
 - DESIGN.md, "integer": after "The type tag stays in the C API, unused, so upstream merges in that area stay
   mechanical.", add "An integer literal (`1i`, `0x10i`) is the parse error `moo has no integer type`, and no
   `AstExprConstantInteger` is built."
+- `Common/include/moo_number.h`, the comment above `moo_numbridgefromdouble` (outside this card's paths, so not
+  edited here): "Only the math library and the float vector type call it, and both go in later layer 3 PRs." is stale,
+  since the AST's two-argument `AstExprConstantNumber` constructor now calls it too. Change it to "Only the math
+  library, the float vector type and the AST's two-argument `AstExprConstantNumber` constructor (for a tool that
+  builds a node from a double; docs/layer3/moo-l3-ast-raw-literals.md) call it; the first two go in later layer 3
+  PRs."
 - DETERMINISM.md: no sentence changes. No frozen hash or `tests/determinism/expected.txt` changes; the literal is
   now the value the run time already computed for the same decimal.
 

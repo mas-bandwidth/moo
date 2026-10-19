@@ -16,6 +16,7 @@
 #include "MooHost.h"
 #include "ScopedFlags.h"
 
+#include <cmath>
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
@@ -123,6 +124,51 @@ TEST_CASE("MooAstConstantNumberCarriesRawValue")
 
     CHECK_EQ(above->rawValue, int64_t(4611686018427322369LL));
     CHECK_EQ(above->value, double(4611686018427322369LL) * (1.0 / 65536.0));
+}
+
+// Each constructor keeps its own invariant (Ast.h, docs/layer3/moo-l3-ast-raw-literals.md). A parsed literal: the raw
+// value is exact and `value` is the nearest double to it, so a parsed 8.2 holds 537395 / 65536, not 8.2. A node a tool
+// builds from a double: `value` is that double as given (the AST JSON encoder prints it) and the raw value is the
+// nearest one to it by the saturating bridge, infinity to the largest value and NaN to 0.
+TEST_CASE("MooAstConstantNumberFormsKeepTheirInvariant")
+{
+    const char* source = "return 8.2, 0.1, 1e-5, 140737488355327.99998474121094, -70368744177663.00001525878906";
+    const int64_t expectedRaw[] = {537395, 6554, 1, 9223372036854775807LL, -4611686018427322369LL};
+
+    Allocator allocator;
+    AstNameTable names(allocator);
+    ParseResult result = Parser::parse(source, strlen(source), names, allocator);
+    REQUIRE(result.errors.empty());
+    AstStatReturn* ret = result.root->body.data[0]->as<AstStatReturn>();
+    REQUIRE(ret != nullptr);
+    REQUIRE_EQ(ret->list.size, 5);
+
+    for (size_t i = 0; i < ret->list.size; ++i)
+    {
+        AstExpr* e = ret->list.data[i];
+        if (AstExprUnary* neg = e->as<AstExprUnary>())
+            e = neg->expr;
+        AstExprConstantNumber* n = e->as<AstExprConstantNumber>();
+        REQUIRE(n != nullptr);
+        int64_t raw = expectedRaw[i] < 0 ? -expectedRaw[i] : expectedRaw[i];
+        INFO(i);
+        CHECK_EQ(n->rawValue, raw);
+        CHECK_EQ(n->value, moo_numbridgetodouble(n->rawValue));
+    }
+
+    AstExprConstantNumber tool{Location(), 8.2};
+    CHECK_EQ(tool.value, 8.2);
+    CHECK_EQ(tool.rawValue, int64_t(537395));
+    CHECK_EQ(tool.rawValue, moo_numbridgefromdouble(tool.value));
+
+    AstExprConstantNumber huge{Location(), double(INFINITY)};
+    AstExprConstantNumber tiny{Location(), -double(INFINITY)};
+    AstExprConstantNumber nan{Location(), double(NAN)};
+    CHECK(huge.value == double(INFINITY));
+    CHECK_EQ(huge.rawValue, MOO_NUMBER_MAX);
+    CHECK_EQ(tiny.rawValue, MOO_NUMBER_MIN);
+    CHECK(nan.value != nan.value);
+    CHECK_EQ(nan.rawValue, int64_t(0));
 }
 
 // With LuauIntegerType2 on, moo has no integer type (docs/DESIGN.md "integer"): `1i` and `0x10i` are the parse error
