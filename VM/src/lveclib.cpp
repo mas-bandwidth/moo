@@ -12,13 +12,13 @@ static int vector_create(lua_State* L)
     // checking argument count to avoid accepting 'nil' as a valid value
     int count = lua_gettop(L);
 
-    // TEMPORARY: the float vector goes in layer 3; its components cross through the double bridge
-    double x = moo_numbridgetodouble(luaL_checknumber(L, 1));
-    double y = moo_numbridgetodouble(luaL_checknumber(L, 2));
-    double z = count >= 3 ? moo_numbridgetodouble(luaL_checknumber(L, 3)) : 0.0;
+    // TEMPORARY: the float vector stays until moo-l3-libs-out; its components convert by the boundary rule
+    double x = moo_numtodouble(luaL_checknumber(L, 1));
+    double y = moo_numtodouble(luaL_checknumber(L, 2));
+    double z = count >= 3 ? moo_numtodouble(luaL_checknumber(L, 3)) : 0.0;
 
 #if LUA_VECTOR_SIZE == 4
-    double w = count >= 4 ? moo_numbridgetodouble(luaL_checknumber(L, 4)) : 0.0;
+    double w = count >= 4 ? moo_numtodouble(luaL_checknumber(L, 4)) : 0.0;
 
     lua_pushvector(L, LUA_VECTOR_TYPE(x), LUA_VECTOR_TYPE(y), LUA_VECTOR_TYPE(z), LUA_VECTOR_TYPE(w));
 #else
@@ -33,9 +33,9 @@ static int vector_magnitude(lua_State* L)
     const LUA_VECTOR_TYPE* v = luaL_checkvector(L, 1);
 
 #if LUA_VECTOR_SIZE == 4
-    lua_pushnumber(L, moo_numbridgefromdouble(luai_sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2] + v[3] * v[3])));
+    lua_pushnumber(L, moo_numfromdoublevalue(luai_sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2] + v[3] * v[3])));
 #else
-    lua_pushnumber(L, moo_numbridgefromdouble(luai_sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2])));
+    lua_pushnumber(L, moo_numfromdoublevalue(luai_sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2])));
 #endif
 
     return 1;
@@ -78,9 +78,9 @@ static int vector_dot(lua_State* L)
     const LUA_VECTOR_TYPE* b = luaL_checkvector(L, 2);
 
 #if LUA_VECTOR_SIZE == 4
-    lua_pushnumber(L, moo_numbridgefromdouble(a[0] * b[0] + a[1] * b[1] + a[2] * b[2] + a[3] * b[3]));
+    lua_pushnumber(L, moo_numfromdoublevalue(a[0] * b[0] + a[1] * b[1] + a[2] * b[2] + a[3] * b[3]));
 #else
-    lua_pushnumber(L, moo_numbridgefromdouble(a[0] * b[0] + a[1] * b[1] + a[2] * b[2]));
+    lua_pushnumber(L, moo_numfromdoublevalue(a[0] * b[0] + a[1] * b[1] + a[2] * b[2]));
 #endif
 
     return 1;
@@ -105,7 +105,7 @@ static int vector_angle(lua_State* L)
             angle = -angle;
     }
 
-    lua_pushnumber(L, moo_numbridgefromdouble(angle));
+    lua_pushnumber(L, moo_numfromdoublevalue(angle));
     return 1;
 }
 
@@ -273,7 +273,7 @@ static int vector_index(lua_State* L)
 
         if (unsigned(ic) < LUA_VECTOR_SIZE)
         {
-            lua_pushnumber(L, moo_numbridgefromdouble(v[ic]));
+            lua_pushnumber(L, moo_numfromdoublevalue(v[ic]));
             return 1;
         }
     }
@@ -285,7 +285,7 @@ static int vector_lerp(lua_State* L)
 {
     const LUA_VECTOR_TYPE* a = luaL_checkvector(L, 1);
     const LUA_VECTOR_TYPE* b = luaL_checkvector(L, 2);
-    const LUA_VECTOR_TYPE t = LUA_VECTOR_TYPE(moo_numbridgetodouble(luaL_checknumber(L, 3)));
+    const LUA_VECTOR_TYPE t = LUA_VECTOR_TYPE(moo_numtodouble(luaL_checknumber(L, 3)));
 
 #if LUA_VECTOR_SIZE == 4
     lua_pushvector(L, luai_lerp(a[0], b[0], t), luai_lerp(a[1], b[1], t), luai_lerp(a[2], b[2], t), luai_lerp(a[3], b[3], t));

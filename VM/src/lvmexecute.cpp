@@ -628,7 +628,7 @@ reentry:
                         if (unsigned(ic) < LUA_VECTOR_SIZE && name[1] == '\0')
                         {
                             const LUA_VECTOR_TYPE* v = vvalue(rb); // silences ubsan when indexing v[]
-                            setnvalue(ra, moo_numbridgefromdouble(v[ic])); // TEMPORARY: the float vector goes in layer 3
+                            setnvalue(ra, moo_numfromdoublevalue(v[ic])); // TEMPORARY: the float vector goes in layer 3
                             VM_NEXT();
                         }
 
@@ -1868,7 +1868,7 @@ reentry:
                 else if (ttisvector(rb) && ttisnumber(rc))
                 {
                     const LUA_VECTOR_TYPE* vb = vvalue(rb);
-                    LUA_VECTOR_TYPE vc = cast_to(LUA_VECTOR_TYPE, moo_numbridgetodouble(nvalue(rc)));
+                    LUA_VECTOR_TYPE vc = cast_to(LUA_VECTOR_TYPE, moo_numtodouble(nvalue(rc)));
                     setvvalue(L, ra, vb[0] * vc, vb[1] * vc, vb[2] * vc, vb[3] * vc);
                     VM_NEXT();
                 }
@@ -1881,7 +1881,7 @@ reentry:
                 }
                 else if (ttisnumber(rb) && ttisvector(rc))
                 {
-                    LUA_VECTOR_TYPE vb = cast_to(LUA_VECTOR_TYPE, moo_numbridgetodouble(nvalue(rb)));
+                    LUA_VECTOR_TYPE vb = cast_to(LUA_VECTOR_TYPE, moo_numtodouble(nvalue(rb)));
                     const LUA_VECTOR_TYPE* vc = vvalue(rc);
                     setvvalue(L, ra, vb * vc[0], vb * vc[1], vb * vc[2], vb * vc[3]);
                     VM_NEXT();
@@ -1930,7 +1930,7 @@ reentry:
                 else if (ttisvector(rb) && ttisnumber(rc))
                 {
                     const LUA_VECTOR_TYPE* vb = vvalue(rb);
-                    LUA_VECTOR_TYPE vc = cast_to(LUA_VECTOR_TYPE, moo_numbridgetodouble(nvalue(rc)));
+                    LUA_VECTOR_TYPE vc = cast_to(LUA_VECTOR_TYPE, moo_numtodouble(nvalue(rc)));
                     setvvalue(L, ra, vb[0] / vc, vb[1] / vc, vb[2] / vc, vb[3] / vc);
                     VM_NEXT();
                 }
@@ -1943,7 +1943,7 @@ reentry:
                 }
                 else if (ttisnumber(rb) && ttisvector(rc))
                 {
-                    LUA_VECTOR_TYPE vb = cast_to(LUA_VECTOR_TYPE, moo_numbridgetodouble(nvalue(rb)));
+                    LUA_VECTOR_TYPE vb = cast_to(LUA_VECTOR_TYPE, moo_numtodouble(nvalue(rb)));
                     const LUA_VECTOR_TYPE* vc = vvalue(rc);
                     setvvalue(L, ra, vb / vc[0], vb / vc[1], vb / vc[2], vb / vc[3]);
                     VM_NEXT();
@@ -1992,7 +1992,7 @@ reentry:
                 else if (ttisvector(rb) && ttisnumber(rc))
                 {
                     const LUA_VECTOR_TYPE* vb = vvalue(rb);
-                    LUA_VECTOR_TYPE vc = cast_to(LUA_VECTOR_TYPE, moo_numbridgetodouble(nvalue(rc)));
+                    LUA_VECTOR_TYPE vc = cast_to(LUA_VECTOR_TYPE, moo_numtodouble(nvalue(rc)));
                     setvvalue(
                         L,
                         ra,
@@ -2135,7 +2135,7 @@ reentry:
                 else if (ttisvector(rb))
                 {
                     const LUA_VECTOR_TYPE* vb = vvalue(rb);
-                    LUA_VECTOR_TYPE vc = cast_to(LUA_VECTOR_TYPE, moo_numbridgetodouble(nvalue(kv)));
+                    LUA_VECTOR_TYPE vc = cast_to(LUA_VECTOR_TYPE, moo_numtodouble(nvalue(kv)));
                     setvvalue(L, ra, vb[0] * vc, vb[1] * vc, vb[2] * vc, vb[3] * vc);
                     VM_NEXT();
                 }
@@ -2182,7 +2182,7 @@ reentry:
                 else if (ttisvector(rb))
                 {
                     const LUA_VECTOR_TYPE* vb = vvalue(rb);
-                    LUA_VECTOR_TYPE nc = cast_to(LUA_VECTOR_TYPE, moo_numbridgetodouble(nvalue(kv)));
+                    LUA_VECTOR_TYPE nc = cast_to(LUA_VECTOR_TYPE, moo_numtodouble(nvalue(kv)));
                     setvvalue(L, ra, vb[0] / nc, vb[1] / nc, vb[2] / nc, vb[3] / nc);
                     VM_NEXT();
                 }
@@ -2229,7 +2229,7 @@ reentry:
                 else if (ttisvector(rb))
                 {
                     const LUA_VECTOR_TYPE* vb = vvalue(rb);
-                    LUA_VECTOR_TYPE vc = cast_to(LUA_VECTOR_TYPE, moo_numbridgetodouble(nvalue(kv)));
+                    LUA_VECTOR_TYPE vc = cast_to(LUA_VECTOR_TYPE, moo_numtodouble(nvalue(kv)));
                     setvvalue(
                         L,
                         ra,
@@ -3134,7 +3134,7 @@ reentry:
                 }
                 else if (ttisvector(rc))
                 {
-                    LUA_VECTOR_TYPE nb = cast_to(LUA_VECTOR_TYPE, moo_numbridgetodouble(nvalue(kv)));
+                    LUA_VECTOR_TYPE nb = cast_to(LUA_VECTOR_TYPE, moo_numtodouble(nvalue(kv)));
                     const LUA_VECTOR_TYPE* vc = vvalue(rc);
                     setvvalue(L, ra, nb / vc[0], nb / vc[1], nb / vc[2], nb / vc[3]);
                     VM_NEXT();

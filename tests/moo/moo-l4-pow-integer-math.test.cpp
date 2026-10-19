@@ -2,20 +2,20 @@
 //
 // Layer 4 integer-exponent pow, math library side (docs/DESIGN.md "math library", "pow and ^"): math.pow
 // and its fastcall call moo_pow_int (Common/include/moo_pow.h) when the exponent is integer-valued, so
-// the library, the fastcall and the core give the same bits; a fractional exponent stays on the libm
-// bridge until moo-l4-pow-fractional. The library path is exercised through a local alias, which the
+// the library, the fastcall and the core give the same bits; moo: a fractional exponent uses fixed's
+// fixPow, with a named error for a negative base. The library path is exercised through a local alias, which the
 // compiler does not turn into a fastcall (the same trick tests/moo/moo-l4-math-trig.test.cpp uses).
 #include "lua.h"
 #include "lualib.h"
 #include "moo.h"
 #include "moo_number.h"
 #include "moo_pow.h"
+#include "fixed/fixed_math.h"
 
 #include "MooHost.h"
 
 #include "doctest.h"
 
-#include <math.h>
 #include <stdint.h>
 #include <string>
 
@@ -112,9 +112,9 @@ TEST_CASE("MathPowIntegerMatchesCoreOnSeededPairs")
     lua_close(L);
 }
 
-// A non-integer exponent still takes the libm bridge: math.pow and its fastcall give exactly the
-// boundary rounding of the host double pow, not a moo_pow_int result.
-TEST_CASE("MathPowFractionalStaysOnBridge")
+// moo: a non-integer exponent takes fixPow; math.pow and its fastcall both raise the named
+// negative-base error instead of accepting a host libm NaN.
+TEST_CASE("MathPowFractionalUsesFixed")
 {
     lua_State* L = luaL_newstate();
     REQUIRE(L != nullptr);
@@ -128,11 +128,11 @@ TEST_CASE("MathPowFractionalStaysOnBridge")
         for (int64_t exponent : exponents)
         {
             REQUIRE(!moo_numisinteger(exponent));
-            int64_t want = moo_numbridgefromdouble(pow(moo_numbridgetodouble(base), moo_numbridgetodouble(exponent)));
-            std::string wantText = std::to_string(static_cast<long long>(want));
+            std::string want = base < 0 ? "error: pow of a negative number to a fractional power"
+                                        : std::to_string(static_cast<long long>(fixPow(base, exponent)));
 
-            CHECK_MESSAGE(runPow(L, base, exponent, false) == wantText, "library " << base << " ^ " << exponent);
-            CHECK_MESSAGE(runPow(L, base, exponent, true) == wantText, "fastcall " << base << " ^ " << exponent);
+            CHECK_MESSAGE(sameResult(runPow(L, base, exponent, false), want), "library " << base << " ^ " << exponent);
+            CHECK_MESSAGE(sameResult(runPow(L, base, exponent, true), want), "fastcall " << base << " ^ " << exponent);
         }
 
     lua_close(L);
