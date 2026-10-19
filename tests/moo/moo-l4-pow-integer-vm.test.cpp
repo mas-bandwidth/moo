@@ -95,7 +95,7 @@ TEST_CASE("MooPowIntVmFractionalBridge")
     for (fixed_t a : bases)
         for (fixed_t b : exponents)
         {
-            fixed_t ref = moo_numbridgefromdouble(pow(moo_numbridgetodouble(a), moo_numbridgetodouble(b)));
+            fixed_t ref = moo_numfromdoublevalue(pow(moo_numtodouble(a), moo_numtodouble(b)));
             std::string got = runPow(L, a, b);
             CAPTURE(a);
             CAPTURE(b);

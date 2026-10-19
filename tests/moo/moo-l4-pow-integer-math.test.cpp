@@ -128,7 +128,7 @@ TEST_CASE("MathPowFractionalStaysOnBridge")
         for (int64_t exponent : exponents)
         {
             REQUIRE(!moo_numisinteger(exponent));
-            int64_t want = moo_numbridgefromdouble(pow(moo_numbridgetodouble(base), moo_numbridgetodouble(exponent)));
+            int64_t want = moo_numfromdoublevalue(pow(moo_numtodouble(base), moo_numtodouble(exponent)));
             std::string wantText = std::to_string(static_cast<long long>(want));
 
             CHECK_MESSAGE(runPow(L, base, exponent, false) == wantText, "library " << base << " ^ " << exponent);
