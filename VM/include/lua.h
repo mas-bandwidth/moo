@@ -100,6 +100,10 @@ enum lua_Type
     LUA_TVECTOR,
 #endif
 
+    // moo: vec3, an immutable GC object of three Q48.16 components; a TValue tag after every upstream GC type, so
+    // upstream tags keep their values (docs/layer3b/moo-v2-l3b-vec3-object.md, decision 1)
+    LUA_TVEC3,
+
     // values below this line are used in GCObject tags but may never show up in TValue type tags
 
     // LUA_TDEADKEY is used in TKey to identify Luau table entries that have the value set to nil,

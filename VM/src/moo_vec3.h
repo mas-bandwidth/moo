@@ -5,8 +5,8 @@
 //
 // A vec3 is one immutable GC object: the common header (with its creation number, docs/DETERMINISM.md 1)
 // and three Q48.16 components. It holds no reference to another object, so the GC treats it as a leaf, as
-// it treats a string. Nothing here creates one yet: card moo-v2-l3b-vec3-object-gc defines the functions
-// declared below (and the tag LUA_TVEC3, see the note) and card moo-v2-l3b-vec3-object-key defines the hash.
+// it treats a string. Its tag is LUA_TVEC3 (lua.h, note decision 1). Nothing here creates one yet: card
+// moo-v2-l3b-vec3-object-gc defines the functions declared below and card moo-v2-l3b-vec3-object-key defines the hash.
 #pragma once
 
 #include "lobject.h"

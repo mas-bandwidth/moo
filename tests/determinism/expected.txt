@@ -3,10 +3,12 @@
 # Re-pinned when number became Q48.16 (layer 3): every effects hash held; the state hashes moved with the raw
 # representation of numbers and the hashing of number keys.
 # moo: re-pinned when layer 3 removed the vector and integer libraries: their startup objects shifted every creation number.
-coroutines.luau a2351a1850f47a3e eae7f9734f410e3a
-gcchurn.luau 6d789a68240b8976 5ee2eb0d2642bda5
-library.luau 9ce6b3fc5ed7d5fe 039fbc53f46d1d5a
-objectkeys.luau c026a789bb37c024 38780e98f3910393
-coroutines2.luau 2ca405a9600143fa dc579a5432f7898e
-errors.luau ee7b3d6f2b3bfb9e 4d4a67e1614c5a55
-math.luau a005f1cb6d366b18 bb3e5e4465819cce
+# moo: re-pinned when layer 3b added the vec3 tag: its type-name string "vec3" shifted every creation number by one
+# (docs/layer3b/moo-v2-l3b-vec3-object.md, decision 1, item 3).
+coroutines.luau 87415de4bd8d788a 5c5b83003f192d3f
+gcchurn.luau 457e563d872baf1e 2abd24e2bddab39e
+library.luau 4d053eec9658fe53 1e2a00317a2595ce
+objectkeys.luau 5e3e1deb0bac6e7b 507a9f51a8f19397
+coroutines2.luau 46858120d5307229 f66cdf65627402aa
+errors.luau f7037948e0d4bea2 a8553ceb065dad36
+math.luau 2f1dd357cba511b4 dda4446980e68248

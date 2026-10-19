@@ -46,12 +46,12 @@ Why:
   per-type metatables and `tostring` all dispatch on the tag, so a shared tag would add a second dispatch at each of
   those sites. Three tags cost three enumerators.
 
-What adding the tag changes (all of it outside this card's PATHS, see "Not done"):
+What adding the tag changes. This card made all of it (the second attempt, after the coordinator widened PATHS to
+these files and told it to re-pin once, 2026-10-19):
 
 1. `VM/src/ltm.cpp`, `luaT_typenames`: add `"vec3"` after the `#if LUA_VECTOR_DOUBLE == 1` `"vector"` arm. The
-   `static_assert` at `ltm.cpp:76` holds the array to `LUA_T_COUNT`. `ltm.cpp` is not in `docs/PATCHES.md` yet, so
-   adding it needs a new row there, or `tools/moo-check-patches.sh` (the `moo-l3-patch-inventory` case in Moo.Test)
-   fails.
+   `static_assert` at `ltm.cpp:76` holds the array to `LUA_T_COUNT`. `ltm.cpp` was not in `docs/PATCHES.md`, so it
+   got a new row there (and the `lua.h` row names the tag), or `tools/moo-check-patches.sh` fails.
 2. `VM/src/moo_layout.cpp`: `sizeof(global_State)` goes from 19216 to 19232, because `mt[LUA_T_COUNT]` and
    `ttname[LUA_T_COUNT]` each gain a pointer. The initial `totalbytes` includes it.
 3. Every creation number moves up by one, and the pinned hashes move with them. `luaT_init` interns one type-name
@@ -59,9 +59,9 @@ What adding the tag changes (all of it outside this card's PATHS, see "Not done"
    number is one higher. Object keys hash by that number, so table order moves, and with it every hash pinned on it.
    `global_State` also grows (item 2), and that moves GC pacing. The state hash covers each object's `tt` too, and
    every proto and upvalue changes tag. So both hashes of every program in `tests/determinism/expected.txt` change,
-   and so do five frozen values in `tests/Moo.test.cpp`. "Measured" below has the numbers. Each of the quat and
-   transform tags will do the same again. So the cheapest route adds all three tags in one card and re-pins once,
-   with the `TKey` widening from item 4 in that same card.
+   and so do five frozen values in `tests/Moo.test.cpp`. "Re-pinned" below has every old and new value. Each of the
+   quat and transform tags does the same again: the coordinator chose to add only the vec3 tag here, so the quat and
+   transform cards each add their own tag and re-pin once more (the `TKey` widening of item 4 goes with quat).
 4. `TKey::tt` (`VM/src/lobject.h:510`) is 4 bits. With vec3, `LUA_TDEADKEY` is 15, the largest value it holds, so
    vec3 still fits (`static_assert`, `VM/src/ltable.cpp:54`). The quat and transform tags push `LUA_TDEADKEY` to 17,
    so the quat card widens `TKey` to `unsigned tt : 5; int next : 27;`. `next` needs ±(2^26 - 1)
@@ -151,21 +151,59 @@ makes the decision.
 
 ## What this card changed
 
+- `VM/include/lua.h`, `enum lua_Type`: `LUA_TVEC3` after the `LUA_VECTOR_DOUBLE == 1` arm, before `LUA_TDEADKEY`
+  (`moo:` comment). It is 14; `LUA_TDEADKEY` and `LUA_T_COUNT` are 15, `LUA_TPROTO` 16, `LUA_TUPVAL` 17, `LUA_T_ALL` 18.
+- `VM/src/ltm.cpp`, `luaT_typenames`: `"vec3"` last (`moo:` comment), so `type()` and `lua_typename` will say
+  `vec3` once card gc makes one.
+- `VM/src/moo_layout.cpp`: `sizeof(global_State)` 19216 -> 19232 (`mt[]` and `ttname[]` each gain a pointer).
+- `docs/PATCHES.md`: a new `VM/src/ltm.cpp` row, and the `VM/include/lua.h` row names the tag.
+  `tools/moo-check-patches.sh` passes.
+- `tests/determinism/expected.txt` and five frozen values in `tests/Moo.test.cpp`: re-pinned once, after clang and
+  gcc gave identical new values (below).
 - `VM/src/moo_vec3.h` (new): `MooVec3`, its `static_assert`s, `MOO_VEC3_TOSTR_MAX`, and the declarations of
   `moo_vec3_new`, `moo_vec3_equal`, `moo_vec3_tostring` and `moo_vec3_hash`, each citing this note. Nothing defines
-  or calls them yet, so no behaviour changes.
+  or calls them yet, so no object is created.
 - `tests/moo/moo-v2-l3b-vec3-object-design.test.cpp` (new), doctest suite `moo-v2-l3b-vec3-object-design`:
   `Vec3ObjectLayout` (header field offsets equal `GCheader`'s, x/y/z at 16/24/32, size 40, align 8, payload equals
-  `sizeof(fixVec3)`), `Vec3TagSlotIsAfterObject` (`LUA_TOBJECT` is 13 and `LUA_TDEADKEY` and `LUA_T_COUNT` are 14,
-  so the new tag will be 14 and `LUA_TDEADKEY` 15, which still fits `TKey::tt`), and `Vec3TostringBound` (the
-  widest `moo_numtostr` output is at most 34 characters, which is what `MOO_VEC3_TOSTR_MAX` is built from).
-- `VM/include/lua.h`: unchanged against BASE. Attempt 2's `LUA_TVEC3` after `LUA_TUPVAL` is removed (decision 1).
+  `sizeof(fixVec3)`), `Vec3TagSlotIsAfterObject` (`LUA_TOBJECT` 13, `LUA_TVEC3` 14, `LUA_TDEADKEY` and `LUA_T_COUNT`
+  15, which still fits `TKey::tt`, and `luaT_typenames[LUA_TVEC3]` is `"vec3"`), and `Vec3TostringBound` (the widest
+  `moo_numtostr` output is at most 34 characters, which is what `MOO_VEC3_TOSTR_MAX` is built from).
+
+## Re-pinned
+
+Measured on hetzner2 (Linux; clang and gcc; Moo.Test) at the merged tree with the tag. Before the re-pin the same 6
+cases failed on both compilers and nothing else did: `DeterminismSuite`, and in `tests/Moo.test.cpp`
+`ObjectKeyOrderIgnoresAddresses`, `TostringPrintsCreationNumber`, `GcPacingIsAFunctionOfTheProgram`,
+`DestructorsRunInCreationOrder` and `WeakTableOrderIsAFunctionOfTheProgram`. Every new value was identical on clang
+and gcc, and identical to the first attempt's experiment on amd-3. All are from the one cause in decision 1, item 3.
+
+`tests/determinism/expected.txt` (effects, state):
+
+| program | old | new |
+|---|---|---|
+| coroutines | `a2351a1850f47a3e` `eae7f9734f410e3a` | `87415de4bd8d788a` `5c5b83003f192d3f` |
+| coroutines2 | `2ca405a9600143fa` `dc579a5432f7898e` | `46858120d5307229` `f66cdf65627402aa` |
+| errors | `ee7b3d6f2b3bfb9e` `4d4a67e1614c5a55` | `f7037948e0d4bea2` `a8553ceb065dad36` |
+| gcchurn | `6d789a68240b8976` `5ee2eb0d2642bda5` | `457e563d872baf1e` `2abd24e2bddab39e` |
+| library | `9ce6b3fc5ed7d5fe` `039fbc53f46d1d5a` | `4d053eec9658fe53` `1e2a00317a2595ce` |
+| math | `a005f1cb6d366b18` `bb3e5e4465819cce` | `2f1dd357cba511b4` `dda4446980e68248` |
+| objectkeys | `c026a789bb37c024` `38780e98f3910393` | `5e3e1deb0bac6e7b` `507a9f51a8f19397` |
+
+`tests/Moo.test.cpp`:
+
+| case | old | new |
+|---|---|---|
+| `ObjectKeyOrderIgnoresAddresses` | `43,28,42,57,9,10,34,24,49,22,47,17,59,8,46,58,36,56,13,52,55,54,37,53,1,41,35,50,15,51,60,16,45,2,44,48,40,39,6,32,4,19,12,5,29,21,3` | `42,27,41,56,8,9,33,23,48,21,60,16,47,7,45,58,35,57,12,51,55,54,36,53,13,52,6,34,49,25,50,59,24,46,44,22,43,38,5,32,3,18,11,4,28,20,2` |
+| `TostringPrintsCreationNumber` | `table: #375 table: #376` | `table: #376 table: #377` |
+| `GcPacingIsAFunctionOfTheProgram` | `8555275115460150344` | `1918608859321230699` |
+| `DestructorsRunInCreationOrder` | `10826925009745639169` | `4673712535580941492` |
+| `WeakTableOrderIsAFunctionOfTheProgram` | `4589104574784354874` | `11785329807427589751` |
 
 ## Card moo-v2-l3b-vec3-object-gc
 
-Precondition: `LUA_TVEC3` is in `lua.h`, with the follow-on changes from decision 1: `ltm.cpp` and its
-`PATCHES.md` row, `moo_layout.cpp`, and the re-pinned `expected.txt` and `tests/Moo.test.cpp` values. If no earlier
-card has landed them, this card makes them first.
+Precondition: met by card `moo-v2-l3b-vec3-object-design`. `LUA_TVEC3` (14) is in `lua.h`, with the follow-on
+changes from decision 1: `ltm.cpp` and its `PATCHES.md` row, `moo_layout.cpp`, and the re-pinned `expected.txt` and
+`tests/Moo.test.cpp` values. This card adds no tag and re-pins nothing for the tag.
 
 1. `VM/src/moo_vec3.h`: add the accessors, modelled on `lobject.h`'s `LUA_VECTOR_DOUBLE == 1` `setvvalue`
    (`lobject.h:134-142`): `ttisvec3(o)`, `vec3value(o)` (`check_exp(ttisvec3(o), gco2vec3((o)->value.gc))`),
@@ -265,56 +303,15 @@ Precondition: card gc has landed (`luaO_rawequalKey` matches vec3 by value, and 
    is a value and is never cleared from a weak table."
 6. Inventory 17: "`LUA_TVECTOR` stays unused in the tag enum for upstream merges." gains "; vec3, quat and transform
    get new tags after `LUA_TOBJECT` (`docs/layer3b/moo-v2-l3b-vec3-object.md`)".
-7. "The determinism suite" table: every row's state hash is re-pinned when the tag lands (decision 1, item 3; the
-   values are under "Measured").
+7. "The determinism suite" table: every row's effects and state hash change to the new values under "Re-pinned"
+   (for example the `coroutines` row's `` `a2351a1850f47a3e` | `eae7f9734f410e3a` `` becomes
+   `` `87415de4bd8d788a` | `5c5b83003f192d3f` ``), and the paragraph that explains past re-pins gains "Re-pinned
+   again when layer 3b added the vec3 tag: its type-name string shifts every creation number by one."
 
-## Measured
+## Not done
 
-The raw logs (build, Moo.Test on both compilers, the experiment diff, the patch check) are kept with the card's
-receipts under `nova-reads/moo-v2-l3b-vec3-object-design.work/logs/experiment-tag14`. The card that lands the tag
-re-measures them; these numbers are evidence for the decision, not values to paste.
-
-Experiment on amd-3 (Linux; clang 18 and gcc 13; Moo.Test). The tree was BASE `efc69470` with three edits that were
-not committed: `LUA_TVEC3` after `LUA_TOBJECT` in `lua.h`, `"vec3"` in `luaT_typenames`, and `sizeof(global_State)
-== 19232` in `moo_layout.cpp`.
-
-- It builds with both compilers. `TKey::tt` holds the new `LUA_TDEADKEY` (15).
-- Moo.Test has 175 cases. 169 pass and 6 fail, the same 6 on clang and gcc: `DeterminismSuite`, and in
-  `tests/Moo.test.cpp` `ObjectKeyOrderIgnoresAddresses`, `TostringPrintsCreationNumber`
-  (`table: #376 table: #377`, pinned as `#375 #376`), `GcPacingIsAFunctionOfTheProgram`,
-  `DestructorsRunInCreationOrder` and `WeakTableOrderIsAFunctionOfTheProgram`. Each is a frozen value that moved
-  for the reasons in decision 1, item 3. Nothing else failed.
-- The new determinism hashes are identical on clang and gcc, so the change stays deterministic. Only the pinned
-  values move:
-
-| program | effects | state |
-|---|---|---|
-| coroutines | `87415de4bd8d788a` | `5c5b83003f192d3f` |
-| coroutines2 | `46858120d5307229` | `f66cdf65627402aa` |
-| errors | `f7037948e0d4bea2` | `a8553ceb065dad36` |
-| gcchurn | `457e563d872baf1e` | `2abd24e2bddab39e` |
-| library | `4d053eec9658fe53` | `1e2a00317a2595ce` |
-| math | `2f1dd357cba511b4` | `dda4446980e68248` |
-| objectkeys | `5e3e1deb0bac6e7b` | `507a9f51a8f19397` |
-
-  The suite hash is `9fd9578a1edf9d0b`. These values hold for vec3 alone. Adding quat and transform as well changes
-  them again.
-- `tools/moo-check-patches.sh` on that tree says `VM/src/ltm.cpp is modified or deleted upstream but is not in
-  docs/PATCHES.md`, so `ltm.cpp` needs a new row. The in-suite case `MooL3PatchInventoryGate` checks only that the
-  script exists, so only the push gate catches this.
-
-## Not done (this card HOLDs)
-
-The tag is decided (14, after `LUA_TOBJECT`) but not added. Adding it needs files outside this card's PATHS:
-`VM/src/ltm.cpp`, `docs/PATCHES.md`, `VM/src/moo_layout.cpp`, `tests/determinism/expected.txt` and
-`tests/Moo.test.cpp` (five frozen values). It also changes the determinism suite's pinned hashes, which this card's
-DONE-WHEN says must not change. The card says to name such
-files and HOLD rather than edit them. Two routes land it:
-
-- re-deal this card with PATHS widened to those five files and DONE-WHEN changed to "the determinism hashes are the
-  re-pinned values"; or
-- move the tag into `moo-v2-l3b-vec3-object-gc` (its precondition above), which is the first card that creates a
-  vec3 anyway.
-
-Either way, the better cut adds `LUA_TVEC3`, `LUA_TQUAT` and `LUA_TTRANSFORM` together, with `TKey::tt` widened to
-5 bits (`VM/src/lobject.h`). Then the frozen values are re-pinned once, not three times.
+- No vec3 is created and no behaviour of a program changes beyond the creation-number shift: the four functions are
+  declared, not defined (cards gc and key).
+- `docs/DESIGN.md` and `docs/DETERMINISM.md` are not edited (the brief forbids it); "Sentences that must change"
+  lists what `moo-v2-l3b-conformance` folds in, including the suite table's new hashes.
+- quat and transform tags, and the `TKey::tt` widening, are their own cards' (decision 1, items 3 and 4).
