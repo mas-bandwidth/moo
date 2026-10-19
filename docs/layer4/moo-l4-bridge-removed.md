@@ -127,44 +127,16 @@ the same command prints nothing (exit 1).
 
 ## The VM `double` audit
 
-Per the coordinator's 2026-10-19 revision (`list every hit, grouped by the card or area that owns it
-(C API boundary, comments, GC/clock timing, vector library, string.pack, lnumutils, other). Hits in
-code other cards own are recorded, not removed here; only the bridge and its callers are this
-card's`), `git grep -n 'double' -- VM/src` prints **151** lines at this head (153 at BASE; the
-two-line difference is `lgcdebug.cpp:827`'s deleted bridge call and `lveclib.cpp:15`'s deleted
-bridge comment).
+The coordinator revision asks that remaining `double` hits be recorded and grouped by owning area; the earlier condition that only the C API and comments remain is no longer required. At this merged head, `git grep -n double -- VM/src` reports 142 hits. The grouped inventory below accounts for all hits; the exact unmodified grep output follows so line numbers and context can be checked.
 
-Grouped by the card or area that owns each hit:
+- **C API boundary (6):** `VM/src/moo_api.cpp` (17, 19, 24, 27, 31, 32).
+- **GC and clock timing (42):** `VM/src/lapi.cpp` (4), `VM/src/lgc.cpp` (8), `VM/src/lgc.h` (1), `VM/src/lperf.cpp` (10), and `VM/src/lstate.h` (19). These are GC metrics, timers, and clock conversion.
+- **Vector library and VM representation/runtime (45):** `VM/src/lbuiltins.cpp` (11), `VM/src/lobject.h` (5), `VM/src/ltable.cpp` (1), `VM/src/lveclib.cpp` (14), `VM/src/lvector.cpp` (1), `VM/src/lvector.h` (1), `VM/src/lvmexecute.cpp` (10), and `VM/src/lvmutils.cpp` (2). These hits belong to the float vector and its representation/runtime paths.
+- **Buffer and `string.pack`/`string.unpack` (25):** `VM/src/lbuflib.cpp` (9) and `VM/src/lstrlib.cpp` (16). The `f`/`d` serialization paths use bit-pattern conversion helpers; no float arithmetic was added by this card.
+- **Numeric compatibility helpers and formatter (20):** `VM/src/lnumutils.h` (17) and `VM/src/lnumprint.cpp` (3).
+- **Other comments and allocation/math sites (4):** `VM/src/lfunc.cpp` (1), `VM/src/lmathlib.cpp` (2), and `VM/src/lmem.cpp` (1).
 
-- **C API boundary (`VM/src/moo_api.cpp`, 6 hits; `VM/include/moo.h` declarations outside `VM/src`)**:
-  `moo_fromdouble` and `moo_todouble` (`moo_api.cpp:17,19,24,27,31,32`).
-- **Comments (19 hits)**:
-  `lbuflib.cpp:171,197,198`, `lbuiltins.cpp:1750`, `lgc.cpp:146`, `lgc.h:22`, `lmem.cpp:149`,
-  `lnumprint.cpp:395`, `lnumutils.h:15,17,45,46,61`, `lobject.h:89`, `lperf.cpp:94`,
-  `lstate.h:90`, `lstrlib.cpp:1572,1581,1735,1741`.
-- **GC/clock timing (39 hits — `lapi.cpp`, `lgc.cpp`, `lperf.cpp`, `lstate.h`)**:
-  - `VM/src/lapi.cpp` (4 hits): lines `1467,1468,1491,1492` (`gcmetrics` mark/sweep times).
-  - `VM/src/lgc.cpp` (6 hits): lines `948,1081,1083,1095,1122,1268` (`gcmetrics` timestamps/intervals).
-  - `VM/src/lperf.cpp` (10 hits): lines `28,53,73,83,96,105,114,129,144,151` (`lua_clock` / high-precision timer).
-  - `VM/src/lstate.h` (19 hits): lines `95,97,100,101,104,106,107,109,110,113,115,116,119,120,121,122,123,124,132` (`GCMetrics` struct fields).
-- **Vector library & float `vector` type (`moo-l3-libs-out`, 59 hits — `lbuiltins.cpp`, `lobject.h`, `ltable.cpp`, `lveclib.cpp`, `lvector.cpp`, `lvector.h`, `lvmexecute.cpp`, `lvmutils.cpp`)**:
-  - `VM/src/lbuiltins.cpp` (22 non-comment hits): boundary helper calls for vector fastcalls (`1177,1178,1185,1194,1623,1625,1679,1681,1880`), `condvectordouble` macro uses (`1597,1648,1699,1740,1767,1819,1863,1905,1947,1999`), SSE float round helpers and f64 fastcalls (`1751,1754,1757,1759,1760,1796,1840` — note `1751,1754,1757,1759,1760,1796,1840` also listed under `other` below).
-  - `VM/src/lobject.h` (1 hit): line `205` (`setvvalue` macro `double`).
-  - `VM/src/ltable.cpp` (1 hit): line `192` (`hashvec(const LuaTable* t, const double* v)`).
-  - `VM/src/lveclib.cpp` (18 hits): boundary conversions and float `vector` operations (`16,17,18,21,36,38,81,83,98,99,100,108,276,288,337,338,339,340`).
-  - `VM/src/lvector.cpp` (1 hit) and `VM/src/lvector.h` (1 hit): `luaVec_newvector` signature (`lvector.cpp:7`, `lvector.h:8`).
-  - `VM/src/lvmexecute.cpp` (10 hits): boundary helper calls (`moo_numfromdoublevalue` / `moo_numtodouble`) on `vvalue` vector components (`631,1871,1884,1933,1946,1995,2138,2185,2232,3137`).
-  - `VM/src/lvmutils.cpp` (2 hits): boundary helper calls (`moo_numtodouble`) in `luaV_doarithimpl` vector branches (`616,647`).
-- **`string.pack` / `string.unpack` (`VM/src/lstrlib.cpp`, 12 non-comment hits)**:
-  float/double pack/unpack format specifiers `f`, `d`, `n` and boundary bit-pattern helpers (`1512,1582,1585,1586,1594,1595,1738,1742,1744,1756,1757,1759`).
-- **`lnumutils.h` (`VM/src/lnumutils.h`, 9 non-comment hits)**:
-  `luai_num*` compatibility inline helpers (`23,28,33,38,43,49,54,59,62`).
-- **Other (`lbuflib.cpp`, `lnumprint.cpp`, `lmem.cpp`)**:
-  - `VM/src/lbuflib.cpp` (7 non-comment hits): `buffer.readf32`/`readf64`/`writef32`/`writef64` boundary bit-pattern conversions and table entries (`174,203,405,413,437,445` plus template instantiations).
-  - `VM/src/lnumprint.cpp` (2 non-comment hits): legacy `luai_num2str` double formatting (`397,462`).
-  - `VM/src/lmem.cpp` (1 non-comment hit): block-header alignment union (`152`).
-
-Every hit follows, exactly as `git grep -n 'double' -- VM/src` prints it at this head:
+Every hit, exactly as printed by `git grep -n double -- VM/src` at this head:
 
 ```
 VM/src/lapi.cpp:1467:        double startmarktime = g->gcmetrics.currcycle.marktime;
@@ -180,26 +152,17 @@ VM/src/lbuflib.cpp:405:    {"readf64", buffer_readfp<double, uint64_t>},
 VM/src/lbuflib.cpp:413:    {"writef64", buffer_writefp<double, uint64_t>},
 VM/src/lbuflib.cpp:437:    {"readf64", buffer_readfp<double, uint64_t>},
 VM/src/lbuflib.cpp:445:    {"writef64", buffer_writefp<double, uint64_t>},
-VM/src/lbuiltins.cpp:1177:        LUA_VECTOR_TYPE x = LUA_VECTOR_TYPE(moo_numtodouble(nvalue(arg0)));
-VM/src/lbuiltins.cpp:1178:        LUA_VECTOR_TYPE y = LUA_VECTOR_TYPE(moo_numtodouble(nvalue(args)));
-VM/src/lbuiltins.cpp:1185:            z = LUA_VECTOR_TYPE(moo_numtodouble(nvalue(args + 1)));
-VM/src/lbuiltins.cpp:1194:            w = LUA_VECTOR_TYPE(moo_numtodouble(nvalue(args + 2)));
-VM/src/lbuiltins.cpp:1566:        if (moo_numfromdouble(double(val), &out) != 0)
-VM/src/lbuiltins.cpp:1589:        // built"; DETERMINISM.md 18): the same moo_numtofloatbits / moo_numtodoublebits as the library path,
-VM/src/lbuiltins.cpp:1590:        // with no float or double arithmetic.
-VM/src/lbuiltins.cpp:1600:            uint64_t v = moo_numtodoublebits(raw);
-VM/src/lbuiltins.cpp:1623:        setnvalue(res, moo_numfromdoublevalue(luai_sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2] + v[3] * v[3])));
-VM/src/lbuiltins.cpp:1625:        setnvalue(res, moo_numfromdoublevalue(luai_sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2])));
-VM/src/lbuiltins.cpp:1679:        setnvalue(res, moo_numfromdoublevalue(a[0] * b[0] + a[1] * b[1] + a[2] * b[2] + a[3] * b[3]));
-VM/src/lbuiltins.cpp:1681:        setnvalue(res, moo_numfromdoublevalue(a[0] * b[0] + a[1] * b[1] + a[2] * b[2]));
-VM/src/lbuiltins.cpp:1880:        const LUA_VECTOR_TYPE t = LUA_VECTOR_TYPE(moo_numtodouble(nvalue(args + 1)));
-VM/src/lbuiltins.cpp:2675:LUAU_TARGET_SSE41 inline double roundsd_sse41(double v)
-VM/src/lbuiltins.cpp:2686:        double a1 = nvalue(arg0);
-VM/src/lbuiltins.cpp:2698:        double a1 = nvalue(arg0);
-VM/src/lbuiltins.cpp:2710:        double a1 = nvalue(arg0);
-VM/src/lbuiltins.cpp:2713:        const double offset = 0.49999999999999994;
-VM/src/lbuiltins.cpp:2854:    luauF_readfp<double>,
-VM/src/lbuiltins.cpp:2855:    luauF_writefp<double>,
+VM/src/lbuiltins.cpp:1534:        if (moo_numfromdouble(double(val), &out) != 0)
+VM/src/lbuiltins.cpp:1557:        // built"; DETERMINISM.md 18): the same moo_numtofloatbits / moo_numtodoublebits as the library path,
+VM/src/lbuiltins.cpp:1558:        // with no float or double arithmetic.
+VM/src/lbuiltins.cpp:1568:            uint64_t v = moo_numtodoublebits(raw);
+VM/src/lbuiltins.cpp:2368:LUAU_TARGET_SSE41 inline double roundsd_sse41(double v)
+VM/src/lbuiltins.cpp:2379:        double a1 = nvalue(arg0);
+VM/src/lbuiltins.cpp:2391:        double a1 = nvalue(arg0);
+VM/src/lbuiltins.cpp:2403:        double a1 = nvalue(arg0);
+VM/src/lbuiltins.cpp:2406:        const double offset = 0.49999999999999994;
+VM/src/lbuiltins.cpp:2548:    luauF_readfp<double>,
+VM/src/lbuiltins.cpp:2549:    luauF_writefp<double>,
 VM/src/lfunc.cpp:125:    // double link the upvalue in the global open upvalue list
 VM/src/lgc.cpp:47: * target heap size during atomic phase in relation to live heap size (e.g. 200% goal means the heap's worst case size is double
 VM/src/lgc.cpp:164:static void recordGcStateStep(global_State* g, int startgcstate, double seconds, bool assist, size_t work)
