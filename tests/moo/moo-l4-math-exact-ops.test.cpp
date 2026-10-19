@@ -15,6 +15,8 @@
 
 #include "MooHost.h"
 
+#include "fixed/fixed_int128.h"
+
 #include "doctest.h"
 
 #include <limits.h>
@@ -52,36 +54,36 @@ struct Lcg
     }
 };
 
-// Independent 128-bit integer reference operations (never calling moo_number.h or fixed).
+// Independent 128-bit integer reference operations (never calling moo_number.h or fixed's fixed-point ops; only plain 128-bit integer arithmetic).
 int64_t refAdd(int64_t a, int64_t b)
 {
-    __int128 s = (__int128)a + (__int128)b;
-    if (s > (__int128)kRawMax)
+    fixInt128 s = fixInt128Add(fixInt128FromI64(a), fixInt128FromI64(b));
+    if (fixInt128Gt(s, fixInt128FromI64(kRawMax)))
         return kRawMax;
-    if (s < (__int128)kRawMin)
+    if (fixInt128Lt(s, fixInt128FromI64(kRawMin)))
         return kRawMin;
-    return (int64_t)s;
+    return fixInt128ToI64(s);
 }
 
 int64_t refSub(int64_t a, int64_t b)
 {
-    __int128 d = (__int128)a - (__int128)b;
-    if (d > (__int128)kRawMax)
+    fixInt128 d = fixInt128Sub(fixInt128FromI64(a), fixInt128FromI64(b));
+    if (fixInt128Gt(d, fixInt128FromI64(kRawMax)))
         return kRawMax;
-    if (d < (__int128)kRawMin)
+    if (fixInt128Lt(d, fixInt128FromI64(kRawMin)))
         return kRawMin;
-    return (int64_t)d;
+    return fixInt128ToI64(d);
 }
 
 int64_t refMul(int64_t a, int64_t b)
 {
-    __int128 prod = (__int128)a * (__int128)b + (__int128)kRawHalf;
-    __int128 shifted = prod >> 16;
-    if (shifted > (__int128)kRawMax)
+    fixInt128 prod = fixInt128Add(fixInt128MulI64(a, b), fixInt128FromI64(kRawHalf));
+    fixInt128 shifted = fixInt128Shr(prod, 16);
+    if (fixInt128Gt(shifted, fixInt128FromI64(kRawMax)))
         return kRawMax;
-    if (shifted < (__int128)kRawMin)
+    if (fixInt128Lt(shifted, fixInt128FromI64(kRawMin)))
         return kRawMin;
-    return (int64_t)shifted;
+    return fixInt128ToI64(shifted);
 }
 
 int64_t refFmod(int64_t a, int64_t b)
