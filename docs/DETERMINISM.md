@@ -23,7 +23,8 @@ deterministic, it is removed.
 
 The conformance layer (layer 5 in [DESIGN.md](DESIGN.md)) checks the guarantee: every program
 in the determinism suite runs on each platform and compiler, and the full VM state hash and
-the effect log must match bit for bit.
+the effect log must match bit for bit. Its libFuzzer targets compare every number operator with
+`fixed`'s C and require `parse(format(x)) == x` for arbitrary input.
 
 ## Status
 
@@ -73,30 +74,52 @@ slots, strings, buffers, userdata, closures, threads; and the GC counters). Both
 `tests/determinism/expected.txt` everywhere. The programs: object-keyed tables of every
 collectable kind with deletes and rehash (`objectkeys`), allocation churn with weak keys, weak
 values, weak both and userdata destructors in five size classes (`gcchurn`), coroutines
-(generators, yields across `pcall`, errors, close, wrap, nesting: `coroutines`), and the rest of
-the surface without transcendentals (`library`). Measured 2026-10-19, all matching
-`tests/determinism/expected.txt`:
+(generators, yields across `pcall`, errors, close, wrap, nesting: `coroutines`, and the
+adversarial transitions and refusals in `coroutines2`), every error string and traceback
+(`errors`), the rest of the surface without transcendentals (`library`), and the math oracle's
+programs (`math`). Every platform cell is `same` or `pending nightly`:
 
-| program | effects | state | gcc 13 | clang 18 | macOS arm64 | Windows |
-|---|---|---|---|---|---|---|
-| coroutines | `a2351a1850f47a3e` | `eae7f9734f410e3a` | same | same | pending nightly | pending nightly |
-| coroutines2 | `2ca405a9600143fa` | `dc579a5432f7898e` | same | same | pending nightly | pending nightly |
-| errors | `ee7b3d6f2b3bfb9e` | `4d4a67e1614c5a55` | same | same | pending nightly | pending nightly |
-| gcchurn | `6d789a68240b8976` | `5ee2eb0d2642bda5` | same | same | pending nightly | pending nightly |
-| library | `9ce6b3fc5ed7d5fe` | `039fbc53f46d1d5a` | same | same | pending nightly | pending nightly |
-| math | `a005f1cb6d366b18` | `bb3e5e4465819cce` | same | same | pending nightly | pending nightly |
-| objectkeys | `c026a789bb37c024` | `38780e98f3910393` | same | same | pending nightly | pending nightly |
+| program | effects | state | hulk gcc 15.2 | hulk clang 21.1 | hulk clang Debug ASan+UBSan | mini-m5-1 arm64 Apple clang 21 | windows-msvc | windows-clang-cl |
+|---|---|---|---|---|---|---|---|---|
+| coroutines | `a2351a1850f47a3e` | `eae7f9734f410e3a` | same | same | pending nightly | pending nightly | pending nightly | pending nightly |
+| coroutines2 | `2ca405a9600143fa` | `dc579a5432f7898e` | same | same | pending nightly | pending nightly | pending nightly | pending nightly |
+| errors | `ee7b3d6f2b3bfb9e` | `4d4a67e1614c5a55` | same | same | pending nightly | pending nightly | pending nightly | pending nightly |
+| gcchurn | `6d789a68240b8976` | `5ee2eb0d2642bda5` | same | same | pending nightly | pending nightly | pending nightly | pending nightly |
+| library | `9ce6b3fc5ed7d5fe` | `039fbc53f46d1d5a` | same | same | pending nightly | pending nightly | pending nightly | pending nightly |
+| math | `a005f1cb6d366b18` | `bb3e5e4465819cce` | same | same | pending nightly | pending nightly | pending nightly | pending nightly |
+| objectkeys | `c026a789bb37c024` | `38780e98f3910393` | same | same | pending nightly | pending nightly | pending nightly | pending nightly |
+
+The last full nightly-workflow matrix the coordinator dispatched was
+[run 39176151564](https://github.com/mas-bandwidth/moo/actions/runs/39176151564), created
+2026-10-18 23:21:11Z at head `291f70d6a80c9ecc9a1999fcd84bf82688978fe1`, on the layer 5 branch
+before this tree's re-pin; TLC and the math-oracle job passed. Linux gcc, Linux clang, macOS arm64 and
+Windows clang-cl built and ran `Moo.Test` and reported no determinism-hash mismatch. Windows MSVC
+failed to build at `tests/moo/moo-l4-math-exact-ops.test.cpp` (C2059), before its tests ran. The
+sanitizer configuration is not in the scheduled matrix and remains pending. Because the pinned
+hashes moved after that run, the table records `same` only where this card re-ran the suite on the
+Linux bench (gcc 15.2 and clang 21.1) and `pending nightly` elsewhere. The earlier scheduled
+[run 39107758768](https://github.com/mas-bandwidth/moo/actions/runs/39107758768), created
+2026-10-18 07:27:59Z at head `8317486459d8b67e2b4a4f4685e31141d3ee941b`, passed the four programs
+then present on Linux gcc, Linux clang, macOS arm64 and Windows MSVC; that Windows job took 8m23s.
+
+The closing card re-verified the Linux gate at this tree: `tools/revendor-fixed.sh --check` is
+clean, the no-clock check is clean, and `Moo.Test` passes all 175 cases on both gcc and clang, so
+there is no cross-compiler divergence. `Luau.Conformance` passes (106 cases) and `Luau.CLI.Test`
+passes (113 cases). `Luau.UnitTest` has one pre-existing failure, `fold_constants_div_by_zero` in
+`tests/BytecodeCallInliner.test.cpp` (5147 of 5148 cases passed, 55 skipped); that upstream file is
+unchanged by this docs-only card and fails the same way at BASE.
 
 `MOO_DETERMINISM_PRINT=1` prints the table's lines. The nightly runs it on Linux gcc, Linux clang,
-macOS arm64 and Windows, and runs the `moo-oracle` suite at `MOO_ORACLE_N=2^24` on all four; CI
-runs it on Linux clang on every push.
+macOS arm64 and Windows MSVC and clang-cl, and runs the `moo-oracle` suite at `MOO_ORACLE_N=2^24`
+on all four; CI runs it on Linux clang on every push.
 
 When tostring became the shortest exact round trip, `strconv.luau`'s cases that expect a double's digits were marked.
 When the `for` trip count became exact, `interrupt.luau` moved (its endless loops used a zero step, now an error) and
 `basic.luau` lost its zero-step cases. When literals became exact, `strings.luau` and `attrib.luau` moved too (literals beyond the range are compile errors),
 nine parser, linter, pretty-printer and frontend cases that assert double literals or precision lints are skipped with
 the reason beside each, and four compiler cases had their expected decimal constants updated to the Q48.16 values,
-marked `// moo:`.
+marked `// moo:`. `tools/moo-check-skips.sh` lists every doctest skip, marked early return and moved script; it
+fails when one lacks a `moo:` reason or names a replacement that does not exist.
 
 Upstream tests moo changed when number became Q48.16, and why: each moved script is a moo-specific expected file in
 `tests/conformance/moo/` (basic, buffers, math, tables, errors, events, bitwise, tpack, debug, strconv, iter, vector).
@@ -109,7 +132,8 @@ eleven compiler cases that asserted float `vector` folding, constants or fastcal
 `// moo: the float vector is removed (DESIGN.md "vec3, quat and transform")`. Three Sccp cases that build a NaN
 constant (`tests/Sccp.test.cpp` `sccp_nan_compare_check1/2/3`) and `NativeIntegerSpills`
 (`tests/Conformance.test.cpp`, whose integer constant the loader refuses by name) are skipped with the reason beside
-each. `MOO_CONFORMANCE_SCAN=1` makes the conformance harness's `assert` report and continue, to list every failing
+each. The same audit reports eleven upstream `#if 0` blocks that predate moo and still carry their upstream ticket
+comment; they are listed for a follow-up, not counted as moo skips. `MOO_CONFORMANCE_SCAN=1` makes the conformance harness's `assert` report and continue, to list every failing
 line of a script at once.
 
 Upstream tests moo changed, and why:
@@ -390,9 +414,9 @@ bytecode version 1; `VM/src/lvmload.cpp` reads the raw value and refuses Luau by
   the strings are type names, chunk names, line numbers and formatted values.
 - `VM/src/ldebug.cpp:362`, `:676`, `:692` the same for tracebacks.
 
-Deterministic once number formatting (8) and `tostring` (6) are. **Fix:** route numbers in
-messages through moo's formatter; the determinism suite compares error strings and
-tracebacks byte for byte.
+The layer 5 audit found no numeric conversion specifier in the VM's error or traceback formats
+(only integer line and frame counts), so no change was needed; `tests/determinism/errors.luau`
+pins the error strings and tracebacks byte for byte in the determinism suite.
 
 ### 21. Coroutines
 
@@ -403,9 +427,11 @@ are functions of the coroutine's state alone. The only external influences are t
 interrupt callback (`lua_callbacks(L)->interrupt`) and host functions that yield, which are
 inputs.
 
-So coroutines are deterministic once everything they compute is. **Proof owed:** a TLA+
-model of resume/yield/close/error states (layer 5), and adversarial coroutine programs in
-the determinism suite.
+So coroutines are deterministic once everything they compute is. The adversarial programs in the
+determinism suite are `coroutines` and `coroutines2` (`tests/determinism/coroutines2.luau`),
+and the conformance script and C++ cases in `tests/conformance/moo/l3/moo-l5-coroutine-programs.luau`
+and `tests/moo/moo-l5-coroutine-programs.test.cpp` pin the transitions at the C API boundary. The
+TLA+ model of resume/yield/close/error states (`tla/Coroutine.tla`) is owed.
 
 ### 22. Host-dependent limits
 
