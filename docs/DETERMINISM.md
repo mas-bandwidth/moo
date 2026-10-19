@@ -89,6 +89,10 @@ pending. Conformance, unit and CLI steps were skipped after the failed `Moo.Test
 scheduled [run 39107758768](https://github.com/mas-bandwidth/moo/actions/runs/39107758768), created
 2026-10-18 07:27:59Z at head `8317486459d8b67e2b4a4f4685e31141d3ee941b`, passed the four programs
 then present on Linux gcc, Linux clang, macOS arm64 and Windows MSVC; that Windows job took 8m23s.
+The closing card re-verified the gate on the Linux bench: `tools/revendor-fixed.sh --check` clean, the
+no-clock check clean, and `Moo.Test` on both gcc and clang reproduces the same four `9 ^ 1.5` reds
+(`MooL3Scripts`, `MooPowIntFrozenHash`, `MathPowFractionalStaysOnBridge`, `MooPowIntVmFractionalBridge`)
+identically, so there is no cross-compiler divergence.
 
 | program | effects | state | hulk gcc 13.3 | hulk clang 18.1 | hulk clang Debug ASan+UBSan | mini-m5-1 arm64 Apple clang 21 | windows-msvc | windows-clang-cl |
 |---|---|---|---|---|---|---|---|---|
