@@ -549,4 +549,8 @@ with Glenn.
    `Moo.Test` (the determinism suite and the math oracle) under both compilers and fails when
    either hash differs from `tests/determinism/expected.txt`.
 6. **First adoption.** An existing Luau consumer switches from Luau to moo, and its own
-   determinism checks pass.
+   determinism checks pass. *Held:* the Virtual Go pin named in this card's source is moo
+   `c4b81e6` (end of layer 2, robotgamedevelopers/virtualgo PR #11); no Virtual Go commit is
+   known to pin moo at or past the layer 5 lock. This waits for the separate Virtual Go repin
+   card that moves that pin to the lock, which the nightly adoption job needs before it can
+   check out a qualifying commit.
