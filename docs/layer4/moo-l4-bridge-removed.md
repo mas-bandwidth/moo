@@ -139,10 +139,10 @@ The coordinator revision asks that remaining `double` hits be recorded and group
 Every hit, exactly as printed by `git grep -n double -- VM/src` at this head:
 
 ```
-VM/src/lapi.cpp:1467:        double startmarktime = g->gcmetrics.currcycle.marktime;
-VM/src/lapi.cpp:1468:        double startsweeptime = g->gcmetrics.currcycle.sweeptime;
-VM/src/lapi.cpp:1491:        double totalmarktime = cyclemetrics->marktime - startmarktime;
-VM/src/lapi.cpp:1492:        double totalsweeptime = cyclemetrics->sweeptime - startsweeptime;
+VM/src/lapi.cpp:1437:        double startmarktime = g->gcmetrics.currcycle.marktime;
+VM/src/lapi.cpp:1438:        double startsweeptime = g->gcmetrics.currcycle.sweeptime;
+VM/src/lapi.cpp:1461:        double totalmarktime = cyclemetrics->marktime - startmarktime;
+VM/src/lapi.cpp:1462:        double totalsweeptime = cyclemetrics->sweeptime - startsweeptime;
 VM/src/lbuflib.cpp:171:    // moo_numfromdouble decodes the stored IEEE bits to Q48.16, ties to even; a NaN, infinity or out-of-range
 VM/src/lbuflib.cpp:174:    int status = moo_numfromdouble(double(val), &out);
 VM/src/lbuflib.cpp:197:    // moo_numtofloatbits / moo_numtodoublebits store the nearest IEEE bits, ties to even, with no float or
@@ -311,3 +311,7 @@ and host-boundary conversion remain, so the row should become **fixed** for `mat
 `docs/DETERMINISM.md`, "Fix" paragraph before item 8 begins "floats leave the VM (layer 3) and the
 math library is rebuilt on `fixed` (layer 4)"; that is now the built state, not a plan, and the
 closing card should say so.
+
+### W10 current-base reconciliation
+
+W10 normally merged current `origin/sprint/moo` `5b816928581b36e83b7a98e184c65304f988b978` in merge commit `4b82d5d7`. The merge had no conflicts and brought only the newly landed vector API removal. The ownership grouping above remains unchanged at 142 total hits; the exact audit output was refreshed because the merge shifted four `VM/src/lapi.cpp` line numbers.
