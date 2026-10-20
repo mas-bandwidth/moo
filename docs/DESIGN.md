@@ -562,11 +562,14 @@ with Glenn.
    `moo-l3-vector-api-out`). So the adoption is not a pin move alone: Virtual Go's host must drop
    `luaopen_vector` (and anything else the build then shows) and repin to the lock. That is the
    Virtual Go card `vg-script-repin-moo-l5`, which this layer waits for. *Held, re-measured
-   2026-10-20 on the layer 6 nightly attempt 2 (Linux bench):* no Virtual Go commit that pins moo
-   at or past `9001182` can be named from the bench. An anonymous
+   2026-10-20 on the layer 6 nightly attempts 2 and 3 (Linux bench):* no Virtual Go commit that
+   pins moo at or past `9001182` can be named from the bench. An anonymous
    `git ls-remote https://github.com/robotgamedevelopers/virtualgo.git` asks for a username
-   (`could not read Username for 'https://github.com'`), and the GitHub API returns 404 for the
-   repository, so the read secret the nightly needs exists only in Actions, not on the bench.
+   (`could not read Username for 'https://github.com'`, exit 128), and the GitHub API and web
+   pages both return 404 for the repository while the public moo API returns 200 at the same
+   moment, so the 404 is the private repository, not an outage. The bench has no credential store
+   (`GIT_CONFIG_GLOBAL=/dev/null`, no askpass), so the read secret the nightly needs exists only
+   in Actions, not on the bench.
    The nightly job is therefore not added yet: it needs the first Virtual Go commit that lands
    `vg-script-repin-moo-l5` to pin, then checks that commit out with the secret, builds moo at the
    job's own commit in place of Virtual Go's `VG_MOO_COMMIT` pin, and runs Virtual Go's own
