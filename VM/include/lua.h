@@ -104,6 +104,10 @@ enum lua_Type
     // upstream tags keep their values (docs/layer3b/moo-v2-l3b-vec3-object.md, decision 1)
     LUA_TVEC3,
 
+    // moo: quat, an immutable GC object of a fixQuat (a Q48.16 vec3 and a scalar); it follows vec3 so upstream
+    // tags keep their values (docs/layer3b/moo-v2-l3b-vec3-object.md, decision 1)
+    LUA_TQUAT,
+
     // values below this line are used in GCObject tags but may never show up in TValue type tags
 
     // LUA_TDEADKEY is used in TKey to identify Luau table entries that have the value set to nil,
