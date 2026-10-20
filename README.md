@@ -1,6 +1,6 @@
-<img src="docs/logo/moo-logo.svg" width="128" alt="moo">
-
 # moo
+
+<img src="docs/logo/moo-logo.svg" width="128" alt="moo">
 
 moo is a deterministic, fixed-point fork of [Luau](https://github.com/luau-lang/luau).
 
