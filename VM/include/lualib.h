@@ -37,6 +37,12 @@ LUALIB_API unsigned luaL_optunsigned(lua_State* L, int numArg, unsigned def);
 
 // moo: luaL_checkvector and luaL_optvector are removed with the vector C API (layer 3, docs/DESIGN.md "vec3, quat and transform")
 
+// moo: the vec3 C API (docs/DESIGN.md "vec3, quat and transform (layer 3b)"). The components are raw Q48.16
+// values, as lua_pushnumber takes them. moo_pushvec3 allocates one vec3; moo_tovec3 writes its three raw
+// components into out and returns 1, or returns 0 and writes nothing when idx is not a vec3. In lapi.cpp.
+LUALIB_API void moo_pushvec3(lua_State* L, lua_Number x, lua_Number y, lua_Number z);
+LUALIB_API int moo_tovec3(lua_State* L, int idx, lua_Number out[3]);
+
 LUALIB_API void luaL_checkstack(lua_State* L, int sz, const char* msg);
 LUALIB_API void luaL_checktype(lua_State* L, int narg, int t);
 LUALIB_API void luaL_checkany(lua_State* L, int narg);
@@ -150,6 +156,9 @@ LUALIB_API int luaopen_debug(lua_State* L);
 
 #define LUA_INTLIBNAME "integer"
 LUALIB_API int luaopen_integer(lua_State* L);
+
+// moo: the vec3 library (docs/DESIGN.md "vec3, quat and transform (layer 3b)"), opened by luaL_openlibs.
+LUALIB_API int luaopen_vec3(lua_State* L);
 
 // open all builtin libraries
 LUALIB_API void luaL_openlibs(lua_State* L);

@@ -16,6 +16,7 @@
 #include "lnumutils.h"
 #include "lbuffer.h"
 #include "lvector.h"
+#include "moo_vec3.h" // moo: the vec3 C API (docs/DESIGN.md "vec3, quat and transform (layer 3b)")
 
 #include <string.h>
 
@@ -581,6 +582,20 @@ const char* lua_namecallatom(lua_State* L, int* atom)
 
 // moo: lua_tovector is removed with the vector C API; no vector reaches a host (layer 3, docs/DESIGN.md "vec3, quat and transform")
 
+// moo: the vec3 C API (docs/DESIGN.md "vec3, quat and transform (layer 3b)"). The components are raw Q48.16
+// values; a vec3 is immutable, so moo_tovec3 copies them out.
+int moo_tovec3(lua_State* L, int idx, lua_Number out[3])
+{
+    StkId o = index2addr(L, idx);
+    if (!ttisvec3(o))
+        return 0;
+    const MooVec3* v = vec3value(o);
+    out[0] = v->x;
+    out[1] = v->y;
+    out[2] = v->z;
+    return 1;
+}
+
 int lua_objlen(lua_State* L, int idx)
 {
     StkId o = index2addr(L, idx);
@@ -725,6 +740,18 @@ void lua_pushunsigned(lua_State* L, unsigned u)
 }
 
 // moo: lua_pushvector is removed with the vector C API; a host that calls it fails to compile (layer 3, docs/DESIGN.md "vec3, quat and transform")
+
+// moo: one new vec3 on the stack, the same shape as lua_pushstring (docs/DESIGN.md "vec3, quat and transform
+// (layer 3b)"; every vec3 operation allocates a new object).
+void moo_pushvec3(lua_State* L, lua_Number x, lua_Number y, lua_Number z)
+{
+    luaC_checkGC(L);
+    luaC_threadbarrier(L);
+    ensure_stack(L, 1);
+    MooVec3* v = moo_vec3_new(L, x, y, z);
+    setvec3value(L, L->top, v);
+    api_incr_top(L);
+}
 
 void lua_pushlstring(lua_State* L, const char* s, size_t len)
 {

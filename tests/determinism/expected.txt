@@ -5,10 +5,12 @@
 # moo: re-pinned when layer 3 removed the vector and integer libraries: their startup objects shifted every creation number.
 # moo: re-pinned when layer 3b added the vec3 tag: its type-name string "vec3" shifted every creation number by one
 # (docs/layer3b/moo-v2-l3b-vec3-object.md, decision 1, item 3).
-coroutines.luau 87415de4bd8d788a 5c5b83003f192d3f
-gcchurn.luau 457e563d872baf1e 2abd24e2bddab39e
-library.luau 4d053eec9658fe53 1e2a00317a2595ce
-objectkeys.luau 5e3e1deb0bac6e7b 507a9f51a8f19397
-coroutines2.luau 46858120d5307229 f66cdf65627402aa
-errors.luau f7037948e0d4bea2 a8553ceb065dad36
-math.luau 2f1dd357cba511b4 dda4446980e68248
+# moo: re-pinned when the vec3 library was added to luaL_openlibs: its table and function names shift every
+# creation number (docs/layer3b/moo-v2-l3b-vec3-ops.md).
+coroutines.luau 14a9b3cff128eb95 3b97a8bfb6d7a324
+gcchurn.luau 74af43e489ecf54b 08a560138169a027
+library.luau 9e5ba12ad834c77d 9000ab43846170cf
+objectkeys.luau 863a034d939672ec d596ebcfc869f955
+coroutines2.luau 2ca405a9600143fa 0e031fe08c2e96bf
+errors.luau 73f268e45fb73545 8d2b96bb8f979fec
+math.luau b166f5d6481b48ef 7a977c8aef335485
