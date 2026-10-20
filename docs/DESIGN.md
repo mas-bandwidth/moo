@@ -549,4 +549,24 @@ with Glenn.
    `Moo.Test` (the determinism suite and the math oracle) under both compilers and fails when
    either hash differs from `tests/determinism/expected.txt`.
 6. **First adoption.** An existing Luau consumer switches from Luau to moo, and its own
-   determinism checks pass.
+   determinism checks pass. *Held, measured 2026-10-19 on a Linux bench (clang, Ninja):*
+   robotgamedevelopers/virtualgo is a private repository (readable with fleet credentials, not
+   anonymously). Its main at `dd59cad` pins moo at `8317486` (the merge of moo PR #15, layer 3,
+   179 commits before the layer 5 lock at `9001182`) in `script/CMakeLists.txt`
+   (`VG_MOO_COMMIT`, `VG_MOO_SHA256`); no branch pins anything later. Virtual Go's own checks
+   are the `script/` CTest suite (`script_test`, `script_determinism`, `script_test_fixed` and
+   three plants that must go red): at its own pin all six pass. Swapped by hand to moo at the
+   lock (a local `git archive` of `9001182`, its sha256 written into a scratch copy of the pin),
+   the host does not compile: `script/vg_script.cpp:413: use of undeclared identifier
+   'luaopen_vector'` (the vector library and its C API left moo in layer 3, `moo-l3-libs-out`,
+   `moo-l3-vector-api-out`). So the adoption is not a pin move alone: Virtual Go's host must drop
+   `luaopen_vector` (and anything else the build then shows) and repin to the lock. That is the
+   Virtual Go card `vg-script-repin-moo-l5`, which this layer waits for. *Re-confirmed
+   2026-10-20 from the layer 6 nightly attempt:* no Virtual Go commit that pins moo at or past
+   `9001182` is known, and none can be named from the bench. An anonymous `git ls-remote` of
+   robotgamedevelopers/virtualgo asks for a username (`terminal prompts disabled`) and GitHub
+   returns 404 for the repository; the read secret the nightly needs exists only in Actions, not
+   on the bench. So the nightly job is not added yet: it needs the repin commit to pin, then
+   checks out that commit, builds moo at the job's own commit in place of Virtual Go's pin, and
+   runs Virtual Go's own `script/` CTest suite (the checks above pass at its current pin), on the
+   fleet's self-hosted Linux runners. It gates nothing.
