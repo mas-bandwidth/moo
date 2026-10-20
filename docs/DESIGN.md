@@ -561,12 +561,15 @@ with Glenn.
    'luaopen_vector'` (the vector library and its C API left moo in layer 3, `moo-l3-libs-out`,
    `moo-l3-vector-api-out`). So the adoption is not a pin move alone: Virtual Go's host must drop
    `luaopen_vector` (and anything else the build then shows) and repin to the lock. That is the
-   Virtual Go card `vg-script-repin-moo-l5`, which this layer waits for. *Re-confirmed
-   2026-10-20 from the layer 6 nightly attempt:* no Virtual Go commit that pins moo at or past
-   `9001182` is known, and none can be named from the bench. An anonymous `git ls-remote` of
-   robotgamedevelopers/virtualgo asks for a username (`terminal prompts disabled`) and GitHub
-   returns 404 for the repository; the read secret the nightly needs exists only in Actions, not
-   on the bench. So the nightly job is not added yet: it needs the repin commit to pin, then
-   checks out that commit, builds moo at the job's own commit in place of Virtual Go's pin, and
-   runs Virtual Go's own `script/` CTest suite (the checks above pass at its current pin), on the
-   fleet's self-hosted Linux runners. It gates nothing.
+   Virtual Go card `vg-script-repin-moo-l5`, which this layer waits for. *Held, re-measured
+   2026-10-20 on the layer 6 nightly attempt 2 (Linux bench):* no Virtual Go commit that pins moo
+   at or past `9001182` can be named from the bench. An anonymous
+   `git ls-remote https://github.com/robotgamedevelopers/virtualgo.git` asks for a username
+   (`could not read Username for 'https://github.com'`), and the GitHub API returns 404 for the
+   repository, so the read secret the nightly needs exists only in Actions, not on the bench.
+   The nightly job is therefore not added yet: it needs the first Virtual Go commit that lands
+   `vg-script-repin-moo-l5` to pin, then checks that commit out with the secret, builds moo at the
+   job's own commit in place of Virtual Go's `VG_MOO_COMMIT` pin, and runs Virtual Go's own
+   `script/` CTest suite (`script_test`, `script_determinism`, `script_test_fixed` and three
+   plants that must go red; the invocation is the one in Virtual Go's CI). It gates nothing and
+   runs on the fleet's self-hosted Linux runners.

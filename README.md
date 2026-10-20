@@ -109,6 +109,14 @@ Upstream is taken **once per upstream release**, never commit by commit:
 moo keeps its patches small and in few files for exactly this reason; see
 [docs/DESIGN.md](docs/DESIGN.md), "Upstream merges".
 
+## Consumers
+
+[Virtual Go](https://github.com/robotgamedevelopers/virtualgo) is the first consumer: its
+`script/` host moves from Luau to moo. The layer 6 adoption check (its own `script/` CTest
+suite, run nightly against moo at the job's commit) is held until Virtual Go's
+`vg-script-repin-moo-l5` card pins moo at or past the layer 5 lock; see
+[docs/DESIGN.md](docs/DESIGN.md), "Layers".
+
 ## License
 
 moo is MIT licensed, the same as Luau.
