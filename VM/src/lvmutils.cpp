@@ -10,6 +10,7 @@
 #include "lgc.h"
 #include "ldo.h"
 #include "lnumutils.h"
+#include "moo_vec3.h" // moo: vec3 operators call fixed's vector functions (docs/DESIGN.md "vec3, quat and transform (layer 3b)")
 
 #include <string.h>
 
@@ -455,6 +456,8 @@ int luaV_equalval(lua_State* L, const TValue* t1, const TValue* t2)
         return bvalue(t1) == bvalue(t2); // true must be 1 !!
     case LUA_TLIGHTUSERDATA:
         return pvalue(t1) == pvalue(t2) && lightuserdatatag(t1) == lightuserdatatag(t2);
+    case LUA_TVEC3: // moo: == is the three raw components, never the address (docs/DESIGN.md "vec3, quat and transform (layer 3b)", "Operations")
+        return moo_vec3_equal(vec3value(t1), vec3value(t2));
     case LUA_TUSERDATA:
     {
         tm = get_compTM(L, uvalue(t1)->metatable, uvalue(t2)->metatable, TM_EQ);
@@ -549,13 +552,130 @@ void luaV_concat(lua_State* L, int total, int last)
     } while (total > 1); // repeat until only 1 result left
 }
 
+// moo: the payload of a vec3 as fixed's fixVec3, copied component for component; an operation never casts the
+// object's address (docs/DESIGN.md "vec3, quat and transform (layer 3b)", "Operations" and "Saturation, stated
+// precisely"). The same three helpers are the VM's one definition of vec3 arithmetic.
+namespace
+{
+
+fixVec3 mooVec3Payload(const MooVec3* v)
+{
+    return FIX_LITERAL(fixVec3){v->x, v->y, v->z};
+}
+
+// moo: + and - are moo's own saturating adds, as for number; fixed's fixVecAdd/fixVecSub are plain int64 adds at
+// this pin (docs/DESIGN.md "vec3, quat and transform (layer 3b)", "Saturation, stated precisely").
+fixVec3 mooVec3Add(fixVec3 a, fixVec3 b)
+{
+    return FIX_LITERAL(fixVec3){moo_numadd(a.x, b.x), moo_numadd(a.y, b.y), moo_numadd(a.z, b.z)};
+}
+
+fixVec3 mooVec3Sub(fixVec3 a, fixVec3 b)
+{
+    return FIX_LITERAL(fixVec3){moo_numsub(a.x, b.x), moo_numsub(a.y, b.y), moo_numsub(a.z, b.z)};
+}
+
+#if MOO_OVERFLOW_ERRORS
+// A checked build raises the same named error as number where release saturates (docs/DESIGN.md, "Overflow").
+bool mooVec3AddSaturates(fixVec3 a, fixVec3 b)
+{
+    return moo_numaddsaturates(a.x, b.x) || moo_numaddsaturates(a.y, b.y) || moo_numaddsaturates(a.z, b.z);
+}
+
+bool mooVec3SubSaturates(fixVec3 a, fixVec3 b)
+{
+    return moo_numsubsaturates(a.x, b.x) || moo_numsubsaturates(a.y, b.y) || moo_numsubsaturates(a.z, b.z);
+}
+
+bool mooVec3MulSaturates(fixVec3 a, fixVec3 b)
+{
+    return moo_nummulsaturates(a.x, b.x) || moo_nummulsaturates(a.y, b.y) || moo_nummulsaturates(a.z, b.z);
+}
+
+bool mooVec3MulScalarSaturates(fixed_t s, fixVec3 a)
+{
+    return moo_nummulsaturates(s, a.x) || moo_nummulsaturates(s, a.y) || moo_nummulsaturates(s, a.z);
+}
+#endif
+
+// Every vec3 operation allocates a new object (docs/DESIGN.md "vec3, quat and transform (layer 3b)").
+void mooVec3SetResult(lua_State* L, StkId ra, fixVec3 v)
+{
+    luaC_checkGC(L);
+    MooVec3* out = moo_vec3_new(L, v.x, v.y, v.z);
+    setvec3value(L, ra, out);
+}
+
+} // namespace
+
 template<TMS op>
 void luaV_doarithimpl(lua_State* L, StkId ra, const TValue* rb, const TValue* rc)
 {
     TValue tempb, tempc;
     const TValue *b, *c;
 
-    // moo: vector arithmetic has no VM value producer; preserve only the fixed-number and metamethod paths.
+    // moo: vec3 operators (docs/DESIGN.md "vec3, quat and transform (layer 3b)", "Operations"). + - and unary -
+    // follow number's saturation and checked-build error; * calls fixVecMul/fixMulSV, whose fixMul is saturating
+    // in moo's build. A vec3 with any other operand falls through to the metamethod path, which raises the
+    // ordinary arithmetic error. Every result is a new object.
+    if (ttisvec3(rb) || ttisvec3(rc))
+    {
+        fixVec3 a = ttisvec3(rb) ? mooVec3Payload(vec3value(rb)) : FIX_LITERAL(fixVec3){0, 0, 0};
+        fixVec3 d = ttisvec3(rc) ? mooVec3Payload(vec3value(rc)) : FIX_LITERAL(fixVec3){0, 0, 0};
+
+        if (ttisvec3(rb) && ttisvec3(rc))
+        {
+            switch (op)
+            {
+            case TM_ADD:
+#if MOO_OVERFLOW_ERRORS
+                if (mooVec3AddSaturates(a, d))
+                    luaG_runerror(L, "number overflow in '+'");
+#endif
+                mooVec3SetResult(L, ra, mooVec3Add(a, d));
+                return;
+            case TM_SUB:
+#if MOO_OVERFLOW_ERRORS
+                if (mooVec3SubSaturates(a, d))
+                    luaG_runerror(L, "number overflow in '-'");
+#endif
+                mooVec3SetResult(L, ra, mooVec3Sub(a, d));
+                return;
+            case TM_MUL:
+#if MOO_OVERFLOW_ERRORS
+                if (mooVec3MulSaturates(a, d))
+                    luaG_runerror(L, "number overflow in '*'");
+#endif
+                mooVec3SetResult(L, ra, fixVecMul(a, d));
+                return;
+            case TM_UNM:
+                mooVec3SetResult(L, ra, fixVecNeg(a));
+                return;
+            default:
+                break;
+            }
+        }
+        else if (op == TM_MUL && ttisvec3(rb) && ttisnumber(rc))
+        {
+            fixed_t s = nvalue(rc);
+#if MOO_OVERFLOW_ERRORS
+            if (mooVec3MulScalarSaturates(s, a))
+                luaG_runerror(L, "number overflow in '*'");
+#endif
+            mooVec3SetResult(L, ra, fixMulSV(s, a));
+            return;
+        }
+        else if (op == TM_MUL && ttisnumber(rb) && ttisvec3(rc))
+        {
+            fixed_t s = nvalue(rb);
+#if MOO_OVERFLOW_ERRORS
+            if (mooVec3MulScalarSaturates(s, d))
+                luaG_runerror(L, "number overflow in '*'");
+#endif
+            mooVec3SetResult(L, ra, fixMulSV(s, d));
+            return;
+        }
+    }
     if ((b = luaV_tonumber(rb, &tempb)) != NULL && (c = luaV_tonumber(rc, &tempc)) != NULL)
     {
         lua_Number nb = nvalue(b), nc = nvalue(c);
