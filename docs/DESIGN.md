@@ -560,8 +560,13 @@ with Glenn.
    the host does not compile: `script/vg_script.cpp:413: use of undeclared identifier
    'luaopen_vector'` (the vector library and its C API left moo in layer 3, `moo-l3-libs-out`,
    `moo-l3-vector-api-out`). So the adoption is not a pin move alone: Virtual Go's host must drop
-   `luaopen_vector` (and anything else the build then shows) and repin to the lock. That is a
-   Virtual Go card, not yet carded (proposed id `vg-script-repin-moo-l5`). The nightly job here
-   waits for it: it checks out the first Virtual Go commit that pins moo at or past the lock,
-   needs a repository secret with read access to the private Virtual Go repository, and runs on
-   the fleet's self-hosted Linux runners.
+   `luaopen_vector` (and anything else the build then shows) and repin to the lock. That is the
+   Virtual Go card `vg-script-repin-moo-l5`, which this layer waits for. *Re-confirmed
+   2026-10-20 from the layer 6 nightly attempt:* no Virtual Go commit that pins moo at or past
+   `9001182` is known, and none can be named from the bench. An anonymous `git ls-remote` of
+   robotgamedevelopers/virtualgo asks for a username (`terminal prompts disabled`) and GitHub
+   returns 404 for the repository; the read secret the nightly needs exists only in Actions, not
+   on the bench. So the nightly job is not added yet: it needs the repin commit to pin, then
+   checks out that commit, builds moo at the job's own commit in place of Virtual Go's pin, and
+   runs Virtual Go's own `script/` CTest suite (the checks above pass at its current pin), on the
+   fleet's self-hosted Linux runners. It gates nothing.
