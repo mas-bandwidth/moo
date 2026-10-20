@@ -315,6 +315,13 @@ static void reallymarkobject(global_State* g, GCObject* o)
         gray2black(o);
         return;
     }
+    // moo: a quat holds no references either, so it turns black directly (docs/DESIGN.md "vec3, quat and
+    // transform (layer 3b)"; docs/layer3b/moo-v2-l3b-quat-object.md, decision 6)
+    case LUA_TQUAT:
+    {
+        gray2black(o);
+        return;
+    }
     case LUA_TBUFFER:
     {
         gray2black(o); // buffers are never gray
@@ -683,6 +690,13 @@ static int isobjcleared(GCObject* o)
         stringmark(&o->gch);
         return 0;
     }
+    // moo: a quat is a value too (docs/DESIGN.md "vec3, quat and transform (layer 3b)";
+    // docs/layer3b/moo-v2-l3b-quat-object.md, decision 4)
+    if (o->gch.tt == LUA_TQUAT)
+    {
+        stringmark(&o->gch);
+        return 0;
+    }
 
     return iswhite(o);
 }
@@ -836,6 +850,11 @@ static void freeobj(lua_State* L, GCObject* o, lua_Page* page)
     // docs/layer3b/moo-v2-l3b-vec3-object.md, decision 6)
     case LUA_TVEC3:
         luaM_freegcofixed(L, gco2vec3(o), sizeof(MooVec3), gco2vec3(o)->memcat, page);
+        break;
+    // moo: free a quat leaf object (docs/DESIGN.md "vec3, quat and transform (layer 3b)";
+    // docs/layer3b/moo-v2-l3b-quat-object.md, decision 6)
+    case LUA_TQUAT:
+        luaM_freegcofixed(L, gco2quat(o), sizeof(MooQuat), gco2quat(o)->memcat, page);
         break;
     default:
         LUAU_ASSERT(0);

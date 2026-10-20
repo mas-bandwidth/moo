@@ -297,7 +297,7 @@ TEST_CASE("ObjectKeyOrderIgnoresAddresses")
     // moo: re-pinned when layer 3 removed the vector and integer libraries: fewer startup objects shift every creation number.
     // moo: re-pinned when layer 3b added the vec3 tag: its type-name string shifts every creation number by one
     // (docs/layer3b/moo-v2-l3b-vec3-object.md, decision 1, item 3).
-    CHECK(order == "42,27,41,56,8,9,33,23,48,21,60,16,47,7,45,58,35,57,12,51,55,54,36,53,13,52,6,34,49,25,50,59,24,46,44,22,43,38,5,32,3,18,11,4,28,20,2");
+    CHECK(order == "41,26,40,55,52,30,8,28,22,47,43,16,15,9,60,34,51,59,36,50,57,56,35,54,39,5,42,53,13,24,49,58,48,46,45,21,44,37,4,31,2,17,19,3,27,25,6");
 }
 
 // DETERMINISM.md 6: tostring prints the creation number, never the address.
@@ -308,7 +308,7 @@ TEST_CASE("TostringPrintsCreationNumber")
     std::string pair = mooRun(s.L, "local a, b = {}, {} return tostring(a) .. ' ' .. tostring(b)");
     // moo: re-pinned #400/#401 -> #375/#376 when layer 3 removed the vector and integer libraries (fewer startup objects).
     // moo: re-pinned #375/#376 -> #376/#377 when layer 3b added the vec3 type-name string (docs/layer3b/moo-v2-l3b-vec3-object.md).
-    CHECK(pair == "table: #376 table: #377");
+    CHECK(pair == "table: #377 table: #378");
 
     const char* const kinds = R"(
         local values = { {}, function() end, coroutine.create(function() end), buffer.create(1), newproxy() }
@@ -362,7 +362,7 @@ TEST_CASE("GcPacingIsAFunctionOfTheProgram")
     // moo: re-pinned when number became Q48.16, and again when layer 3 removed the vector and integer libraries
     // (fewer startup objects shift every creation number).
     // moo: re-pinned when layer 3b added the vec3 type-name string (docs/layer3b/moo-v2-l3b-vec3-object.md).
-    CHECK(mooHash(trace) == 1918608859321230699ull);
+    CHECK(mooHash(trace) == 9392283810654395904ull);
 }
 
 // Replaces upstream ApiAllocationRateAfterFullGC, which checked that lua_allocationrate measures bytes
@@ -423,7 +423,7 @@ TEST_CASE("DestructorsRunInCreationOrder")
     // Pinned: a change here changes when and in what order every host's destructors run.
     // moo: re-pinned when layer 3 removed the vector and integer libraries: fewer startup objects shift every creation number.
     // moo: re-pinned when layer 3b added the vec3 type-name string (docs/layer3b/moo-v2-l3b-vec3-object.md).
-    CHECK(mooHash(text) == 4673712535580941492ull);
+    CHECK(mooHash(text) == 7098317604663815751ull);
 }
 
 // DETERMINISM.md 13: which weak entries clear, and the order of what is left, under churn with object keys,
@@ -471,7 +471,7 @@ TEST_CASE("WeakTableOrderIsAFunctionOfTheProgram")
     // Pinned.
     // moo: re-pinned when layer 3 removed the vector and integer libraries: fewer startup objects shift every creation number.
     // moo: re-pinned when layer 3b added the vec3 type-name string (docs/layer3b/moo-v2-l3b-vec3-object.md).
-    CHECK(mooHash(trace) == 11785329807427589751ull);
+    CHECK(mooHash(trace) == 1196433714162079160ull);
 }
 
 // DESIGN.md "Semantics": number is built on the vendored fixed, compiled with FIX_SATURATE.

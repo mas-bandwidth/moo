@@ -44,6 +44,7 @@ const char* const luaT_typenames[] = {
 #endif
 
     "vec3", // moo: LUA_TVEC3's name (docs/layer3b/moo-v2-l3b-vec3-object.md, decision 1)
+    "quat", // moo: LUA_TQUAT's name, the vec3 pattern again (docs/layer3b/moo-v2-l3b-quat-object.md, decision 1)
 };
 
 const char* const luaT_eventname[] = {
