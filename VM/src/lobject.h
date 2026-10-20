@@ -83,6 +83,9 @@ typedef struct lua_TValue
 #define ttisobject(o) (ttype(o) == LUA_TOBJECT)
 // moo: vec3 GC object (docs/DESIGN.md "vec3, quat and transform (layer 3b)"; docs/layer3b/moo-v2-l3b-vec3-object.md)
 #define ttisvec3(o) (ttype(o) == LUA_TVEC3)
+// moo: quat GC object, the vec3 pattern again (docs/DESIGN.md "vec3, quat and transform (layer 3b)";
+// docs/layer3b/moo-v2-l3b-quat-object.md)
+#define ttisquat(o) (ttype(o) == LUA_TQUAT)
 
 // Macros to access values
 #define ttype(o) ((o)->tt)
@@ -103,6 +106,8 @@ typedef struct lua_TValue
 #define objectvalue(o) check_exp(ttisobject(o), &(o)->value.gc->lobject)
 // moo: vec3 GC object (docs/DESIGN.md "vec3, quat and transform (layer 3b)"; docs/layer3b/moo-v2-l3b-vec3-object.md)
 #define vec3value(o) check_exp(ttisvec3(o), &(o)->value.gc->v3)
+// moo: quat GC object (docs/DESIGN.md "vec3, quat and transform (layer 3b)"; docs/layer3b/moo-v2-l3b-quat-object.md)
+#define quatvalue(o) check_exp(ttisquat(o), &(o)->value.gc->q)
 
 #define l_isfalse(o) (ttisnil(o) || (ttisboolean(o) && bvalue(o) == 0))
 
@@ -267,6 +272,15 @@ typedef struct lua_TValue
         TValue* i_o = (obj); \
         i_o->value.gc = cast_to(GCObject*, (x)); \
         i_o->tt = LUA_TVEC3; \
+        checkliveness((L)->global, i_o); \
+    }
+
+// moo: quat GC object (docs/DESIGN.md "vec3, quat and transform (layer 3b)"; docs/layer3b/moo-v2-l3b-quat-object.md)
+#define setquatvalue(L, obj, x) \
+    { \
+        TValue* i_o = (obj); \
+        i_o->value.gc = cast_to(GCObject*, (x)); \
+        i_o->tt = LUA_TQUAT; \
         checkliveness((L)->global, i_o); \
     }
 
@@ -520,8 +534,10 @@ typedef struct TKey
 {
     ::Value value;
     int extra[LUA_EXTRA_SIZE];
-    unsigned tt : 4;
-    int next : 28; // for chaining
+    // moo: the quat tag pushes LUA_TDEADKEY to 16, so tt needs 5 bits (docs/layer3b/moo-v2-l3b-vec3-object.md,
+    // decision 1, item 4); next still holds +/- (MAXSIZE - 1) in signed 27 bits
+    unsigned tt : 5;
+    int next : 27; // for chaining
 } TKey;
 
 typedef struct LuaNode

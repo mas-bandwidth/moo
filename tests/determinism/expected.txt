@@ -5,10 +5,12 @@
 # moo: re-pinned when layer 3 removed the vector and integer libraries: their startup objects shifted every creation number.
 # moo: re-pinned when layer 3b added the vec3 tag: its type-name string "vec3" shifted every creation number by one
 # (docs/layer3b/moo-v2-l3b-vec3-object.md, decision 1, item 3).
-coroutines.luau 87415de4bd8d788a 5c5b83003f192d3f
-gcchurn.luau 457e563d872baf1e 2abd24e2bddab39e
-library.luau 4d053eec9658fe53 1e2a00317a2595ce
-objectkeys.luau 5e3e1deb0bac6e7b 507a9f51a8f19397
-coroutines2.luau 46858120d5307229 f66cdf65627402aa
-errors.luau f7037948e0d4bea2 a8553ceb065dad36
-math.luau 2f1dd357cba511b4 dda4446980e68248
+# moo: re-pinned when layer 3b added the quat tag, the vec3 pattern again: "quat" shifts every creation number by one
+# and global_State grows by two tag slots (docs/layer3b/moo-v2-l3b-quat-object.md).
+coroutines.luau a2351a1850f47a3e 82260fc9ccf89eea
+gcchurn.luau 4db2bab0d3b7857b aa44a22fb73d4818
+library.luau acf48eff1179e3ff db3ea85e7aa881d0
+objectkeys.luau acd46a3c0b5a77a5 3f134ee24fc598cb
+coroutines2.luau 46858120d5307229 04227eacd09eec18
+errors.luau 05180962e67f7b9c a054d87b62d19241
+math.luau 875acf9dfe3e0d34 d6184ba0ca32b3f3
