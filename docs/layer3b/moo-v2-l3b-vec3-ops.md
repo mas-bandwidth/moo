@@ -32,6 +32,9 @@ fixed's `fixVecMul` and `fixMulSV` (fixed's `fixMul`, saturating under `FIX_SATU
   the value is not a vec3).
 - `Sources.cmake`: `moo_vec3lib.cpp`. The Makefile's `VM/src/*.cpp` wildcard already picks it up.
 - `VM/src/ltm.cpp` needed no change: `typeof` already returns `vec3` from the tag's type name.
+- `tests/conformance/types.luau`: `_G.vec3` joins the ignore list, as `_G.vector` already does, because
+  the analyzer does not know the `vec3` global until the analyzer-type card lands; without this the
+  VM-globals-versus-RTTI check fails now that `luaL_openlibs` opens `vec3`.
 
 ## Re-pins
 

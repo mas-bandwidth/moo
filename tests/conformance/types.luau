@@ -14,6 +14,10 @@ local ignore =
 	-- moo: the analyzer's definitions drop vector (docs/DESIGN.md "Analyzer"), but the VM still
 	-- exposes the vector library at this base, so ignore it until the VM removal lands.
 	"_G.vector",
+
+	-- moo: the analyzer's vec3 type is a later card (docs/layer3b/moo-v2-l3b-vec3-ops.md "Not done"),
+	-- but the VM exposes the vec3 library now, so ignore it until that type lands.
+	"_G.vec3",
 }
 
 function verify(real, rtti, path)
