@@ -22,9 +22,14 @@ is met: card `moo-v2-l3b-vec3-object-gc` has landed (`luaO_rawequalKey` matches 
   the range ends and the widest negative), `Vec3KeyTableOrderPinned` (10^4 vec3 keys, delete every
   7th, insert a further 5x10^3 to force a rehash; the traversal order is pinned by a frozen hash and
   is the same on a second identical run), `Vec3KeySurvivesGc` (a vec3 key survives a full collect
-  while its value is referenced), and `Vec3KeyNextSameObjectOnly` (in a weak `"k"` table, after
+  while its value is referenced), `Vec3KeyNextSameObjectOnly` (in a weak `"k"` table, after
   `t[k] = nil` and a full collect, `next(t, k)` works only with the same object; an equal different
-  object raises "invalid key to 'next'").
+  object raises "invalid key to 'next'"), and `Vec3KeySplitLookupRouting` (with
+  `DFFlag::LuauSplitTableLookups` on and restored by `ScopedFastFlag`: two distinct equal vec3 `a`
+  and `b` have `luaH_get(t, b)` find `t[a]` and `luaH_set(t, b)` return the same slot; the pinned
+  order case also runs once with the flag on and gives the same frozen hash). Changing
+  `rawequalkeyvalue<LUA_TVEC3>` to pointer identity turns this case red; with the flag off every
+  other case stays green, which is why it is pinned here.
 - NEW `tests/conformance/moo/l3/moo-v2-l3b-vec3-object.luau`: returns "OK" and pins that the
   `moo_test` helpers are present. It cannot build a vec3 without the C API of card
   `moo-v2-l3b-vec3-ops` (`moo_pushvec3`/`moo_tovec3`), so it leaves the vec3 exercising to the C++
