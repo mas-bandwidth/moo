@@ -421,6 +421,7 @@ target_sources(Luau.VM PRIVATE
     VM/src/lmathlib.cpp
     VM/src/moo_api.cpp
     VM/src/moo_layout.cpp
+    VM/src/moo_vec3lib.cpp # moo: the fixed vec3 library (docs/DESIGN.md "vec3, quat and transform (layer 3b)")
     VM/src/lmem.cpp
     VM/src/lnumprint.cpp
     VM/src/lobject.cpp
