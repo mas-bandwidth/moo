@@ -60,6 +60,7 @@ edits them, except where a row above records the seam.
 | `Compiler/src/ConstantFolding.cpp` | folding uses `moo_number.h`, refuses to fold a saturating result in a checked build, and folds integer `^` through `moo_pow_int` (DESIGN.md "Overflow", "math library", "Literals"). |
 | `Compiler/src/ConstantFolding.h` | a folded number constant is `fixed_t` and there is no vector constant type (DESIGN.md "Layer 3 as built", "The compiler", "vec3, quat and transform"). |
 | `Compiler/src/CostModel.cpp` | the cost model converts a raw constant to a double only for its estimate, by the boundary rule (DESIGN.md "Boundary"). |
+| `Compiler/src/Types.cpp` | `math.noise`, now a fixed fastcall (`LBF_MATH_NOISE`), resolves to the number type like the other math builtins (DESIGN.md "math library"). |
 
 ### Ast
 
