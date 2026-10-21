@@ -123,6 +123,18 @@ include(Sources.cmake)
 
 # moo: Common/include/moo_number.h is moo's number on fixed, shared by the VM and the compiler's constant folding
 target_link_libraries(Luau.Common INTERFACE Moo.Fixed)
+
+# moo: checked arithmetic (docs/DESIGN.md, "Overflow"): ON raises "number overflow in <op>" where release
+# saturates; AUTO follows assertions (on in Debug or with LUAU_ENABLE_ASSERT defined, off with NDEBUG); OFF never
+set(MOO_OVERFLOW_ERRORS AUTO CACHE STRING "Raise number overflow instead of saturating: AUTO (with assertions), ON or OFF")
+set_property(CACHE MOO_OVERFLOW_ERRORS PROPERTY STRINGS AUTO ON OFF)
+if(MOO_OVERFLOW_ERRORS STREQUAL "ON")
+    target_compile_definitions(Luau.Common INTERFACE MOO_OVERFLOW_ERRORS=1)
+elseif(MOO_OVERFLOW_ERRORS STREQUAL "OFF")
+    target_compile_definitions(Luau.Common INTERFACE MOO_OVERFLOW_ERRORS=0)
+elseif(NOT MOO_OVERFLOW_ERRORS STREQUAL "AUTO")
+    message(FATAL_ERROR "MOO_OVERFLOW_ERRORS must be AUTO, ON or OFF")
+endif()
 target_compile_features(Luau.Common PUBLIC cxx_std_17)
 target_include_directories(Luau.Common PUBLIC Common/include)
 
@@ -356,10 +368,15 @@ if(LUAU_BUILD_TESTS)
     target_compile_definitions(Luau.Conformance PRIVATE LUAU_CONFORMANCE_SOURCE_DIR="${LUAU_CONFORMANCE_SOURCE_DIR}")
 
     # moo: its own tests and the determinism suite, on the VM and the compiler alone (the push gate)
-    target_sources(Moo.Test PRIVATE tests/Moo.test.cpp tests/MooNumber.test.cpp tests/Determinism.test.cpp tests/moo_main.cpp)
+    # moo: each layer 3 card adds its own tests/moo/*.test.cpp, and a *.c oracle compiled as C may call
+    # extern/fixed's C (docs/layer3/README.md)
+    file(GLOB MOO_TEST_SOURCES CONFIGURE_DEPENDS
+        "${CMAKE_CURRENT_SOURCE_DIR}/tests/moo/*.test.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/tests/moo/*.c")
+    target_sources(Moo.Test PRIVATE tests/Moo.test.cpp tests/MooNumber.test.cpp tests/Determinism.test.cpp tests/moo_main.cpp ${MOO_TEST_SOURCES})
     target_compile_options(Moo.Test PRIVATE ${LUAU_OPTIONS})
     target_compile_definitions(Moo.Test PRIVATE DOCTEST_CONFIG_USE_STD_HEADERS LUAU_CONFORMANCE_SOURCE_DIR="${LUAU_CONFORMANCE_SOURCE_DIR}")
-    target_include_directories(Moo.Test PRIVATE extern VM/src)
+    target_include_directories(Moo.Test PRIVATE tests extern extern/fixed/include VM/src)
     target_link_libraries(Moo.Test PRIVATE Luau.Compiler Luau.VM)
 
     target_compile_options(Luau.CLI.Test PRIVATE ${LUAU_OPTIONS})

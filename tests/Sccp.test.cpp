@@ -150,7 +150,8 @@ TEST_CASE("sccp_phi_filters_dead_predecessor")
     auto it = sccp.state.opConstness.find(phi0);
     REQUIRE(it != nullptr);
     CHECK(it->kind == Constness::Constant);
-    CHECK(impl.asNumber(it->constant.value()) == 42.0);
+    // moo: asNumber is the raw Q48.16 value, so 42.0 is 42 << 16 (moo_number.h)
+    CHECK(impl.asNumber(it->constant.value()) == moo_numfromint(42));
 
     sccp.rewrite();
 
@@ -346,7 +347,8 @@ bb_1 (exit):
     );
 }
 
-TEST_CASE("sccp_nan_compare_check1")
+// moo: skipped; moo numbers have no NaN, so this NaN constant cannot exist (docs/DESIGN.md "number"). Owner: card moo-l3-bytecode-graph-fixed, which moves Sccp folding onto raw Q48.16.
+TEST_CASE("sccp_nan_compare_check1" * doctest::skip())
 {
     BcFunction<BcVmConst> func;
     BcOp entry = func.entryBlock = func.addBlock();
@@ -390,7 +392,8 @@ bb_3 (exit):
     );
 }
 
-TEST_CASE("sccp_nan_compare_check2")
+// moo: skipped; moo numbers have no NaN, so this NaN constant cannot exist (docs/DESIGN.md "number"). Owner: card moo-l3-bytecode-graph-fixed, which moves Sccp folding onto raw Q48.16.
+TEST_CASE("sccp_nan_compare_check2" * doctest::skip())
 {
     BcFunction<BcVmConst> func;
     BcOp entry = func.entryBlock = func.addBlock();
@@ -434,7 +437,8 @@ bb_3 (exit):
     );
 }
 
-TEST_CASE("sccp_nan_compare_check3")
+// moo: skipped; moo numbers have no NaN, so this NaN constant cannot exist (docs/DESIGN.md "number"). Owner: card moo-l3-bytecode-graph-fixed, which moves Sccp folding onto raw Q48.16.
+TEST_CASE("sccp_nan_compare_check3" * doctest::skip())
 {
     BcFunction<BcVmConst> func;
     BcOp entry = func.entryBlock = func.addBlock();

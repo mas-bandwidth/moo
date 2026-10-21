@@ -81,6 +81,8 @@ typedef struct lua_TValue
 #define ttisupval(o) (ttype(o) == LUA_TUPVAL)
 #define ttisclass(o) (ttype(o) == LUA_TCLASS)
 #define ttisobject(o) (ttype(o) == LUA_TOBJECT)
+// moo: vec3 GC object (docs/DESIGN.md "vec3, quat and transform (layer 3b)"; docs/layer3b/moo-v2-l3b-vec3-object.md)
+#define ttisvec3(o) (ttype(o) == LUA_TVEC3)
 
 // Macros to access values
 #define ttype(o) ((o)->tt)
@@ -99,6 +101,8 @@ typedef struct lua_TValue
 #define upvalue(o) check_exp(ttisupval(o), &(o)->value.gc->uv)
 #define classvalue(o) check_exp(ttisclass(o), &(o)->value.gc->lclass)
 #define objectvalue(o) check_exp(ttisobject(o), &(o)->value.gc->lobject)
+// moo: vec3 GC object (docs/DESIGN.md "vec3, quat and transform (layer 3b)"; docs/layer3b/moo-v2-l3b-vec3-object.md)
+#define vec3value(o) check_exp(ttisvec3(o), &(o)->value.gc->v3)
 
 #define l_isfalse(o) (ttisnil(o) || (ttisboolean(o) && bvalue(o) == 0))
 
@@ -255,6 +259,15 @@ typedef struct lua_TValue
         i_o->value.gc = cast_to(GCObject*, (x)); \
         i_o->tt = LUA_TOBJECT; \
         checkliveness(L->global, i_o); \
+    }
+
+// moo: vec3 GC object (docs/DESIGN.md "vec3, quat and transform (layer 3b)"; docs/layer3b/moo-v2-l3b-vec3-object.md)
+#define setvec3value(L, obj, x) \
+    { \
+        TValue* i_o = (obj); \
+        i_o->value.gc = cast_to(GCObject*, (x)); \
+        i_o->tt = LUA_TVEC3; \
+        checkliveness((L)->global, i_o); \
     }
 
 /*

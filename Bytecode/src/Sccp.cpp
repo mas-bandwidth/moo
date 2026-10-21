@@ -23,10 +23,11 @@ std::optional<BcOp> BcVmConstImpl::evaluate(const BcOp& lhsOp, const BcOp& rhsOp
 {
     if (isNumber(lhsOp) && isNumber(rhsOp))
     {
-        if (std::optional<double> resultOpt = evaluateNumberBinaryOp(asNumber(lhsOp), asNumber(rhsOp), op))
+        if (std::optional<fixed_t> resultOpt = evaluateNumberBinaryOp(asNumber(lhsOp), asNumber(rhsOp), op))
         {
             BcVmConst result;
             result.kind = BcVmConstKind::Number;
+            // moo: the fold is the raw Q48.16 value (docs/DESIGN.md "Layer 3 as built")
             result.valueNumber = *resultOpt;
             return findOrAddConst(func, result);
         }
@@ -217,13 +218,14 @@ bool BcVmConstImpl::asBoolean(const BcOp& op) const
     return false;
 }
 
-double BcVmConstImpl::asNumber(const BcOp& op) const
+fixed_t BcVmConstImpl::asNumber(const BcOp& op) const
 {
     if (op.kind == BcOpKind::Imm)
     {
         BcImm& imm = func.immOp(op);
         LUAU_ASSERT(imm.kind == BcImmKind::Int && "use isNumber first");
-        return double(imm.valueInt);
+        // moo: an Int immediate (LOADN) holds the integer value; its raw Q48.16 is that integer scaled (the VM's cast_num)
+        return moo_numfromint(imm.valueInt);
     }
 
     if (op.kind == BcOpKind::VmConst)

@@ -27,9 +27,14 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: sccache
         uses: mozilla-actions/sccache-action@v0.0.9
+
+      - name: every upstream change is in docs/PATCHES.md
+        run: tools/moo-check-patches.sh
 
       - name: extern/fixed matches its pin
         run: |

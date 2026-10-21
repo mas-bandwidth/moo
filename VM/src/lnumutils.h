@@ -5,6 +5,9 @@
 #include "moo_number.h"
 #include "moo_format.h"
 #include "moo_parse.h"
+#include "moo_pow.h"
+
+#include "fixed/fixed_math.h"
 
 #include <math.h>
 #include <cstdint>
@@ -16,9 +19,41 @@
 #define luai_numsub(a, b) moo_numsub(a, b)
 #define luai_nummul(a, b) moo_nummul(a, b)
 #define luai_numdiv(a, b) moo_numdiv(a, b)
-// TEMPORARY BRIDGE until pow is rebuilt on fixed (docs/DESIGN.md, "pow and ^"): libm pow on doubles
-#define luai_numpow(a, b) moo_numbridgefromdouble(pow(moo_numbridgetodouble(a), moo_numbridgetodouble(b)))
+// moo: an integer-valued exponent is moo_pow_int, exact and rounded once (docs/DESIGN.md, "math
+// library", "pow and ^"); its callers raise its statuses. *out is the release value for OK and SATURATED,
+// and 0 for division by zero (0 ^ negative). A fractional exponent is fixPow = fixExp2(exponent *
+// fixLog2(base)) (docs/DESIGN.md, "pow and ^"): it returns 0 for a base <= 0 (so 0 ^ positive fraction
+// is 0); a negative base with a fractional exponent is the named error "pow of a negative number to a
+// fractional power", raised by math.pow's caller and by the fastcall's library path.
+inline fixed_t moo_numpow(fixed_t a, fixed_t b)
+{
+    if (moo_numisinteger(b))
+    {
+        fixed_t r = 0;
+        (void)moo_pow_int(a, b >> MOO_NUMBER_FRACTION_BITS, &r);
+        return r;
+    }
+    return fixPow(a, b);
+}
+#define luai_numpow(a, b) moo_numpow(a, b)
 #define luai_numunm(a) moo_numunm(a)
+
+// moo: checked arithmetic (docs/DESIGN.md, "Overflow"). With MOO_OVERFLOW_ERRORS (moo_number.h) a number
+// operation that would saturate leaves the VM's fast path (luai_numnosat is false), and luaV_doarithimpl
+// raises "number overflow in '<op>'" at the operation's own error site, as it raises "division by zero".
+// In release luai_numnosat is (true) without evaluating its operands, so the fast path is what it was.
+// Unary - and % never saturate on the domain, so they have no check; ^ with an integer exponent is checked
+// through moo_pow_int's status (Common/include/moo_pow.h) in luaV_doarithimpl and the ^ opcodes.
+#if MOO_OVERFLOW_ERRORS
+#define luai_numaddsat(a, b) moo_numaddsaturates(a, b)
+#define luai_numsubsat(a, b) moo_numsubsaturates(a, b)
+#define luai_nummulsat(a, b) moo_nummulsaturates(a, b)
+#define luai_numdivsat(a, b) moo_numdivsaturates(a, b)
+#define luai_numidivsat(a, b) moo_numidivsaturates(a, b)
+#define luai_numnosat(op, a, b) (!luai_num##op##sat(a, b))
+#else
+#define luai_numnosat(op, a, b) (true)
+#endif
 #define luai_numisnan(a) (false)
 #define luai_numeq(a, b) ((a) == (b))
 #define luai_numlt(a, b) ((a) < (b))
@@ -117,18 +152,20 @@ inline double luai_lerpd(double a, double b, double t)
     return (t == 1.0) ? b : a + (b - a) * t;
 }
 
-// moo: toward zero, saturating at the int range (no undefined float-to-int cast)
+// moo: exact-integer check and toward-zero saturation at the int range (see docs/DESIGN.md "Exact integers")
+#define luai_numisint(d) moo_numisinteger(d)
 #define luai_num2int(i, d) ((i) = (int)moo_numclampint(moo_numtrunc(d)))
 
 #define luai_num2long(i, d) ((i) = moo_numtrunc(d))
 
-#define luai_fabs condvectordouble(fabs, fabsf)
-#define luai_sqrt condvectordouble(sqrt, sqrtf)
-#define luai_floor condvectordouble(floor, floorf)
-#define luai_ceil condvectordouble(ceil, ceilf)
-#define luai_sign condvectordouble(luai_signd, luai_signf)
-#define luai_clamp condvectordouble(luai_clampd, luai_clampf)
-#define luai_lerp condvectordouble(luai_lerpd, luai_lerpf)
+// moo: vector math is no longer selected by VM values; the remaining unregistered vector source uses the double scalar helpers.
+#define luai_fabs fabs
+#define luai_sqrt sqrt
+#define luai_floor floor
+#define luai_ceil ceil
+#define luai_sign luai_signd
+#define luai_clamp luai_clampd
+#define luai_lerp luai_lerpd
 
 // On MSVC in 32-bit, double to unsigned cast compiles into a call to __dtoui3, so we invoke x87->int64 conversion path manually
 #if defined(_MSC_VER) && defined(_M_IX86)

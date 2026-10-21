@@ -17,6 +17,26 @@ if(NOT CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
     return()
 endif()
 
+# moo: the layer 5 differential fuzz targets (docs/DESIGN.md "Layers", layer 5; docs/layer5/moo-l5-fuzz-differential.md).
+# They are moo's own and use no protobuf, so they build on every clang host, not only x86_64 macOS.
+set(MOO_FUZZ_OPTIONS -fsanitize=fuzzer,address,undefined -fno-omit-frame-pointer -g2)
+set(MOO_FUZZ_INCLUDES ${CMAKE_CURRENT_SOURCE_DIR}/../Common/include ${CMAKE_CURRENT_SOURCE_DIR}/../extern ${CMAKE_CURRENT_SOURCE_DIR}/../extern/fixed/include)
+
+add_executable(Moo.Fuzz.Arith moo_arith.cpp ${CMAKE_CURRENT_SOURCE_DIR}/../tests/moo/moo_oracle_fixed.c)
+add_executable(Moo.Fuzz.Number number.cpp)
+add_executable(Moo.Fuzz.Format format.cpp)
+
+foreach(target Moo.Fuzz.Arith Moo.Fuzz.Number Moo.Fuzz.Format)
+    target_compile_features(${target} PRIVATE cxx_std_17)
+    target_include_directories(${target} PRIVATE ${MOO_FUZZ_INCLUDES})
+    target_compile_definitions(${target} PRIVATE FIX_SATURATE)
+    target_compile_options(${target} PRIVATE
+        $<$<COMPILE_LANGUAGE:CXX>:${MOO_FUZZ_OPTIONS}>
+        $<$<COMPILE_LANGUAGE:C>:-fsanitize=address,undefined;-fno-omit-frame-pointer;-g2>)
+    target_link_options(${target} PRIVATE -fsanitize=fuzzer,address,undefined)
+    target_link_libraries(${target} PRIVATE Moo.Fixed)
+endforeach()
+
 if(NOT CMAKE_OSX_ARCHITECTURES STREQUAL "x86_64")
     message(WARNING "Building the Luau fuzzer for ARM64 is currently unsupported.")
     return()

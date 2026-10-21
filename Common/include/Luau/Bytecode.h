@@ -59,6 +59,14 @@
 // WIP Versions: Used for in-progress features that might require multiple changes to bytecode. Since these versions are higher than the non-WIP versions, they are responsible for maintaining compatibility with them. For example, tests exercising WIP bytecode versions may need to enable flags for unreleased but non-WIP bytecode versions.
 // Version 100: Adds NEWCLASS for use with Luau Classes. Future class-related bytecode changes should go in this version before release. Experimental.
 
+// moo: # moo bytecode versions (docs/layer3/moo-l3-bytecode-version.md; docs/DESIGN.md "Literals")
+// A moo blob starts with LBC_MOO_VERSION_FLAG | the moo version, so its first byte is never a Luau version (Luau's
+// versions are 7-bit, LBC_VERSION_MAX <= 127); the byte after it is the Luau version whose format the rest follows,
+// with the moo changes below. The VM loads only moo bytecode and refuses Luau bytecode by name. A moo format change
+// bumps LBC_MOO_VERSION_*, never LBC_VERSION_*, so it cannot collide with an upstream Luau version on a merge.
+// moo version 1: LBC_CONSTANT_NUMBER is the raw Q48.16 value, 8 bytes little-endian, in [-INT64_MAX, INT64_MAX];
+//                LBC_CONSTANT_INTEGER is refused (DESIGN.md "integer").
+
 // # Bytecode type information history
 // Version 1: (from bytecode version 4) Type information for function signature. Currently supported.
 // Version 2: (from bytecode version 4) Type information for arguments, upvalues, locals and some temporaries. Currently supported.
@@ -544,6 +552,15 @@ enum LuauBytecodeTag
     LBC_CONSTANT__COUNT
 };
 
+// moo: the moo bytecode version, in the first byte of a moo blob (see "moo bytecode versions" above)
+enum MooBytecodeTag
+{
+    LBC_MOO_VERSION_FLAG = 0x80,
+    LBC_MOO_VERSION_MIN = 1,
+    LBC_MOO_VERSION_MAX = 1,
+    LBC_MOO_VERSION_TARGET = 1,
+};
+
 // Type table tags
 enum LuauBytecodeType
 {
@@ -755,6 +772,9 @@ enum LuauBuiltinFunction
     // buffer.readinteger / buffer.writeinteger (int64_t)
     LBF_BUFFER_READINTEGER,
     LBF_BUFFER_WRITEINTEGER,
+
+    // moo: math.noise uses the fixed shared library implementation (DESIGN.md "math library")
+    LBF_MATH_NOISE,
 };
 
 // Capture type, used in LOP_CAPTURE

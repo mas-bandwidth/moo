@@ -439,7 +439,8 @@ TEST_CASE_FIXTURE(Fixture, "compound_assign_mismatch_op")
     }
 }
 
-TEST_CASE_FIXTURE(BuiltinsFixture, "compound_assign_reports_invalid_vector_arithmetic")
+// moo: vector is not a moo builtin (DESIGN.md "Analyzer")
+TEST_CASE_FIXTURE(BuiltinsFixture, "compound_assign_reports_invalid_vector_arithmetic" * doctest::skip())
 {
     ScopedFastFlag sff{FFlag::LuauCompoundAssignSeedsAstTypes, true};
 
@@ -1793,7 +1794,8 @@ TEST_CASE_FIXTURE(BuiltinsFixture, "overload_concat")
     LUAU_CHECK_NO_ERRORS(result);
 }
 
-TEST_CASE_FIXTURE(BuiltinsFixture, "negated_integer_literal_is_a_constant")
+// moo: skipped because moo rejects integer literals (docs/DESIGN.md "integer", docs/layer3/moo-l3-ast-raw-literals.md)
+TEST_CASE_FIXTURE(BuiltinsFixture, "negated_integer_literal_is_a_constant" * doctest::skip())
 {
     DOES_NOT_PASS_OLD_SOLVER_GUARD();
     ScopedFastFlag sff{FFlag::LuauIntegerType2, true};
@@ -1808,7 +1810,8 @@ TEST_CASE_FIXTURE(BuiltinsFixture, "negated_integer_literal_is_a_constant")
     CHECK("integer" == toString(requireType("a")));
 }
 
-TEST_CASE_FIXTURE(BuiltinsFixture, "negating_a_non_literal_integer_is_an_error")
+// moo: skipped because moo rejects integer literals (docs/DESIGN.md "integer", docs/layer3/moo-l3-ast-raw-literals.md)
+TEST_CASE_FIXTURE(BuiltinsFixture, "negating_a_non_literal_integer_is_an_error" * doctest::skip())
 {
     DOES_NOT_PASS_OLD_SOLVER_GUARD();
     ScopedFastFlag sff{FFlag::LuauIntegerType2, true};
