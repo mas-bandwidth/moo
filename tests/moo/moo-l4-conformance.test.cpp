@@ -170,28 +170,23 @@ std::vector<MooConformanceFunction> mooConformanceLoad()
     return out;
 }
 
-// docs/DESIGN.md "Overflow": + and - saturate into [-INT64_MAX, INT64_MAX].
+// docs/DESIGN.md "Overflow": + and - saturate into [-INT64_MAX, INT64_MAX]. Written without the GCC/Clang
+// overflow builtins, which MSVC does not have: a and b are in the domain, so each bound test below cannot overflow.
 int64_t mooSatAdd(int64_t a, int64_t b)
 {
-    int64_t r;
-    if (__builtin_add_overflow(a, b, &r))
-        return b > 0 ? INT64_MAX : -INT64_MAX;
-    if (r > INT64_MAX)
+    if (b > 0 && a > INT64_MAX - b)
         return INT64_MAX;
-    if (r < -INT64_MAX)
+    if (b < 0 && a < -INT64_MAX - b)
         return -INT64_MAX;
-    return r;
+    return a + b;
 }
 int64_t mooSatSub(int64_t a, int64_t b)
 {
-    int64_t r;
-    if (__builtin_sub_overflow(a, b, &r))
-        return b < 0 ? INT64_MAX : -INT64_MAX;
-    if (r > INT64_MAX)
+    if (b < 0 && a > INT64_MAX + b)
         return INT64_MAX;
-    if (r < -INT64_MAX)
+    if (b > 0 && a < -INT64_MAX + b)
         return -INT64_MAX;
-    return r;
+    return a - b;
 }
 int64_t mooExpHalf(int64_t a)
 {

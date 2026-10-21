@@ -294,6 +294,13 @@ if(MSVC AND LUAU_BUILD_TESTS)
     set_target_properties(Luau.UnitTest PROPERTIES LINK_FLAGS_DEBUG /STACK:2097152)
     set_target_properties(Luau.CLI.Test PROPERTIES LINK_FLAGS_OPTIMIZED /STACK:2097152)
     set_target_properties(Luau.Conformance PROPERTIES LINK_FLAGS_OPTIMIZED /STACK:2097152)
+    # moo: LINK_FLAGS_OPTIMIZED names no CMake configuration, so the two lines above never applied, and Luau.UnitTest
+    # had no optimized line at all. clang-cls RelWithDebInfo frames overflow the 1 MB default inside the parsers
+    # recursion-limit cases (Compiler.test.cpp RecursionParseFunctionStatement, 1000 nested function statements
+    # before the limit refuses). Every non-Debug configuration of the three test binaries gets the same 2 MB.
+    foreach(moo_test_target Luau.CLI.Test Luau.Conformance Luau.UnitTest)
+        target_link_options(${moo_test_target} PRIVATE $<$<NOT:$<CONFIG:Debug>>:/STACK:2097152>)
+    endforeach()
 endif()
 
 # embed .natvis inside the library debug information

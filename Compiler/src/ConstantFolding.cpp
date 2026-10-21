@@ -273,6 +273,22 @@ static void foldBinary(Constant& result, AstExprBinary::Op op, const Constant& l
         }
         break;
 
+    // moo: an arithmetic or ordering operator with an operand that is not a number constant ("a" + 1, true < 2)
+    // does not fold; the VM raises its error at run time. Upstream's cases for these operators were removed with
+    // the vector (above), so without these labels a checked build hit the assert below.
+    case AstExprBinary::Add:
+    case AstExprBinary::Sub:
+    case AstExprBinary::Mul:
+    case AstExprBinary::Div:
+    case AstExprBinary::FloorDiv:
+    case AstExprBinary::Mod:
+    case AstExprBinary::Pow:
+    case AstExprBinary::CompareLt:
+    case AstExprBinary::CompareLe:
+    case AstExprBinary::CompareGt:
+    case AstExprBinary::CompareGe:
+        break;
+
     default:
         LUAU_ASSERT(!"Unexpected binary operation");
     }

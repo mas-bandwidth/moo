@@ -14,6 +14,7 @@
 #include "lbuiltins.h"
 #include "lnumutils.h"
 #include "lbytecode.h"
+#include "moo_vec3.h" // moo: vec3 equality is by value (docs/DESIGN.md "vec3, quat and transform (layer 3b)")
 
 #include <string.h>
 
@@ -1407,6 +1408,14 @@ reentry:
                         // slow path after switch()
                         break;
 
+                    // moo: a vec3 compares its three raw components, never its address
+                    // (docs/DESIGN.md "vec3, quat and transform (layer 3b)", "Operations").
+                    case LUA_TVEC3:
+                        pc += moo_vec3_equal(vec3value(ra), vec3value(rb)) ? LUAU_INSN_D(insn) : 1;
+                        VM_ASSERT_PC(pc);
+                        VM_NEXT();
+                        break;
+
                     // Class objects are only ever physically equal, so check
                     // for pointer equality.
                     case LUA_TCLASS:
@@ -1533,6 +1542,14 @@ reentry:
                             }
                         }
                         // slow path after switch()
+                        break;
+
+                    // moo: a vec3 compares its three raw components, never its address (LOP_JUMPIFNOTEQ;
+                    // docs/DESIGN.md "vec3, quat and transform (layer 3b)", "Operations").
+                    case LUA_TVEC3:
+                        pc += !moo_vec3_equal(vec3value(ra), vec3value(rb)) ? LUAU_INSN_D(insn) : 1;
+                        VM_ASSERT_PC(pc);
+                        VM_NEXT();
                         break;
 
                     // Class objects are only ever physically equal, so check
@@ -1742,6 +1759,8 @@ reentry:
                     else
                     {
                         // slow-path, may invoke C/Lua via metamethods
+                        // moo: a vec3 takes the slow path, where luaV_doarithimpl applies the fixed vec3 operators
+                        // (docs/DESIGN.md "vec3, quat and transform (layer 3b)", "Operations")
                         VM_PROTECT(luaV_doarithimpl<TM_ADD>(L, ra, rb, rc));
                         VM_NEXT();
                     }
@@ -1782,6 +1801,8 @@ reentry:
                     else
                     {
                         // slow-path, may invoke C/Lua via metamethods
+                        // moo: a vec3 takes the slow path, where luaV_doarithimpl applies the fixed vec3 operators
+                        // (docs/DESIGN.md "vec3, quat and transform (layer 3b)", "Operations")
                         VM_PROTECT(luaV_doarithimpl<TM_SUB>(L, ra, rb, rc));
                         VM_NEXT();
                     }
@@ -1823,6 +1844,8 @@ reentry:
                     else
                     {
                         // slow-path, may invoke C/Lua via metamethods
+                        // moo: a vec3 takes the slow path, where luaV_doarithimpl applies the fixed vec3 operators
+                        // (docs/DESIGN.md "vec3, quat and transform (layer 3b)", "Operations")
                         VM_PROTECT(luaV_doarithimpl<TM_MUL>(L, ra, rb, rc));
                         VM_NEXT();
                     }
@@ -2265,6 +2288,8 @@ reentry:
                     else
                     {
                         // slow-path, may invoke C/Lua via metamethods
+                        // moo: a vec3 takes the slow path, where luaV_doarithimpl applies the fixed vec3 operators
+                        // (docs/DESIGN.md "vec3, quat and transform (layer 3b)", "Operations")
                         VM_PROTECT(luaV_doarithimpl<TM_UNM>(L, ra, rb, rb));
                         VM_NEXT();
                     }
