@@ -4,7 +4,7 @@
 
 ## Fixed-point numbers through the toolchain
 
-Layer 3: every number in moo is Q48.16 fixed point, from the parser and compiler to the bytecode and the VM; the integer and vector types of Luau are removed. The work is on the integration branch sprint/moo.
+Layer 3: every number in moo is Q48.16 fixed point, from the parser and compiler to the bytecode and the VM; the integer and vector types of Luau are removed. Built on the integration branch sprint/moo and merged into main on 2026-10-21.
 
 <!-- nova-work:layer-3:start -->
 
