@@ -146,10 +146,11 @@ TEST_CASE("Vec3KeyEqualsAreOneKey")
     TValue* slot = luaH_set(L, t, L->top - 1);
     REQUIRE(slot != luaO_nilobject);
     setnvalue(slot, 1 * MOO_NUMBER_ONE);
+    const MooVec3* first = vec3value(L->top - 1); // stays alive as the key
     lua_pop(L, 1);
 
     pushVec3(L, 5 * MOO_NUMBER_ONE, -6 * MOO_NUMBER_ONE, 7 * MOO_NUMBER_ONE);
-    REQUIRE(vec3value(L->top - 1) != vec3value(L->top - 2));
+    REQUIRE(vec3value(L->top - 1) != first); // a distinct object with equal components
     const TValue* got = luaH_get(t, L->top - 1);
     REQUIRE(ttisnumber(got));
     CHECK(nvalue(got) == 1 * MOO_NUMBER_ONE);
