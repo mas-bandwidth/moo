@@ -105,8 +105,8 @@ Checks too slow for every commit, run every night.
 | feature | moo |
 |---|:---:|
 | Nightly rebuild and comparison of the CORE-MATH oracle | ✅ |
-| Virtual Go's determinism checks run nightly against moo | ❌ |
-| complete | 50% |
+| Virtual Go's determinism checks run nightly against moo | ✅ |
+| complete | 100% |
 
 [Source data](docs/roadmap.sexp)
 
