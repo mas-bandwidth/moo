@@ -308,6 +308,13 @@ static void reallymarkobject(global_State* g, GCObject* o)
         gray2black(o); // vectors are never gray
         return;
     }
+    // moo: a vec3 holds no references, so it turns black directly like a string or vector
+    // (docs/DESIGN.md "vec3, quat and transform (layer 3b)"; docs/layer3b/moo-v2-l3b-vec3-object.md, decision 6)
+    case LUA_TVEC3:
+    {
+        gray2black(o);
+        return;
+    }
     case LUA_TBUFFER:
     {
         gray2black(o); // buffers are never gray
@@ -669,6 +676,13 @@ static int isobjcleared(GCObject* o)
         stringmark(&o->ts); // strings are `values', so are never weak
         return 0;
     }
+    // moo: a vec3 is a value, like a string, and is never cleared from a weak table
+    // (docs/DESIGN.md "vec3, quat and transform (layer 3b)"; docs/layer3b/moo-v2-l3b-vec3-object.md, decision 4)
+    if (o->gch.tt == LUA_TVEC3)
+    {
+        stringmark(&o->gch);
+        return 0;
+    }
 
     return iswhite(o);
 }
@@ -750,6 +764,12 @@ static size_t cleartable(lua_State* L, GCObject* l)
                     activevalues++;
                 }
             }
+            else
+            {
+                // moo: an emptied entry in a weak table must turn a collectable key into LUA_TDEADKEY before sweep
+                // frees its object, so value equality never reads a freed key (docs/layer3b/moo-v2-l3b-vec3-object.md, decision 4)
+                removeentry(n);
+            }
         }
 
         if (FFlag::LuauFrozenMetaButterfly && hasmetacache(h))
@@ -811,6 +831,11 @@ static void freeobj(lua_State* L, GCObject* o, lua_Page* page)
         break;
     case LUA_TOBJECT:
         luaR_freeobject(L, gco2object(o), page);
+        break;
+    // moo: free a vec3 leaf object (docs/DESIGN.md "vec3, quat and transform (layer 3b)";
+    // docs/layer3b/moo-v2-l3b-vec3-object.md, decision 6)
+    case LUA_TVEC3:
+        luaM_freegcofixed(L, gco2vec3(o), sizeof(MooVec3), gco2vec3(o)->memcat, page);
         break;
     default:
         LUAU_ASSERT(0);

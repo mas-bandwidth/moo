@@ -11,11 +11,13 @@
 #include "fixed/fixed.h"
 
 #include "doctest.h"
+#include "MooHost.h" // moo: mooRun, mooRunFile and the moo_test helpers are shared with tests/moo
 
 #include <stdlib.h>
 #include <string.h>
 
 #include <algorithm>
+#include <filesystem>
 #include <fstream>
 #include <sstream>
 #include <string>
@@ -43,42 +45,6 @@ struct MooState
     MooState(const MooState&) = delete;
     MooState& operator=(const MooState&) = delete;
 };
-
-// Compiles and runs source as a chunk; returns its first result as a string, or "error: " and the message.
-std::string mooRun(lua_State* L, const char* source)
-{
-    size_t size = 0;
-    char* bytecode = luau_compile(source, strlen(source), nullptr, &size);
-    int status = luau_load(L, "=moo", bytecode, size, 0);
-    free(bytecode);
-
-    if (status == 0)
-        status = lua_pcall(L, 0, 1, 0);
-
-    std::string result;
-    if (status != 0)
-        result = std::string("error: ") + (lua_isstring(L, -1) ? lua_tostring(L, -1) : "?");
-    else
-        result = luaL_tolstring(L, -1, nullptr), lua_pop(L, 1);
-
-    lua_pop(L, 1);
-    return result;
-}
-
-// Runs a moo-specific expected-behaviour file from tests/conformance/moo; it returns "OK".
-std::string mooRunFile(lua_State* L, const char* name)
-{
-#ifdef LUAU_CONFORMANCE_SOURCE_DIR
-    std::string path = std::string(LUAU_CONFORMANCE_SOURCE_DIR) + "/moo/" + name;
-    std::ifstream file(path, std::ios::binary);
-    std::stringstream source;
-    source << file.rdbuf();
-    REQUIRE_MESSAGE(file.good(), "cannot read " << path);
-    return mooRun(L, source.str().c_str());
-#else
-    return "OK";
-#endif
-}
 
 const char* const kRandomSequence = R"(
     local t = {}
@@ -244,6 +210,37 @@ TEST_CASE("DateTime")
     CHECK(mooRunFile(s.L, "datetime.luau") == "OK");
 }
 
+#ifdef LUAU_CONFORMANCE_SOURCE_DIR
+// DESIGN.md "Layer 3 as built": each layer 3 script pins one rule in tests/conformance/moo/l3; the
+// moo_test helpers let it see the raw Q48.16 value, the compiler's bytecode and luau_load's result.
+TEST_CASE("MooL3Scripts")
+{
+    std::filesystem::path directory = std::filesystem::path(LUAU_CONFORMANCE_SOURCE_DIR) / "moo" / "l3";
+
+    std::vector<std::string> names;
+    for (const std::filesystem::directory_entry& entry : std::filesystem::directory_iterator(directory))
+        if (entry.is_regular_file() && entry.path().extension() == ".luau")
+            names.push_back(entry.path().filename().string());
+
+    REQUIRE_MESSAGE(!names.empty(), "no scripts in " << directory);
+    std::sort(names.begin(), names.end());
+
+    for (const std::string& name : names)
+    {
+        MooState s;
+        mooOpenTestHelpers(s.L);
+
+        std::ifstream file(directory / name, std::ios::binary);
+        REQUIRE_MESSAGE(file.good(), "cannot read " << name);
+        std::stringstream source;
+        source << file.rdbuf();
+
+        std::string result = mooRun(s.L, source.str().c_str());
+        CHECK_MESSAGE(result == "OK", name << ": " << result);
+    }
+}
+#endif
+
 // DETERMINISM.md 10: math.random starts from a constant seed, never an address or a clock.
 TEST_CASE("RandomDefaultSeedIsConstant")
 {
@@ -297,7 +294,10 @@ TEST_CASE("ObjectKeyOrderIgnoresAddresses")
     CHECK(order == mooRun(b.L, kObjectKeyOrder));
 
     // Pinned: a change here changes the iteration order of every object-keyed table.
-    CHECK(order == "18,3,32,8,9,5,24,20,60,59,54,50,37,11,52,13,27,56,55,51,53,47,28,49,19,31,46,44,26,35,15,43,48,23,41,14,25,34,42,16,7,22,57,4,29,58,45");
+    // moo: re-pinned when layer 3 removed the vector and integer libraries: fewer startup objects shift every creation number.
+    // moo: re-pinned when layer 3b added the vec3 tag: its type-name string shifts every creation number by one
+    // (docs/layer3b/moo-v2-l3b-vec3-object.md, decision 1, item 3).
+    CHECK(order == "42,27,41,56,8,9,33,23,48,21,60,16,47,7,45,58,35,57,12,51,55,54,36,53,13,52,6,34,49,25,50,59,24,46,44,22,43,38,5,32,3,18,11,4,28,20,2");
 }
 
 // DETERMINISM.md 6: tostring prints the creation number, never the address.
@@ -306,7 +306,9 @@ TEST_CASE("TostringPrintsCreationNumber")
     MooState s;
 
     std::string pair = mooRun(s.L, "local a, b = {}, {} return tostring(a) .. ' ' .. tostring(b)");
-    CHECK(pair == "table: #400 table: #401");
+    // moo: re-pinned #400/#401 -> #375/#376 when layer 3 removed the vector and integer libraries (fewer startup objects).
+    // moo: re-pinned #375/#376 -> #376/#377 when layer 3b added the vec3 type-name string (docs/layer3b/moo-v2-l3b-vec3-object.md).
+    CHECK(pair == "table: #376 table: #377");
 
     const char* const kinds = R"(
         local values = { {}, function() end, coroutine.create(function() end), buffer.create(1), newproxy() }
@@ -357,7 +359,10 @@ TEST_CASE("GcPacingIsAFunctionOfTheProgram")
     CHECK(trace == mooRun(b.L, kWeakChurn));
 
     // Pinned: a change here changes when the GC runs for every program.
-    CHECK(mooHash(trace) == 13309793095727223383ull); // re-pinned when number became Q48.16 (number keys hash by their raw value)
+    // moo: re-pinned when number became Q48.16, and again when layer 3 removed the vector and integer libraries
+    // (fewer startup objects shift every creation number).
+    // moo: re-pinned when layer 3b added the vec3 type-name string (docs/layer3b/moo-v2-l3b-vec3-object.md).
+    CHECK(mooHash(trace) == 1918608859321230699ull);
 }
 
 // Replaces upstream ApiAllocationRateAfterFullGC, which checked that lua_allocationrate measures bytes
@@ -416,7 +421,9 @@ TEST_CASE("DestructorsRunInCreationOrder")
     for (uint64_t seq : log)
         text += std::to_string(seq) + ",";
     // Pinned: a change here changes when and in what order every host's destructors run.
-    CHECK(mooHash(text) == 10154968597764881097ull);
+    // moo: re-pinned when layer 3 removed the vector and integer libraries: fewer startup objects shift every creation number.
+    // moo: re-pinned when layer 3b added the vec3 type-name string (docs/layer3b/moo-v2-l3b-vec3-object.md).
+    CHECK(mooHash(text) == 4673712535580941492ull);
 }
 
 // DETERMINISM.md 13: which weak entries clear, and the order of what is left, under churn with object keys,
@@ -462,7 +469,9 @@ TEST_CASE("WeakTableOrderIsAFunctionOfTheProgram")
     CHECK(trace == mooRun(b.L, weak));
 
     // Pinned.
-    CHECK(mooHash(trace) == 4913729863109054677ull);
+    // moo: re-pinned when layer 3 removed the vector and integer libraries: fewer startup objects shift every creation number.
+    // moo: re-pinned when layer 3b added the vec3 type-name string (docs/layer3b/moo-v2-l3b-vec3-object.md).
+    CHECK(mooHash(trace) == 11785329807427589751ull);
 }
 
 // DESIGN.md "Semantics": number is built on the vendored fixed, compiled with FIX_SATURATE.

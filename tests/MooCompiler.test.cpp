@@ -5,7 +5,8 @@
 // pointer here:
 //
 // - number arithmetic folds with the VM's own fixed-point operations, so 2/3 folds to fixDiv's truncation and a
-//   folded constant is the run time's bits; division by zero and pow are not folded;
+//   folded constant is the run time's bits; division by zero and `^` with a fractional exponent are not folded,
+//   and `^` with an integer exponent folds through moo_pow_int;
 // - builtin calls (math.*, string.*, bit32.*, vector.*) and math.pi / math.huge do not fold, because the build
 //   machine's libm and the run time's must not disagree (until the math library is rebuilt on fixed).
 #include "Luau/BytecodeBuilder.h"
@@ -41,18 +42,21 @@ TEST_CASE("MooFoldArithIsFixedPoint")
 
     // 2/3 is fixDiv's truncation, 43690/65536, not the double nearest 2/3
     std::string twothirds = mooCompile0("return 2 / 3");
-    CHECK_MESSAGE(has(twothirds, "0.666656494140625"), twothirds);
+    // moo: the dump prints moo_format.h's shortest round trip of 43690 raw, so "0.66666" (docs/layer3/moo-l3-bytecode-version.md)
+    CHECK_MESSAGE(has(twothirds, "[0.66666]"), twothirds);
 
     // 0.1 + 0.2 is 6554 + 13107 raw units
     std::string tenths = mooCompile0("return 0.1 + 0.2");
-    CHECK_MESSAGE(has(tenths, "0.3000030517578125"), tenths);
+    // moo: shortest round trip of 19661 raw is "0.3"
+    CHECK_MESSAGE(has(tenths, "[0.3]"), tenths);
 
     // division by zero is the run time's named error, never a folded infinity
     CHECK(!has(mooCompile0("return 1 / 0"), "LOADK"));
     CHECK(has(mooCompile0("return 1 / 0"), "DIV"));
 
-    // pow waits for the math library on fixed
-    CHECK(has(mooCompile0("return 10 ^ 2"), "POWK"));
+    // moo: `10 ^ 2` is an integer power, so it folds to 100 through moo_pow_int; it was POWK (not folded)
+    // before this card, which changes that case (docs/layer4/moo-l4-pow-integer-fold.md)
+    CHECK(has(mooCompile0("return 10 ^ 2"), "LOADN R0 100"));
 }
 
 TEST_CASE("MooBuiltinsDoNotFold")
@@ -62,7 +66,8 @@ TEST_CASE("MooBuiltinsDoNotFold")
     CHECK(has(mooCompile0("return string.char(65)"), "FASTCALL"));
     CHECK(has(mooCompile0("return math.pi"), "GETIMPORT"));
     CHECK(has(mooCompile0("return math.huge"), "GETIMPORT"));
-    CHECK(has(mooCompile0("return vector.create(1, 2, 3)"), "FASTCALL"));
+    // moo: vector is not a compiler builtin; vector.create is imported as an unknown global (DESIGN.md "Analyzer"; docs/layer3/moo-l3-vector-compiler-out.md).
+    CHECK(has(mooCompile0("return vector.create(1, 2, 3)"), "GETIMPORT"));
 }
 
 // DESIGN.md "Literals": a literal beyond the range is a compile error, and the constant is the exact rational
@@ -73,7 +78,8 @@ TEST_CASE("MooLiteralsAreExactAndInRange")
     CHECK_THROWS_WITH(mooCompile0("return 0x800000000000"), doctest::Contains("Number literal out of range"));
     CHECK_THROWS_WITH(mooCompile0("return 1e300"), doctest::Contains("Number literal out of range"));
     CHECK(has(mooCompile0("return 140737488355327"), "140737488355327"));
-    CHECK(has(mooCompile0("return 0.1"), "0.100006103515625"));
+    // moo: the constant is 6554 raw, which the dump prints by shortest round trip as "0.1"
+    CHECK(has(mooCompile0("return 0.1"), "[0.1]"));
     // half a unit, 2^-17, is a tie: to even, which is 0
     CHECK(has(mooCompile0("return 0.00000762939453125"), "LOADN R0 0"));
 }

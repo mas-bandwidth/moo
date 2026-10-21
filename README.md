@@ -22,10 +22,10 @@ compiler, for every construct.** To keep it, moo will:
 
 Everything else stays as close to Luau as possible: syntax, tools and the C API.
 
-None of that is built yet. This tree is **layer 1, the fork**: Luau 0.741, the rename, and CI
-on Luau's unmodified test suite. The plan is in [docs/DESIGN.md](docs/DESIGN.md), and every source of
-non-determinism found so far, with its proposed fix, is in
-[docs/DETERMINISM.md](docs/DETERMINISM.md).
+Layers 1-5 are built. The conformance record is the program-by-program matrix in
+[docs/DETERMINISM.md](docs/DETERMINISM.md), "Status"; the other promises are
+[docs/DESIGN.md](docs/DESIGN.md), "Layers". Every source of non-determinism found so far, with
+its fix, is in [docs/DETERMINISM.md](docs/DETERMINISM.md).
 
 ## What the fork renames
 
@@ -53,7 +53,8 @@ their `Luau.*` names, the C++ namespace stays `Luau`, and the configuration file
     cmake --build build -j
     build/moo tests/conformance/assert.luau
 
-Supported for moo: Linux (gcc and clang) and macOS arm64 (Apple clang). moo compiles
+Supported for moo: Linux (gcc and clang), macOS arm64 and Windows (MSVC and clang-cl),
+64-bit only; Windows is nightly-only. moo compiles
 everything with `-ffp-contract=off`, so the C++ compiler never fuses a multiply and an add
 into one FMA (which rounds differently). The upstream `Makefile` is kept and builds the same
 `moo*` binaries with the same flag.
@@ -66,14 +67,24 @@ Luau's own suites run unmodified:
 - `Luau.UnitTest` (the compiler, analyzer and codegen unit tests),
 - `Luau.CLI.Test` (the REPL and `require` tests; run it from the repository root).
 
+moo's own tests are `Moo.Test`: the determinism cases and the fixed-point operators,
+literals and formatting in `tests/Moo.test.cpp`, `tests/MooNumber.test.cpp` and
+`tests/Determinism.test.cpp`.
+
 CI (`.github/workflows/`):
 
-- **`ci.yml`, on every push and pull request:** Linux clang, all three suites. A cold build
-  of Luau's analyzer alone takes several minutes, so this tier uses a compiler cache; a warm
-  run is about a minute, and only changes that touch the analyzer or a widely included header
-  pay for a cold rebuild.
-- **`nightly.yml`, nightly and on demand:** the full matrix (Linux gcc, Linux clang, macOS
-  arm64), all three suites, plus Conformance at `-O2` and a smoke run of each moo binary.
+- **`ci.yml` `push-gate`, required on every push and pull request:** Linux clang. It builds
+  only `Moo.Test` and `Luau.VM`, runs `Moo.Test`, checks `extern/fixed` against its pin, and
+  checks that the VM archive reads no clock. With the compiler cache a warm run is under a
+  minute; a change that touches a VM header rebuilds the VM and nothing else.
+- **`ci.yml` `full`, on pull requests, not required:** Linux clang. It builds and runs
+  `Luau.Conformance`, `Luau.UnitTest` and `Luau.CLI.Test`, smoke-runs `moo`, `moo-analyze`
+  and `moo-compile`, and checks that native codegen is refused.
+- **`nightly.yml`, nightly and on demand:** the matrix on Linux gcc, Linux clang and macOS
+  arm64 runs `Moo.Test`, `Luau.Conformance` (also at `-O2`), `Luau.UnitTest` and
+  `Luau.CLI.Test`, the no-clock check and the smoke runs; Windows MSVC, nightly-only, runs
+  `Moo.Test`, `Luau.Conformance` and `Luau.UnitTest`; a separate job model-checks the `tla`
+  cases with TLC 1.8.0.
 
 Upstream's own workflows (`build.yml`, `release.yml`, `new-release.yml`, `benchmark.yml`)
 are removed in moo; they target Luau's release process and runners.

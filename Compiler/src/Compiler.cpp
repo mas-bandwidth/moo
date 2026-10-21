@@ -9,6 +9,8 @@
 #include "Luau/StringUtils.h"
 #include "Luau/TimeTrace.h"
 
+#include "moo_number.h"
+
 #include "Builtins.h"
 #include "ConstantFolding.h"
 #include "CostModel.h"
@@ -1445,13 +1447,13 @@ struct Compiler
             Constant fc = getConstant(expr->args.data[1]);
             Constant wc = getConstant(expr->args.data[2]);
 
-            int fi = fc.type == Constant::Type_Number ? int(fc.valueNumber) : -1;
-            int wi = wc.type == Constant::Type_Number ? int(wc.valueNumber) : -1;
+            int fi = fc.type == Constant::Type_Number ? int(moo_numtrunc(fc.valueNumber)) : -1;
+            int wi = wc.type == Constant::Type_Number ? int(moo_numtrunc(wc.valueNumber)) : -1;
 
             if (fi >= 0 && wi > 0 && fi + wi <= 32)
             {
                 int fwp = fi | ((wi - 1) << 5);
-                int32_t cid = bytecode.addConstantNumber(fwp);
+                int32_t cid = bytecode.addConstantNumberRaw(moo_numfromint(fwp));
                 if (cid < 0)
                     CompileError::raise(expr->location, "Exceeded constant limit; simplify the code to compile");
 
@@ -1928,11 +1930,11 @@ struct Compiler
         return Compile::isConstantFalse(constants, node);
     }
 
+    // moo: the float vector is removed; no expression folds to a vector constant (docs/DESIGN.md "vec3, quat and transform").
     bool isConstantVector(AstExpr* node)
     {
-        const Constant* cv = constants.find(node);
-
-        return (cv != nullptr) && (cv->type == Constant::Type_Vectorf || cv->type == Constant::Type_Vectord);
+        (void)node;
+        return false;
     }
 
     bool isConstantInteger(AstExpr* node)
@@ -2045,7 +2047,7 @@ struct Compiler
 
         if (c && c->type == Constant::Type_Number)
         {
-            int cid = bytecode.addConstantNumber(c->valueNumber);
+            int cid = bytecode.addConstantNumberRaw(c->valueNumber);
             if (cid < 0)
                 CompileError::raise(node->location, "Exceeded constant limit; simplify the code to compile");
 
@@ -2075,20 +2077,14 @@ struct Compiler
             break;
 
         case Constant::Type_Number:
-            cid = bytecode.addConstantNumber(c->valueNumber);
+            cid = bytecode.addConstantNumberRaw(c->valueNumber);
             break;
 
         case Constant::Type_Integer:
             cid = bytecode.addConstantInteger(c->valueInteger64);
             break;
 
-        case Constant::Type_Vectorf:
-            cid = bytecode.addConstantVectorf(c->valueVectorf[0], c->valueVectorf[1], c->valueVectorf[2], c->valueVectorf[3]);
-            break;
-
-        case Constant::Type_Vectord:
-            cid = bytecode.addConstantVectord(c->valueVectord[0], c->valueVectord[1], c->valueVectord[2], c->valueVectord[3]);
-            break;
+        // moo: the float vector is removed; the compiler never emits vector constants (docs/DESIGN.md "vec3, quat and transform").
 
         case Constant::Type_String:
             cid = bytecode.addConstantString(sref(c->getString()));
@@ -2726,7 +2722,7 @@ struct Compiler
 
                 const Constant* ckey = constants.find(item.key);
 
-                indexSize += (ckey && ckey->type == Constant::Type_Number && ckey->valueNumber == double(indexSize + 1));
+                indexSize += (ckey && ckey->type == Constant::Type_Number && ckey->valueNumber == moo_numfromint(int64_t(indexSize + 1)));
             }
 
             // we only perform the optimization if we don't have any other []-keys
@@ -3001,9 +2997,10 @@ struct Compiler
 
         Constant cv = getConstant(expr->index);
 
-        if (cv.type == Constant::Type_Number && cv.valueNumber >= 1 && cv.valueNumber <= 256 && double(int(cv.valueNumber)) == cv.valueNumber)
+        if (cv.type == Constant::Type_Number && moo_numisinteger(cv.valueNumber) && moo_numtrunc(cv.valueNumber) >= 1 &&
+            moo_numtrunc(cv.valueNumber) <= 256)
         {
-            uint8_t i = uint8_t(int(cv.valueNumber) - 1);
+            uint8_t i = uint8_t(moo_numtrunc(cv.valueNumber) - 1);
 
             uint8_t rt = compileExprAuto(expr->expr, rs);
 
@@ -3107,18 +3104,20 @@ struct Compiler
 
         case Constant::Type_Number:
         {
-            double d = cv->valueNumber;
+            fixed_t v = cv->valueNumber;
 
-            if (d >= std::numeric_limits<int16_t>::min() && d <= std::numeric_limits<int16_t>::max() && double(int16_t(d)) == d &&
-                !(d == 0.0 && signbit(d)))
+            // short number encoding: an integer-valued raw that fits the integer range loads directly with LOADN
+            // (the VM scales the immediate by 2^16, moo_numfromint)
+            int64_t i = 0;
+            if (moo_numisinteger(v) && (i = moo_numtrunc(v)) >= std::numeric_limits<int16_t>::min() &&
+                i <= std::numeric_limits<int16_t>::max())
             {
-                // short number encoding: doesn't require a table entry lookup
-                bytecode.emitAD(LOP_LOADN, target, int16_t(d));
+                bytecode.emitAD(LOP_LOADN, target, int16_t(i));
             }
             else
             {
-                // long number encoding: use generic constant path
-                int32_t cid = bytecode.addConstantNumber(d);
+                // long number encoding: the raw Q48.16 value travels verbatim (docs/DESIGN.md "Layer 3 as built", "The compiler")
+                int32_t cid = bytecode.addConstantNumberRaw(v);
                 if (cid < 0)
                     CompileError::raise(node->location, "Exceeded constant limit; simplify the code to compile");
 
@@ -3139,25 +3138,7 @@ struct Compiler
         }
         break;
 
-        case Constant::Type_Vectorf:
-        {
-            int32_t cid = bytecode.addConstantVectorf(cv->valueVectorf[0], cv->valueVectorf[1], cv->valueVectorf[2], cv->valueVectorf[3]);
-            if (cid < 0)
-                CompileError::raise(node->location, "Exceeded constant limit; simplify the code to compile");
-
-            emitLoadK(target, cid);
-        }
-        break;
-
-        case Constant::Type_Vectord:
-        {
-            int32_t cid = bytecode.addConstantVectord(cv->valueVectord[0], cv->valueVectord[1], cv->valueVectord[2], cv->valueVectord[3]);
-            if (cid < 0)
-                CompileError::raise(node->location, "Exceeded constant limit; simplify the code to compile");
-
-            emitLoadK(target, cid);
-        }
-        break;
+        // moo: the float vector is removed; the compiler never emits vector constants (docs/DESIGN.md "vec3, quat and transform").
 
         case Constant::Type_String:
         {
@@ -3204,7 +3185,8 @@ struct Compiler
         }
         else if (AstExprConstantNumber* expr = node->as<AstExprConstantNumber>())
         {
-            int32_t cid = bytecode.addConstantNumber(expr->value);
+            // moo: the AST carries the exact raw Q48.16 value the parser read (docs/DESIGN.md "Literals")
+            int32_t cid = bytecode.addConstantNumberRaw(expr->rawValue);
             if (cid < 0)
                 CompileError::raise(expr->location, "Exceeded constant limit; simplify the code to compile");
 
@@ -3499,11 +3481,12 @@ struct Compiler
     {
         Constant cv = getConstant(index);
 
-        if (cv.type == Constant::Type_Number && cv.valueNumber >= 1 && cv.valueNumber <= 256 && double(int(cv.valueNumber)) == cv.valueNumber)
+        if (cv.type == Constant::Type_Number && moo_numisinteger(cv.valueNumber) && moo_numtrunc(cv.valueNumber) >= 1 &&
+            moo_numtrunc(cv.valueNumber) <= 256)
         {
             LValue result = {LValue::Kind_IndexNumber};
             result.reg = reg;
-            result.number = uint8_t(int(cv.valueNumber) - 1);
+            result.number = uint8_t(moo_numtrunc(cv.valueNumber) - 1);
             result.location = index->location;
 
             return result;
@@ -4236,15 +4219,18 @@ struct Compiler
     bool tryCompileUnrolledFor(AstStatFor* stat, int thresholdBase, int thresholdMaxBoost)
     {
         Constant one = {Constant::Type_Number};
-        one.valueNumber = 1.0;
+        one.valueNumber = moo_numfromint(1);
 
         Constant fromc = getConstant(stat->from);
         Constant toc = getConstant(stat->to);
         Constant stepc = stat->step ? getConstant(stat->step) : one;
 
-        int tripCount = (fromc.type == Constant::Type_Number && toc.type == Constant::Type_Number && stepc.type == Constant::Type_Number)
-                            ? getTripCount(fromc.valueNumber, toc.valueNumber, stepc.valueNumber)
-                            : -1;
+        int tripCount =
+            (fromc.type == Constant::Type_Number && toc.type == Constant::Type_Number && stepc.type == Constant::Type_Number)
+                ? getTripCount(
+                      moo_numtodouble(fromc.valueNumber), moo_numtodouble(toc.valueNumber), moo_numtodouble(stepc.valueNumber)
+                  )
+                : -1;
 
         if (tripCount < 0)
         {
@@ -4291,7 +4277,7 @@ struct Compiler
 
         bytecode.addDebugRemark("loop unroll succeeded (iterations %d, cost %d, profit %.2fx)", tripCount, unrolledCost, double(unrollProfit) / 100);
 
-        compileUnrolledFor(stat, tripCount, fromc.valueNumber, stepc.valueNumber);
+        compileUnrolledFor(stat, tripCount, moo_numtodouble(fromc.valueNumber), moo_numtodouble(stepc.valueNumber));
         return true;
     }
 
@@ -4312,7 +4298,7 @@ struct Compiler
         {
             // we need to re-fold constants in the loop body with the new value; this reuses computed constant values elsewhere in the tree
             locstants[var].type = Constant::Type_Number;
-            locstants[var].valueNumber = from + iv * step;
+            locstants[var].valueNumber = moo_numfromdoublevalue(from + iv * step);
 
             if (iv == 0)
                 foldConstants(
@@ -6089,8 +6075,9 @@ void setCompileConstantNumber(CompileConstant* constant, double n)
 {
     Compile::Constant* target = reinterpret_cast<Compile::Constant*>(constant);
 
+    // moo: the constant is the raw Q48.16 value; a host double converts once by the boundary rule (docs/DESIGN.md "Boundary")
     target->type = Compile::Constant::Type_Number;
-    target->valueNumber = n;
+    target->valueNumber = moo_numfromdoublevalue(n);
 }
 
 void setCompileConstantInteger64(CompileConstant* constant, int64_t l)
@@ -6103,24 +6090,14 @@ void setCompileConstantInteger64(CompileConstant* constant, int64_t l)
 
 void setCompileConstantVector(CompileConstant* constant, float x, float y, float z, float w)
 {
-    Compile::Constant* target = reinterpret_cast<Compile::Constant*>(constant);
-
-    target->type = Compile::Constant::Type_Vectorf;
-    target->valueVectorf[0] = x;
-    target->valueVectorf[1] = y;
-    target->valueVectorf[2] = z;
-    target->valueVectorf[3] = w;
+    // moo: the float vector is removed (docs/DESIGN.md "vec3, quat and transform"); leave the constant Type_Unknown.
+    (void)constant, (void)x, (void)y, (void)z, (void)w;
 }
 
 void setCompileConstantVectord(CompileConstant* constant, double x, double y, double z, double w)
 {
-    Compile::Constant* target = reinterpret_cast<Compile::Constant*>(constant);
-
-    target->type = Compile::Constant::Type_Vectord;
-    target->valueVectord[0] = x;
-    target->valueVectord[1] = y;
-    target->valueVectord[2] = z;
-    target->valueVectord[3] = w;
+    // moo: the float vector is removed (docs/DESIGN.md "vec3, quat and transform"); leave the constant Type_Unknown.
+    (void)constant, (void)x, (void)y, (void)z, (void)w;
 }
 
 void setCompileConstantString(CompileConstant* constant, const char* s, size_t l)

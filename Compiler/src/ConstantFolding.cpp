@@ -7,6 +7,7 @@
 #include "Luau/Lexer.h"
 
 #include "moo_number.h"
+#include "moo_pow.h"
 
 #include <vector>
 #include <math.h>
@@ -23,29 +24,57 @@ namespace Compile
 constexpr size_t kConstantFoldStringLimit = 4096;
 
 // moo: number constants fold with the VM's own operations (moo_number.h), so a folded constant and the same
-// computation at run time are the same bits. Until the moo bytecode version carries raw Q48.16 constants, a
-// constant travels as the double that holds its value exactly: each operand is rounded by the VM's boundary
-// rule (as the VM does when it loads it), and a result a double cannot hold exactly (2^37 and above) is not
-// folded. Division by zero is not folded: the VM raises the named error at run time.
+// computation at run time are the same bits. A number constant is the raw Q48.16 value: the operands are read
+// raw, and every in-range result folds, with no double in the path (docs/DESIGN.md "Layer 3 as built",
+// "The compiler"). Division by zero is not folded: the VM raises the named error at run time.
 static bool mooOperands(const Constant& la, const Constant& ra, fixed_t* a, fixed_t* b)
 {
-    return moo_numfromdouble(la.valueNumber, a) == 0 && moo_numfromdouble(ra.valueNumber, b) == 0;
+    *a = la.valueNumber;
+    *b = ra.valueNumber;
+    return true;
 }
 
 static bool mooResult(Constant& result, fixed_t r)
 {
-    if (r >= (int64_t(1) << 53) || r <= -(int64_t(1) << 53))
-        return false;
     result.type = Constant::Type_Number;
-    result.valueNumber = double(r) * (1.0 / 65536.0);
+    result.valueNumber = r;
     return true;
 }
+
+#if MOO_OVERFLOW_ERRORS
+// moo: a checked build keeps an operation that saturates for run time, where it raises "number overflow
+// in '<op>'" instead of carrying a folded saturated constant (docs/DESIGN.md, "Overflow")
+static bool mooSaturates(AstExprBinary::Op op, fixed_t a, fixed_t b)
+{
+    switch (op)
+    {
+    case AstExprBinary::Add:
+        return moo_numaddsaturates(a, b);
+    case AstExprBinary::Sub:
+        return moo_numsubsaturates(a, b);
+    case AstExprBinary::Mul:
+        return moo_nummulsaturates(a, b);
+    case AstExprBinary::Div:
+        return moo_numdivsaturates(a, b);
+    case AstExprBinary::FloorDiv:
+        return moo_numidivsaturates(a, b);
+    default:
+        return false;
+    }
+}
+#endif
 
 static void mooFold(Constant& result, AstExprBinary::Op op, const Constant& la, const Constant& ra)
 {
     fixed_t a, b;
     if (!mooOperands(la, ra, &a, &b))
         return;
+
+#if MOO_OVERFLOW_ERRORS
+    // moo: docs/DESIGN.md, "Overflow"
+    if (mooSaturates(op, a, b))
+        return;
+#endif
 
     switch (op)
     {
@@ -70,6 +99,22 @@ static void mooFold(Constant& result, AstExprBinary::Op op, const Constant& la, 
         if (b != 0)
             mooResult(result, moo_nummod(a, b));
         break;
+    case AstExprBinary::Pow:
+    {
+        // moo: ^ with an integer exponent folds through moo_pow_int, so the folded constant is the run time's bits
+        // (docs/DESIGN.md, "Layer 3 as built", "The compiler"; "math library", "pow and ^"). A fractional exponent
+        // stays unfolded; division by zero and a saturated power are never folded, because the run time raises the
+        // named errors ("division by zero" in every build, "number overflow in '^'" in a checked build).
+        if (!moo_numisinteger(b))
+            break;
+        fixed_t r = 0;
+        int status = moo_pow_int(a, b >> MOO_NUMBER_FRACTION_BITS, &r);
+        if (status == MOO_POW_OK)
+            mooResult(result, r);
+        // MOO_POW_SATURATED and MOO_POW_DIVISION_BY_ZERO: leave them for run time (docs/DESIGN.md,
+        // "Overflow", "Division by zero")
+        break;
+    }
     case AstExprBinary::CompareLt:
         result.type = Constant::Type_Boolean;
         result.valueBoolean = a < b;
@@ -87,7 +132,7 @@ static void mooFold(Constant& result, AstExprBinary::Op op, const Constant& la, 
         result.valueBoolean = a >= b;
         break;
     default:
-        break; // pow waits for the math library on fixed; the rest are not number operations
+        break; // the rest are not number operations
     }
 }
 
@@ -105,19 +150,11 @@ static bool constantsEqual(const Constant& la, const Constant& ra)
 
     case Constant::Type_Number:
     {
-        // moo: equal as numbers, after the boundary rule
-        fixed_t a, b;
-        return ra.type == Constant::Type_Number && moo_numfromdouble(la.valueNumber, &a) == 0 && moo_numfromdouble(ra.valueNumber, &b) == 0 &&
-               a == b;
+        // moo: equal as raw Q48.16 values (docs/DESIGN.md "Layer 3 as built", "The compiler")
+        return ra.type == Constant::Type_Number && la.valueNumber == ra.valueNumber;
     }
 
-    case Constant::Type_Vectorf:
-        return ra.type == Constant::Type_Vectorf && la.valueVectorf[0] == ra.valueVectorf[0] && la.valueVectorf[1] == ra.valueVectorf[1] &&
-               la.valueVectorf[2] == ra.valueVectorf[2] && la.valueVectorf[3] == ra.valueVectorf[3];
-
-    case Constant::Type_Vectord:
-        return ra.type == Constant::Type_Vectord && la.valueVectord[0] == ra.valueVectord[0] && la.valueVectord[1] == ra.valueVectord[1] &&
-               la.valueVectord[2] == ra.valueVectord[2] && la.valueVectord[3] == ra.valueVectord[3];
+    // moo: the float vector is removed (docs/DESIGN.md "vec3, quat and transform").
 
     case Constant::Type_String:
         return ra.type == Constant::Type_String && la.stringLength == ra.stringLength && memcmp(la.valueString, ra.valueString, la.stringLength) == 0;
@@ -136,19 +173,7 @@ static bool constantsEqual(const Constant& la, const Constant& ra)
     }
 }
 
-// vector component 'w' is not visible to VM runtime configured with LUA_VECTOR_SIZE == 3, so vectors that only differ in 'w' can't be compared
-static bool vectorsDifferOnlyInW(const Constant& la, const Constant& ra)
-{
-    if (la.type == Constant::Type_Vectorf && ra.type == Constant::Type_Vectorf)
-        return la.valueVectorf[0] == ra.valueVectorf[0] && la.valueVectorf[1] == ra.valueVectorf[1] && la.valueVectorf[2] == ra.valueVectorf[2] &&
-               la.valueVectorf[3] != ra.valueVectorf[3];
-
-    if (la.type == Constant::Type_Vectord && ra.type == Constant::Type_Vectord)
-        return la.valueVectord[0] == ra.valueVectord[0] && la.valueVectord[1] == ra.valueVectord[1] && la.valueVectord[2] == ra.valueVectord[2] &&
-               la.valueVectord[3] != ra.valueVectord[3];
-
-    return false;
-}
+// moo: the float vector is removed (docs/DESIGN.md "vec3, quat and transform").
 
 static void foldUnary(Constant& result, AstExprUnary::Op op, const Constant& arg)
 {
@@ -166,31 +191,16 @@ static void foldUnary(Constant& result, AstExprUnary::Op op, const Constant& arg
         if (arg.type == Constant::Type_Number)
         {
             result.type = Constant::Type_Number;
-            result.valueNumber = -arg.valueNumber;
+            result.valueNumber = moo_numunm(arg.valueNumber);
         }
-        else if (arg.type == Constant::Type_Vectorf)
-        {
-            result.type = Constant::Type_Vectorf;
-            result.valueVectorf[0] = -arg.valueVectorf[0];
-            result.valueVectorf[1] = -arg.valueVectorf[1];
-            result.valueVectorf[2] = -arg.valueVectorf[2];
-            result.valueVectorf[3] = -arg.valueVectorf[3];
-        }
-        else if (arg.type == Constant::Type_Vectord)
-        {
-            result.type = Constant::Type_Vectord;
-            result.valueVectord[0] = -arg.valueVectord[0];
-            result.valueVectord[1] = -arg.valueVectord[1];
-            result.valueVectord[2] = -arg.valueVectord[2];
-            result.valueVectord[3] = -arg.valueVectord[3];
-        }
+        // moo: the float vector is removed; unary minus never folds a vector (docs/DESIGN.md "vec3, quat and transform").
         break;
 
     case AstExprUnary::Op::Len:
         if (arg.type == Constant::Type_String)
         {
             result.type = Constant::Type_Number;
-            result.valueNumber = double(arg.stringLength);
+            result.valueNumber = moo_numfromint(int64_t(arg.stringLength));
         }
         break;
 
@@ -210,346 +220,8 @@ static void foldBinary(Constant& result, AstExprBinary::Op op, const Constant& l
 
     switch (op)
     {
-    case AstExprBinary::Add:
-        if (la.type == Constant::Type_Number && ra.type == Constant::Type_Number)
-        {
-            result.type = Constant::Type_Number;
-            result.valueNumber = la.valueNumber + ra.valueNumber;
-        }
-        else if (la.type == Constant::Type_Vectorf && ra.type == Constant::Type_Vectorf)
-        {
-            result.type = Constant::Type_Vectorf;
-            result.valueVectorf[0] = la.valueVectorf[0] + ra.valueVectorf[0];
-            result.valueVectorf[1] = la.valueVectorf[1] + ra.valueVectorf[1];
-            result.valueVectorf[2] = la.valueVectorf[2] + ra.valueVectorf[2];
-            result.valueVectorf[3] = la.valueVectorf[3] + ra.valueVectorf[3];
-        }
-        else if (la.type == Constant::Type_Vectord && ra.type == Constant::Type_Vectord)
-        {
-            result.type = Constant::Type_Vectord;
-            result.valueVectord[0] = la.valueVectord[0] + ra.valueVectord[0];
-            result.valueVectord[1] = la.valueVectord[1] + ra.valueVectord[1];
-            result.valueVectord[2] = la.valueVectord[2] + ra.valueVectord[2];
-            result.valueVectord[3] = la.valueVectord[3] + ra.valueVectord[3];
-        }
-        break;
-
-    case AstExprBinary::Sub:
-        if (la.type == Constant::Type_Number && ra.type == Constant::Type_Number)
-        {
-            result.type = Constant::Type_Number;
-            result.valueNumber = la.valueNumber - ra.valueNumber;
-        }
-        else if (la.type == Constant::Type_Vectorf && ra.type == Constant::Type_Vectorf)
-        {
-            result.type = Constant::Type_Vectorf;
-            result.valueVectorf[0] = la.valueVectorf[0] - ra.valueVectorf[0];
-            result.valueVectorf[1] = la.valueVectorf[1] - ra.valueVectorf[1];
-            result.valueVectorf[2] = la.valueVectorf[2] - ra.valueVectorf[2];
-            result.valueVectorf[3] = la.valueVectorf[3] - ra.valueVectorf[3];
-        }
-        else if (la.type == Constant::Type_Vectord && ra.type == Constant::Type_Vectord)
-        {
-            result.type = Constant::Type_Vectord;
-            result.valueVectord[0] = la.valueVectord[0] - ra.valueVectord[0];
-            result.valueVectord[1] = la.valueVectord[1] - ra.valueVectord[1];
-            result.valueVectord[2] = la.valueVectord[2] - ra.valueVectord[2];
-            result.valueVectord[3] = la.valueVectord[3] - ra.valueVectord[3];
-        }
-        break;
-
-    case AstExprBinary::Mul:
-        if (la.type == Constant::Type_Number && ra.type == Constant::Type_Number)
-        {
-            result.type = Constant::Type_Number;
-            result.valueNumber = la.valueNumber * ra.valueNumber;
-        }
-        else if (la.type == Constant::Type_Vectorf && ra.type == Constant::Type_Vectorf)
-        {
-            bool hadW = la.valueVectorf[3] != 0.0f || ra.valueVectorf[3] != 0.0f;
-            float resultW = la.valueVectorf[3] * ra.valueVectorf[3];
-
-            if (resultW == 0.0f || hadW)
-            {
-                result.type = Constant::Type_Vectorf;
-                result.valueVectorf[0] = la.valueVectorf[0] * ra.valueVectorf[0];
-                result.valueVectorf[1] = la.valueVectorf[1] * ra.valueVectorf[1];
-                result.valueVectorf[2] = la.valueVectorf[2] * ra.valueVectorf[2];
-                result.valueVectorf[3] = resultW;
-            }
-        }
-        else if (la.type == Constant::Type_Number && ra.type == Constant::Type_Vectorf)
-        {
-            bool hadW = ra.valueVectorf[3] != 0.0f;
-            float resultW = float(la.valueNumber) * ra.valueVectorf[3];
-
-            if (resultW == 0.0f || hadW)
-            {
-                result.type = Constant::Type_Vectorf;
-                result.valueVectorf[0] = float(la.valueNumber) * ra.valueVectorf[0];
-                result.valueVectorf[1] = float(la.valueNumber) * ra.valueVectorf[1];
-                result.valueVectorf[2] = float(la.valueNumber) * ra.valueVectorf[2];
-                result.valueVectorf[3] = resultW;
-            }
-        }
-        else if (la.type == Constant::Type_Vectorf && ra.type == Constant::Type_Number)
-        {
-            bool hadW = la.valueVectorf[3] != 0.0f;
-            float resultW = la.valueVectorf[3] * float(ra.valueNumber);
-
-            if (resultW == 0.0f || hadW)
-            {
-                result.type = Constant::Type_Vectorf;
-                result.valueVectorf[0] = la.valueVectorf[0] * float(ra.valueNumber);
-                result.valueVectorf[1] = la.valueVectorf[1] * float(ra.valueNumber);
-                result.valueVectorf[2] = la.valueVectorf[2] * float(ra.valueNumber);
-                result.valueVectorf[3] = resultW;
-            }
-        }
-        else if (la.type == Constant::Type_Vectord && ra.type == Constant::Type_Vectord)
-        {
-            bool hadW = la.valueVectord[3] != 0.0 || ra.valueVectord[3] != 0.0;
-            double resultW = la.valueVectord[3] * ra.valueVectord[3];
-
-            if (resultW == 0.0 || hadW)
-            {
-                result.type = Constant::Type_Vectord;
-                result.valueVectord[0] = la.valueVectord[0] * ra.valueVectord[0];
-                result.valueVectord[1] = la.valueVectord[1] * ra.valueVectord[1];
-                result.valueVectord[2] = la.valueVectord[2] * ra.valueVectord[2];
-                result.valueVectord[3] = resultW;
-            }
-        }
-        else if (la.type == Constant::Type_Number && ra.type == Constant::Type_Vectord)
-        {
-            bool hadW = ra.valueVectord[3] != 0.0;
-            double resultW = la.valueNumber * ra.valueVectord[3];
-
-            if (resultW == 0.0 || hadW)
-            {
-                result.type = Constant::Type_Vectord;
-                result.valueVectord[0] = la.valueNumber * ra.valueVectord[0];
-                result.valueVectord[1] = la.valueNumber * ra.valueVectord[1];
-                result.valueVectord[2] = la.valueNumber * ra.valueVectord[2];
-                result.valueVectord[3] = resultW;
-            }
-        }
-        else if (la.type == Constant::Type_Vectord && ra.type == Constant::Type_Number)
-        {
-            bool hadW = la.valueVectord[3] != 0.0;
-            double resultW = la.valueVectord[3] * ra.valueNumber;
-
-            if (resultW == 0.0 || hadW)
-            {
-                result.type = Constant::Type_Vectord;
-                result.valueVectord[0] = la.valueVectord[0] * ra.valueNumber;
-                result.valueVectord[1] = la.valueVectord[1] * ra.valueNumber;
-                result.valueVectord[2] = la.valueVectord[2] * ra.valueNumber;
-                result.valueVectord[3] = resultW;
-            }
-        }
-        break;
-
-    case AstExprBinary::Div:
-        if (la.type == Constant::Type_Number && ra.type == Constant::Type_Number)
-        {
-            result.type = Constant::Type_Number;
-            result.valueNumber = la.valueNumber / ra.valueNumber;
-        }
-        else if (la.type == Constant::Type_Vectorf && ra.type == Constant::Type_Vectorf)
-        {
-            bool hadW = la.valueVectorf[3] != 0.0f || ra.valueVectorf[3] != 0.0f;
-            float resultW = la.valueVectorf[3] / ra.valueVectorf[3];
-
-            if (resultW == 0.0f || hadW)
-            {
-                result.type = Constant::Type_Vectorf;
-                result.valueVectorf[0] = la.valueVectorf[0] / ra.valueVectorf[0];
-                result.valueVectorf[1] = la.valueVectorf[1] / ra.valueVectorf[1];
-                result.valueVectorf[2] = la.valueVectorf[2] / ra.valueVectorf[2];
-                result.valueVectorf[3] = resultW;
-            }
-        }
-        else if (la.type == Constant::Type_Number && ra.type == Constant::Type_Vectorf)
-        {
-            bool hadW = ra.valueVectorf[3] != 0.0f;
-            float resultW = float(la.valueNumber) / ra.valueVectorf[3];
-
-            if (resultW == 0.0f || hadW)
-            {
-                result.type = Constant::Type_Vectorf;
-                result.valueVectorf[0] = float(la.valueNumber) / ra.valueVectorf[0];
-                result.valueVectorf[1] = float(la.valueNumber) / ra.valueVectorf[1];
-                result.valueVectorf[2] = float(la.valueNumber) / ra.valueVectorf[2];
-                result.valueVectorf[3] = resultW;
-            }
-        }
-        else if (la.type == Constant::Type_Vectorf && ra.type == Constant::Type_Number)
-        {
-            bool hadW = la.valueVectorf[3] != 0.0f;
-            float resultW = la.valueVectorf[3] / float(ra.valueNumber);
-
-            if (resultW == 0.0f || hadW)
-            {
-                result.type = Constant::Type_Vectorf;
-                result.valueVectorf[0] = la.valueVectorf[0] / float(ra.valueNumber);
-                result.valueVectorf[1] = la.valueVectorf[1] / float(ra.valueNumber);
-                result.valueVectorf[2] = la.valueVectorf[2] / float(ra.valueNumber);
-                result.valueVectorf[3] = resultW;
-            }
-        }
-        else if (la.type == Constant::Type_Vectord && ra.type == Constant::Type_Vectord)
-        {
-            bool hadW = la.valueVectord[3] != 0.0 || ra.valueVectord[3] != 0.0;
-            double resultW = la.valueVectord[3] / ra.valueVectord[3];
-
-            if (resultW == 0.0 || hadW)
-            {
-                result.type = Constant::Type_Vectord;
-                result.valueVectord[0] = la.valueVectord[0] / ra.valueVectord[0];
-                result.valueVectord[1] = la.valueVectord[1] / ra.valueVectord[1];
-                result.valueVectord[2] = la.valueVectord[2] / ra.valueVectord[2];
-                result.valueVectord[3] = resultW;
-            }
-        }
-        else if (la.type == Constant::Type_Number && ra.type == Constant::Type_Vectord)
-        {
-            bool hadW = ra.valueVectord[3] != 0.0;
-            double resultW = la.valueNumber / ra.valueVectord[3];
-
-            if (resultW == 0.0 || hadW)
-            {
-                result.type = Constant::Type_Vectord;
-                result.valueVectord[0] = la.valueNumber / ra.valueVectord[0];
-                result.valueVectord[1] = la.valueNumber / ra.valueVectord[1];
-                result.valueVectord[2] = la.valueNumber / ra.valueVectord[2];
-                result.valueVectord[3] = resultW;
-            }
-        }
-        else if (la.type == Constant::Type_Vectord && ra.type == Constant::Type_Number)
-        {
-            bool hadW = la.valueVectord[3] != 0.0;
-            double resultW = la.valueVectord[3] / ra.valueNumber;
-
-            if (resultW == 0.0 || hadW)
-            {
-                result.type = Constant::Type_Vectord;
-                result.valueVectord[0] = la.valueVectord[0] / ra.valueNumber;
-                result.valueVectord[1] = la.valueVectord[1] / ra.valueNumber;
-                result.valueVectord[2] = la.valueVectord[2] / ra.valueNumber;
-                result.valueVectord[3] = resultW;
-            }
-        }
-        break;
-
-    case AstExprBinary::FloorDiv:
-        if (la.type == Constant::Type_Number && ra.type == Constant::Type_Number)
-        {
-            result.type = Constant::Type_Number;
-            result.valueNumber = floor(la.valueNumber / ra.valueNumber);
-        }
-        else if (la.type == Constant::Type_Vectorf && ra.type == Constant::Type_Vectorf)
-        {
-            bool hadW = la.valueVectorf[3] != 0.0f || ra.valueVectorf[3] != 0.0f;
-            float resultW = floor(la.valueVectorf[3] / ra.valueVectorf[3]);
-
-            if (resultW == 0.0f || hadW)
-            {
-                result.type = Constant::Type_Vectorf;
-                result.valueVectorf[0] = floor(la.valueVectorf[0] / ra.valueVectorf[0]);
-                result.valueVectorf[1] = floor(la.valueVectorf[1] / ra.valueVectorf[1]);
-                result.valueVectorf[2] = floor(la.valueVectorf[2] / ra.valueVectorf[2]);
-                result.valueVectorf[3] = resultW;
-            }
-        }
-        else if (la.type == Constant::Type_Number && ra.type == Constant::Type_Vectorf)
-        {
-            bool hadW = ra.valueVectorf[3] != 0.0f;
-            float resultW = floor(float(la.valueNumber) / ra.valueVectorf[3]);
-
-            if (resultW == 0.0f || hadW)
-            {
-                result.type = Constant::Type_Vectorf;
-                result.valueVectorf[0] = floor(float(la.valueNumber) / ra.valueVectorf[0]);
-                result.valueVectorf[1] = floor(float(la.valueNumber) / ra.valueVectorf[1]);
-                result.valueVectorf[2] = floor(float(la.valueNumber) / ra.valueVectorf[2]);
-                result.valueVectorf[3] = resultW;
-            }
-        }
-        else if (la.type == Constant::Type_Vectorf && ra.type == Constant::Type_Number)
-        {
-            bool hadW = la.valueVectorf[3] != 0.0f;
-            float resultW = floor(la.valueVectorf[3] / float(ra.valueNumber));
-
-            if (resultW == 0.0f || hadW)
-            {
-                result.type = Constant::Type_Vectorf;
-                result.valueVectorf[0] = floor(la.valueVectorf[0] / float(ra.valueNumber));
-                result.valueVectorf[1] = floor(la.valueVectorf[1] / float(ra.valueNumber));
-                result.valueVectorf[2] = floor(la.valueVectorf[2] / float(ra.valueNumber));
-                result.valueVectorf[3] = floor(la.valueVectorf[3] / float(ra.valueNumber));
-            }
-        }
-        else if (la.type == Constant::Type_Vectord && ra.type == Constant::Type_Vectord)
-        {
-            bool hadW = la.valueVectord[3] != 0.0 || ra.valueVectord[3] != 0.0;
-            double resultW = floor(la.valueVectord[3] / ra.valueVectord[3]);
-
-            if (resultW == 0.0 || hadW)
-            {
-                result.type = Constant::Type_Vectord;
-                result.valueVectord[0] = floor(la.valueVectord[0] / ra.valueVectord[0]);
-                result.valueVectord[1] = floor(la.valueVectord[1] / ra.valueVectord[1]);
-                result.valueVectord[2] = floor(la.valueVectord[2] / ra.valueVectord[2]);
-                result.valueVectord[3] = resultW;
-            }
-        }
-        else if (la.type == Constant::Type_Number && ra.type == Constant::Type_Vectord)
-        {
-            bool hadW = ra.valueVectord[3] != 0.0;
-            double resultW = floor(la.valueNumber / ra.valueVectord[3]);
-
-            if (resultW == 0.0 || hadW)
-            {
-                result.type = Constant::Type_Vectord;
-                result.valueVectord[0] = floor(la.valueNumber / ra.valueVectord[0]);
-                result.valueVectord[1] = floor(la.valueNumber / ra.valueVectord[1]);
-                result.valueVectord[2] = floor(la.valueNumber / ra.valueVectord[2]);
-                result.valueVectord[3] = resultW;
-            }
-        }
-        else if (la.type == Constant::Type_Vectord && ra.type == Constant::Type_Number)
-        {
-            bool hadW = la.valueVectord[3] != 0.0;
-            double resultW = floor(la.valueVectord[3] / ra.valueNumber);
-
-            if (resultW == 0.0 || hadW)
-            {
-                result.type = Constant::Type_Vectord;
-                result.valueVectord[0] = floor(la.valueVectord[0] / ra.valueNumber);
-                result.valueVectord[1] = floor(la.valueVectord[1] / ra.valueNumber);
-                result.valueVectord[2] = floor(la.valueVectord[2] / ra.valueNumber);
-                result.valueVectord[3] = floor(la.valueVectord[3] / ra.valueNumber);
-            }
-        }
-        break;
-
-    case AstExprBinary::Mod:
-        if (la.type == Constant::Type_Number && ra.type == Constant::Type_Number)
-        {
-            result.type = Constant::Type_Number;
-            result.valueNumber = la.valueNumber - floor(la.valueNumber / ra.valueNumber) * ra.valueNumber;
-        }
-        break;
-
-    case AstExprBinary::Pow:
-        if (la.type == Constant::Type_Number && ra.type == Constant::Type_Number)
-        {
-            result.type = Constant::Type_Number;
-            result.valueNumber = pow(la.valueNumber, ra.valueNumber);
-        }
-        break;
-
+    // moo: the float vector is removed, and number arithmetic folds only through mooFold above; binary operations
+    // never fold a vector (docs/DESIGN.md "vec3, quat and transform").
     case AstExprBinary::Concat:
         if (la.type == Constant::Type_String && ra.type == Constant::Type_String && la.stringLength + ra.stringLength <= kConstantFoldStringLimit)
         {
@@ -572,8 +244,7 @@ static void foldBinary(Constant& result, AstExprBinary::Op op, const Constant& l
         break;
 
     case AstExprBinary::CompareNe:
-        if (la.type != Constant::Type_Unknown && ra.type != Constant::Type_Unknown &&
-            !(FFlag::LuauCompileNoFoldVectorEqW && vectorsDifferOnlyInW(la, ra)))
+        if (la.type != Constant::Type_Unknown && ra.type != Constant::Type_Unknown)
         {
             result.type = Constant::Type_Boolean;
             result.valueBoolean = !constantsEqual(la, ra);
@@ -581,43 +252,10 @@ static void foldBinary(Constant& result, AstExprBinary::Op op, const Constant& l
         break;
 
     case AstExprBinary::CompareEq:
-        if (la.type != Constant::Type_Unknown && ra.type != Constant::Type_Unknown &&
-            !(FFlag::LuauCompileNoFoldVectorEqW && vectorsDifferOnlyInW(la, ra)))
+        if (la.type != Constant::Type_Unknown && ra.type != Constant::Type_Unknown)
         {
             result.type = Constant::Type_Boolean;
             result.valueBoolean = constantsEqual(la, ra);
-        }
-        break;
-
-    case AstExprBinary::CompareLt:
-        if (la.type == Constant::Type_Number && ra.type == Constant::Type_Number)
-        {
-            result.type = Constant::Type_Boolean;
-            result.valueBoolean = la.valueNumber < ra.valueNumber;
-        }
-        break;
-
-    case AstExprBinary::CompareLe:
-        if (la.type == Constant::Type_Number && ra.type == Constant::Type_Number)
-        {
-            result.type = Constant::Type_Boolean;
-            result.valueBoolean = la.valueNumber <= ra.valueNumber;
-        }
-        break;
-
-    case AstExprBinary::CompareGt:
-        if (la.type == Constant::Type_Number && ra.type == Constant::Type_Number)
-        {
-            result.type = Constant::Type_Boolean;
-            result.valueBoolean = la.valueNumber > ra.valueNumber;
-        }
-        break;
-
-    case AstExprBinary::CompareGe:
-        if (la.type == Constant::Type_Number && ra.type == Constant::Type_Number)
-        {
-            result.type = Constant::Type_Boolean;
-            result.valueBoolean = la.valueNumber >= ra.valueNumber;
         }
         break;
 
@@ -912,8 +550,9 @@ struct ConstantVisitor : AstVisitor
         }
         else if (AstExprConstantNumber* expr = node->as<AstExprConstantNumber>())
         {
+            // moo: the AST carries the exact raw Q48.16 value the parser read (docs/DESIGN.md "Literals")
             result.type = Constant::Type_Number;
-            result.valueNumber = expr->value;
+            result.valueNumber = expr->rawValue;
         }
         else if (AstExprConstantInteger* expr = node->as<AstExprConstantInteger>())
         {
@@ -992,48 +631,7 @@ struct ConstantVisitor : AstVisitor
                         result = *prop;
                 }
             }
-            else if (value.type == Constant::Type_Vectorf)
-            {
-                if (expr->index == "x" || expr->index == "X")
-                {
-                    result.type = Constant::Type_Number;
-                    result.valueNumber = value.valueVectorf[0];
-                }
-                else if (expr->index == "y" || expr->index == "Y")
-                {
-                    result.type = Constant::Type_Number;
-                    result.valueNumber = value.valueVectorf[1];
-                }
-                else if (expr->index == "z" || expr->index == "Z")
-                {
-                    result.type = Constant::Type_Number;
-                    result.valueNumber = value.valueVectorf[2];
-                }
-
-                // Do not handle 'w' component because it isn't known if the runtime will be configured in 3-wide or 4-wide mode
-                // In 3-wide, access to 'w' will call unspecified metamethod or fail
-            }
-            else if (value.type == Constant::Type_Vectord)
-            {
-                if (expr->index == "x" || expr->index == "X")
-                {
-                    result.type = Constant::Type_Number;
-                    result.valueNumber = value.valueVectord[0];
-                }
-                else if (expr->index == "y" || expr->index == "Y")
-                {
-                    result.type = Constant::Type_Number;
-                    result.valueNumber = value.valueVectord[1];
-                }
-                else if (expr->index == "z" || expr->index == "Z")
-                {
-                    result.type = Constant::Type_Number;
-                    result.valueNumber = value.valueVectord[2];
-                }
-
-                // Do not handle 'w' component because it isn't known if the runtime will be configured in 3-wide or 4-wide mode
-                // In 3-wide, access to 'w' will call unspecified metamethod or fail
-            }
+            // moo: the float vector is removed; no vector component or library constant folding (docs/DESIGN.md "vec3, quat and transform").
             else if (foldLibraryK)
             {
                 if (AstExprGlobal* eg = expr->expr->as<AstExprGlobal>())
@@ -1043,28 +641,7 @@ struct ConstantVisitor : AstVisitor
 
                     // if we have a custom handler and the constant hasn't been resolved
                     if (libraryMemberConstantCb && result.type == Constant::Type_Unknown)
-                    {
                         libraryMemberConstantCb(eg->name.value, expr->index.value, reinterpret_cast<Luau::CompileConstant*>(&result));
-
-                        if (vectorDoublePrecision && result.type == Constant::Type_Vectorf)
-                        {
-                            Constant copy = result;
-                            result.type = Constant::Type_Vectord;
-                            result.valueVectord[0] = double(copy.valueVectorf[0]);
-                            result.valueVectord[1] = double(copy.valueVectorf[1]);
-                            result.valueVectord[2] = double(copy.valueVectorf[2]);
-                            result.valueVectord[3] = double(copy.valueVectorf[3]);
-                        }
-                        else if (!vectorDoublePrecision && result.type == Constant::Type_Vectord)
-                        {
-                            Constant copy = result;
-                            result.type = Constant::Type_Vectorf;
-                            result.valueVectorf[0] = float(copy.valueVectord[0]);
-                            result.valueVectorf[1] = float(copy.valueVectord[1]);
-                            result.valueVectorf[2] = float(copy.valueVectord[2]);
-                            result.valueVectorf[3] = float(copy.valueVectord[3]);
-                        }
-                    }
                 }
             }
         }

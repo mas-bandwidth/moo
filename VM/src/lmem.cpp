@@ -126,6 +126,8 @@ static_assert(sizeof(void*) == 8, "moo supports 64-bit targets only");
 static_assert(offsetof(TString, data) == 32, "size mismatch for string header");
 static_assert(sizeof(LuaTable) == 56, "size mismatch for table header");
 static_assert(offsetof(Buffer, data) == 16, "size mismatch for buffer header");
+// moo: vec3 object size (docs/DESIGN.md "vec3, quat and transform (layer 3b)"; docs/layer3b/moo-v2-l3b-vec3-object.md, decision 2)
+static_assert(sizeof(MooVec3) == 40, "size mismatch for vec3 object");
 
 // The userdata is designed to provide 16 byte alignment for 16 byte and larger userdata sizes
 static_assert(offsetof(Udata, data) == 32, "data must be at precise offset provide proper alignment");

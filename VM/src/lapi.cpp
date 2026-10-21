@@ -435,8 +435,16 @@ int lua_tointegerx(lua_State* L, int idx, int* isnum)
     const TValue* o = index2addr(L, idx);
     if (tonumber(o, &n))
     {
-        int res;
         lua_Number num = nvalue(o);
+        // moo: DESIGN.md "Exact integers": an integer-valued number has no fraction bits (Lua 5.3's rule);
+        // a fraction is not a conversion, so *isnum stays 0 and the caller names the error.
+        if (!moo_numisinteger(num))
+        {
+            if (isnum)
+                *isnum = 0;
+            return 0;
+        }
+        int res;
         luai_num2int(res, num);
         if (isnum)
             *isnum = 1;
@@ -456,8 +464,15 @@ unsigned lua_tounsignedx(lua_State* L, int idx, int* isnum)
     const TValue* o = index2addr(L, idx);
     if (tonumber(o, &n))
     {
-        unsigned res;
         lua_Number num = nvalue(o);
+        // moo: DESIGN.md "Exact integers": a fraction is not an unsigned integer either.
+        if (!moo_numisinteger(num))
+        {
+            if (isnum)
+                *isnum = 0;
+            return 0;
+        }
+        unsigned res;
         luai_num2unsigned(res, num);
         if (isnum)
             *isnum = 1;
@@ -564,13 +579,7 @@ const char* lua_namecallatom(lua_State* L, int* atom)
     return getstr(s);
 }
 
-const LUA_VECTOR_TYPE* lua_tovector(lua_State* L, int idx)
-{
-    StkId o = index2addr(L, idx);
-    if (!ttisvector(o))
-        return NULL;
-    return vvalue(o);
-}
+// moo: lua_tovector is removed with the vector C API; no vector reaches a host (layer 3, docs/DESIGN.md "vec3, quat and transform")
 
 int lua_objlen(lua_State* L, int idx)
 {
@@ -715,31 +724,7 @@ void lua_pushunsigned(lua_State* L, unsigned u)
     api_incr_top(L);
 }
 
-#if LUA_VECTOR_SIZE == 4
-void lua_pushvector(lua_State* L, LUA_VECTOR_TYPE x, LUA_VECTOR_TYPE y, LUA_VECTOR_TYPE z, LUA_VECTOR_TYPE w)
-{
-    if (LUA_VECTOR_DOUBLE == 1)
-    {
-        luaC_checkGC(L);
-        luaC_threadbarrier(L);
-    }
-    ensure_stack(L, 1);
-    setvvalue(L, L->top, x, y, z, w);
-    api_incr_top(L);
-}
-#else
-void lua_pushvector(lua_State* L, LUA_VECTOR_TYPE x, LUA_VECTOR_TYPE y, LUA_VECTOR_TYPE z)
-{
-    if (LUA_VECTOR_DOUBLE == 1)
-    {
-        luaC_checkGC(L);
-        luaC_threadbarrier(L);
-    }
-    ensure_stack(L, 1);
-    setvvalue(L, L->top, x, y, z, LUA_VECTOR_TYPE(0.0));
-    api_incr_top(L);
-}
-#endif
+// moo: lua_pushvector is removed with the vector C API; a host that calls it fails to compile (layer 3, docs/DESIGN.md "vec3, quat and transform")
 
 void lua_pushlstring(lua_State* L, const char* s, size_t len)
 {

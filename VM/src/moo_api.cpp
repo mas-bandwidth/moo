@@ -26,6 +26,18 @@ int moo_fromfloat(float x, int64_t* out)
 
 double moo_todouble(int64_t n)
 {
-    // int64 to double rounds to nearest even; the scale by 2^-16 is exact
-    return double(n) * (1.0 / 65536.0);
+    // the one boundary rule out of the VM (docs/DESIGN.md, "Boundary"): the nearest binary64
+    // bits, ties to even, in integer arithmetic
+    uint64_t bits = moo_numtodoublebits(n);
+    double d;
+    memcpy(&d, &bits, sizeof(d));
+    return d;
+}
+
+float moo_tofloat(int64_t n)
+{
+    uint32_t bits = moo_numtofloatbits(n);
+    float f;
+    memcpy(&f, &bits, sizeof(f));
+    return f;
 }

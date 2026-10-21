@@ -4,8 +4,9 @@ moo is Luau with two changes: everything in the language is deterministic, and `
 Q48.16 fixed point. Floats and doubles are outlawed inside the VM. Everything else (syntax,
 tools, the C API) stays as close to Luau as possible.
 
-**Status.** Layers 1 and 2 are built. Layer 3 (number = Q48.16) is being built in small PRs; the
-section "Layer 3 as built" below is the state of `main`. Everything else here is design.
+**Status.** Layers 1-5 are built. The conformance record is the program-by-program matrix in
+DETERMINISM.md, "Status". The section "Layer 3 as built" below is the state of `main`.
+Everything else here is design.
 
 The determinism guarantee, and every source of non-determinism found in Luau 0.741 with its
 file and line, is in [DETERMINISM.md](DETERMINISM.md). This document says what replaces them.
@@ -15,31 +16,49 @@ file and line, is in [DETERMINISM.md](DETERMINISM.md). This document says what r
 - **The number is fixed.** `lua_Number` is `int64_t`, the raw Q48.16 value; `TValue` stores it where Luau stored the
   double. Every operator goes through `Common/include/moo_number.h` (add, sub, negate exact and saturating; `fixMul`;
   `fixDiv`; exact floor division and remainder), behind Luau's `luai_num*` seams. `/`, `//` and `%` by zero raise
-  `division by zero`. The domain is [-INT64_MAX, INT64_MAX] raw.
+  `division by zero`. The domain is [-INT64_MAX, INT64_MAX] raw. A checked build (`MOO_OVERFLOW_ERRORS`, on with
+  assertions) raises `number overflow in '<op>'` where release saturates (`moo_num*saturates`, `luai_numnosat`, raised
+  in `luaV_doarithimpl`).
 - **The C API boundary.** `lua_pushnumber`, `lua_tonumber`, `luaL_checknumber` and the rest take and return the raw value.
   In C++ a `double`, `float` or `int` passed to `lua_pushnumber` is a compile error; hosts convert with
-  `moo_fromdouble` / `moo_todouble` (moo.h). Building with `-DMOO_NUMBER_PROBE` makes `lua_Number` a struct, so every
-  implicit use of a number is a compile error: that is how each site was found.
-- **The compiler** folds number arithmetic with the same `moo_number.h` operations (a constant still travels as the
-  double that holds it exactly); it does not fold division by zero, `^`, or any builtin call or `math` constant.
+  `moo_fromdouble` / `moo_todouble` / `moo_tofloat` (moo.h). Building with `-DMOO_NUMBER_PROBE` makes `lua_Number` a
+  struct, so every implicit use of a number is a compile error: that is how each site was found.
+- **The compiler** folds number arithmetic with the same `moo_number.h` operations (a constant is the raw Q48.16
+  value, and a folded constant is the exact value the same expression computes at run time, at every magnitude); it
+  does not fold division by zero, `^`, or any builtin call or `math` constant, or, in a checked build, an operation
+  that saturates. The bytecode-graph constant propagation (`Bytecode/include/Luau/Sccp.h`
+  `evaluateNumberBinaryOp`) folds the same way on the raw value. The compiler does not recognise `vector.*` or
+  `CompileOptions::vectorLib` / `vectorCtor` as builtins and never folds or emits a vector constant
+  (`Compiler/src/Builtins.cpp`, `Compiler/src/ConstantFolding.cpp`, `Compiler/src/Compiler.cpp`).
+- **The moo bytecode version** (`Common/include/Luau/Bytecode.h`, "moo bytecode versions"): a moo blob starts with
+  `0x80 | moo version` (1), then the Luau version its format follows. A number constant is the raw Q48.16 value, 8
+  bytes little-endian. The VM refuses Luau bytecode (`this is Luau bytecode (version N), not moo bytecode`), an
+  unknown moo version, an integer constant (`moo bytecode has no integer constant`) and `INT64_MIN`, each by name.
+  The bytecode dump prints numbers through `moo_format.h`.
 - **Native code generation** is excluded (below).
-- **TEMPORARY bridges**, each marked in the code and each removed by a later layer 3 PR:
-  - bytecode carries a double per number constant, rounded by the boundary rule at load, saturating (the bytecode
-    version PR);
-  - the libm functions of `math`, `^`, `math.noise`, and the float `vector` type convert through doubles
-    (`moo_numbridgetodouble`, `moo_numbridgefromdouble`), until the math library is rebuilt on fixed and the vector
-    type is removed;
-  - `buffer.readf32`/`writef32`, `readf64`/`writef64` and `string.pack` floats round by the bridge (the boundary PR);
+- **The suite says what it skips.** Every skipped doctest case and every moved conformance
+  script states its reason with `moo:`; `tools/moo-check-skips.sh` lists them and fails when a
+  reason is missing or names a replacement that does not exist.
+- **The determinism suite runs on Windows.** The nightly builds `Moo.Test` (the determinism
+  suite and the math oracle) on `windows-latest` with MSVC and with clang-cl and runs it; the
+  job fails when either the effects hash or the state hash differs from
+  `tests/determinism/expected.txt`. No frozen hash changes.
+- **TEMPORARY bridges.** None remain. `tools/moo-check-bridges.sh` reports 0 bridge calls, 0 TEMPORARY markers and 0
+  definitions in the built sources. The last bridge was the math library and `^` on libm, rebuilt on `fixed` in layer
+  4 (DESIGN.md, "Layers", item 4); the float `vector` type and its bytecode constant left in layer 3, and the boundary,
+  `buffer` and `string.pack` floats are exact integer conversions (below).
 - **Literals are exact** (`Common/include/moo_parse.h`): the parser reads a decimal literal as the exact rational it
   denotes and rounds once to Q48.16, ties to even, with no libc and no locale; exponent notation stays; `0x` and `0b`
   literals are integers. A literal beyond the range is the compile error `Number literal out of range`; a nonzero
-  literal that rounds to 0 is the lint warning "below the resolution". Until the bytecode version PR, the AST and
-  the bytecode carry the double that holds the value, which is exact below 2^37.
+  literal that rounds to 0 is the lint warning "below the resolution". The AST and the bytecode carry the exact raw
+  Q48.16 value, over the whole range.
 - **Formatting and tonumber are exact** (`Common/include/moo_format.h`): `tostring` prints the shortest decimal that
   reads back to exactly the same value (`0.1 + 0.2` prints `0.3`, because both read as 19661/65536), integers with no
   fraction; `string.format`'s `%f`, `%e`, `%g`, `%E` and `%G` follow C's flags, width and precision on the exact decimal
   expansion, rounding half to even, with no libc. `tonumber` and string coercion use the literal parser, with spaces
-  and one sign around it; out of range is not a number.
+  and one sign around it; out of range is not a number. A libFuzzer target feeds arbitrary strings to the parser and
+  arbitrary raw values through the formatter and requires `parse(format(x)) == x` (`fuzz/moo_arith.cpp`,
+  `fuzz/number.cpp`, `fuzz/format.cpp`).
 - **Numeric `for` is exact** (`tla/NumericFor.tla`): `LOP_FORNPREP` computes the trip count once, in integer
   arithmetic on the raw values (`moo_numfortrips`), and keeps the iterations left in the limit's register; the index
   never steps past the limit and never saturates. `for i = 0, 1, 0.1` runs 10 times (0.1 is 6554/65536). A zero step
@@ -48,6 +67,20 @@ file and line, is in [DETERMINISM.md](DETERMINISM.md). This document says what r
   table keys (integer-valued numbers use the array part; numbers hash by their raw value), and every integer
   conversion (toward zero, saturating at the int range, so no undefined float-to-int cast). The SSE4.1 fastcalls of
   `floor`, `ceil` and `round`, chosen by CPUID, are gone: one code path everywhere.
+- **Functions that need an integer** (`lua_tointegerx`, `lua_tounsignedx`, `luaL_checkinteger`, `luaL_optinteger`,
+  `luaL_checkunsigned`, and every integer-taking bytecode fastcall in `VM/src/lbuiltins.cpp` via `luai_numisint`)
+  accept only integer-valued numbers. A fraction raises `number has no integer representation`, as in Lua 5.3,
+  identically at `-O0`, `-O1` and `-O2`.
+- **Checked against `fixed`'s C** (`tests/moo/moo-l3-oracle-harness.test.cpp`, doctest suite `moo-oracle`, oracle
+  `tests/moo/moo_oracle_fixed.c`): every operator, bit for bit, on `moo_number.h`, the VM, the compiler's folding and
+  the K-operand opcodes, over the edge set crossed with itself and 2^16 seeded random pairs (`MOO_ORACLE_N` raises it
+  for the nightly).
+- **The float `vector` is out.** The library, the type, the bytecode constant and the C API are refused by name
+  (`moo-l3-libs-out`, `moo-l3-vector-compiler-out`, `moo-l3-vector-constant-refused`, `moo-l3-vector-api-out`,
+  `moo-l3-vector-vm-out`); `LUA_TVECTOR` stays unused in the tag enum so upstream merges stay mechanical.
+- **The merge checklist is built.** `docs/PATCHES.md` lists every upstream file layer 3 modifies or deletes with the
+  DESIGN.md or DETERMINISM.md section it implements, and `tools/moo-check-patches.sh` refuses a change that is not in
+  it.
 
 ## Representation
 
@@ -91,10 +124,14 @@ Saturates, never wraps: a result above the range is the largest value, below it 
 int64 add, so moo builds `fixed` with `FIX_SATURATE` and wraps `+`, `-` and unary `-` in
 saturating versions.
 
-Debug builds (`LUAU_ENABLE_ASSERT` or a moo debug option) raise a named error instead:
-`number overflow in '*'` (and so on per operator). Saturation is the release behaviour, so the
-same program never gives different *values* in debug and release; it either gives the same
-value or stops with the named error in debug.
+Checked builds raise the named error `number overflow in '<op>'` at the operation, for `+`, `-`,
+`*`, `/` and `//` (`^` joins them when it is rebuilt on fixed). A build is checked when
+assertions are on (no `NDEBUG`, or `LUAU_ENABLE_ASSERT`), or when it sets `MOO_OVERFLOW_ERRORS=ON`
+(CMake) or `overflow=on` (make). Unary `-` and `%` are exact on the domain and never saturate. An
+exact result at the edge (`MAX * 1`) is not overflow. The compiler does not fold an operation
+that saturates in a checked build. Saturation is the release behaviour, so the same program never
+gives different *values* in checked and release builds; it either gives the same value or stops
+with the named error in a checked build.
 
 ## Literals
 
@@ -110,8 +147,8 @@ value or stops with the named error in debug.
   `moo-analyze` warning (`number literal below resolution`), not an error.
 - `tonumber` and string-to-number coercion use the same parser and the same rounding, and
   return `nil` on out of range.
-- The compiler stores number constants as the raw int64 in a moo bytecode version; the VM
-  refuses Luau bytecode by version, by name.
+- The compiler stores number constants as the raw int64 in a moo bytecode version (built:
+  `Bytecode.h`, "moo bytecode versions"); the VM refuses Luau bytecode by version, by name.
 
 ## Division by zero
 
@@ -137,9 +174,12 @@ are zero.
   arithmetic from start, limit and step before the loop starts, so `for i = 0, 1, 0.1` runs a
   fixed, platform-independent number of times. A zero step is a named error.
 - **Functions that need an integer** (`string.byte`, `string.char`, `string.sub`,
-  `string.rep`, `table.insert` positions, `bit32`, `buffer` offsets, `string.format("%d")`)
-  accept only integer-valued numbers. A non-integer argument is the named error
-  `number has no integer representation`, as in Lua 5.3, instead of Luau's silent truncation.
+  `string.rep`, `table.insert`/`remove`/`move`/`create` positions, `table.unpack`/`unpack`
+  bounds, `select` index, `math.ldexp` exponent, `bit32`, `buffer` offsets and integer values,
+  `string.format("%d")` and `string.pack` integer formats — both in the C library and in every
+  `VM/src/lbuiltins.cpp` fastcall) accept only integer-valued numbers. A non-integer argument is
+  the named error `number has no integer representation`, as in Lua 5.3, instead of Luau's silent
+  truncation.
 
 ## math library
 
@@ -219,7 +259,10 @@ by Luau's `string.format` and stays unsupported. `%q` of a number uses `tostring
     rounds to the nearest Q48.16 value, **ties to even**. Negative zero becomes zero. NaN,
     infinity and out-of-range values return an error status; the host chooses what to do.
     `moo_fromfloat` is the same for float.
-  - `moo_todouble(fixed_t)`: exact for magnitudes below 2^37; above that, round to nearest even.
+  - `moo_todouble(fixed_t)` and `moo_tofloat(int64_t)`: exact for magnitudes below 2^37; above
+    that, round to nearest even, in integer arithmetic.
+- The boundary rule is `moo_numtodoublebits` / `moo_numtofloatbits`; `writef32` / `writef64` and
+  `string.pack` encode through it.
 - This is deliberately not `fixed`'s `fixFromDouble`, which rounds half away from zero by
   adding 0.5 in floating point and is undefined out of range. moo proposes the exact
   conversion upstream to `fixed`, so there is one rule in one place.
@@ -254,15 +297,17 @@ A later layer reinstates it, rebuilt on the fixed type (no FMA, integer lowering
 ## Analyzer
 
 `number` keeps its name and the type checker needs no new type: it never depended on the
-representation. What changes is outside the type lattice: the builtin definitions drop `os`,
-`vector` and the integer library while those are out, and `moo-analyze` gains the
-literal-below-resolution warning. Layer 3b adds `vec3`, `quat` and `transform` as builtin types,
-defined the way Luau already defines `vector`.
+representation. What changes is outside the type lattice: the builtin definitions have dropped
+`os`, `vector` and the integer library, and the VM opens neither, so the analyzer and the runtime
+agree; `moo-analyze` gains the literal-below-resolution warning. Layer 3b adds `vec3`, `quat` and
+`transform` as builtin types, defined the way Luau already defines `vector`.
 
 ## vec3, quat and transform (layer 3b)
 
 Luau's `vector` is three float32 components packed into the `TValue`. moo removes it in layer 3
-(the library, the type and the bytecode constant, each refused by name). Layer 3b, after
+(the library, the type, the bytecode constant and the C API, each refused by name; built in
+`BytecodeBuilder.cpp`/`lvmload.cpp`, the compiler, `luaL_openlibs` and `lua.h`/`lualib.h`). Layer
+3b, after
 `number` = fixed, brings in three fixed-point types with **full Q48.16 components**, the same as
 `number` and fixed3d:
 
@@ -373,6 +418,22 @@ Its cost falls on vector-heavy script loops; in the intended use the heavy vecto
 runs in fixed3d's C, not in scripts. If a vec3-bound script ever matters, (b) at 32 bytes for vec3 alone
 is the fallback: about 8% everywhere, with quat and transform staying as objects.
 
+### Conformance (layer 3)
+
+Bit-exact, in a release build, against `fixed`'s own C at the pin, built with `FIX_SATURATE` as
+moo builds it: `fixMul` and `fixDiv` for `*` and `/`, and for `+ - // %`, unary `-` and the
+comparisons a second definition from the table in "Semantics", written in fixed's 128-bit
+arithmetic (`tests/moo/moo_oracle_fixed.c`); the comparisons are the table's int64 compares.
+Every operator runs four ways: on `moo_number.h`, in the VM on operands passed through the C API,
+folded by the compiler from literals, and in the K-operand opcodes. All four must give the
+oracle's bits, and `/ // %` by zero must raise `division by zero` on every path. The operands are
+an edge set crossed with itself: zero, one raw unit, 0.5, 1, every fraction bit, the ties of
+`fixMul`, 2^31, 2^32, 2^47 and 2^48 raw, the saturation edges of `*` and `//`, and the ends of the
+range. To these are added PCG32 pairs with a fixed seed, 2^16 on every push and 2^24 in the
+nightly. A planted one-unit error in `*`, and a one-unit error on any one of the VM, fold and K
+paths, must turn the suite red, and a bytecode dump pins that the literal paths fold and reach
+the K opcodes.
+
 ### Conformance (layer 3b)
 
 Bit-exact against fixed3d's own vec, quat and transform functions over dense inputs: random
@@ -386,6 +447,8 @@ and saturation cases are compared against fixed3d built with `BOX3D_FIXED_SATURA
 Luau 0.741 has an experimental int64 `integer` type and library. moo has one number type, so
 moo opens the libraries without it (Luau's own `lualibs_NOINTEGER`) and the analyzer has no
 `integer`. The type tag stays in the C API, unused, so upstream merges in that area stay mechanical.
+An integer literal (`1i`, `0x10i`) is the parse error `moo has no integer type`, and no
+`AstExprConstantInteger` is built.
 
 ## The rest of determinism
 
@@ -405,17 +468,23 @@ Each is detailed, with file and line, in [DETERMINISM.md](DETERMINISM.md):
   number, never an address.
 - **`collectgarbage`** accepts only `"collect"` and `"count"` (in allocation units); `gcinfo`
   reports allocation units.
-- **Errors and tracebacks** are deterministic strings: numbers in them go through moo's
-  formatter.
-- **Coroutines** are cooperative and already deterministic; layer 5 models them in TLA+ and
-  tests them adversarially.
+- **Errors and tracebacks** are deterministic strings. The layer 5 audit found no numeric
+  conversion specifier in the VM's error or traceback formats (only integer line and frame
+  counts), so no change was needed; `tests/determinism/errors.luau` pins every error string and
+  traceback byte for byte in the determinism suite.
+- **Coroutines** are cooperative and already deterministic. Layer 5 tests them adversarially:
+  `tests/determinism/coroutines2.luau` in the determinism suite, the conformance script
+  `tests/conformance/moo/l3/moo-l5-coroutine-programs.luau`, and the C++ cases in
+  `tests/moo/moo-l5-coroutine-programs.test.cpp`. The TLA+ model of their resume/yield/close/error
+  states is owed.
 
 ## State machines and TLA+
 
 Per house practice, each state machine moo adds or changes gets a TLA+ module beside it, checked
 with TLC on a small instance before the code is merged: the GC pacing and destructor queue
-(layer 2, `tla/DestructorQueue.tla`), the coroutine resume/yield/close/error states (layer 5), and the numeric `for`
-trip count (layer 3, `tla/NumericFor.tla`). Each code change cites its model.
+(layer 2, `tla/DestructorQueue.tla`) and the numeric `for` trip count (layer 3,
+`tla/NumericFor.tla`). The coroutine resume/yield/close/error model is still owed; no coroutine
+case appears in `tla/CASES.tsv`.
 
 ## Upstream merges
 
@@ -429,9 +498,11 @@ designed in, not hoped for:
   `extern/fixed`). An upstream change to a file moo never edits merges with no conflict.
 - **Moo patches are a short, named series**, each one layer's change, kept rebased so a merge
   conflict lands in one known patch.
-- **A patch inventory** (`docs/PATCHES.md`, written in layer 2) lists every upstream file moo
-  modifies and why. It is the merge checklist, and it is checked: CI fails if a commit touches
-  an upstream file that is not in it.
+- **A patch inventory** (`docs/PATCHES.md`, written in layer 3 against the final layer 3 tree)
+  lists every upstream file moo modifies or deletes and why; moo-added files are listed by
+  directory. It is the merge checklist, and it is checked: the push gate runs
+  `tools/moo-check-patches.sh` (with `fetch-depth: 0`) and fails when an upstream file is changed
+  without a row, or a row no longer differs.
 - **Untouched areas stay upstream:** the analyzer, the AST, the CLI (beyond the rename), the
   require library and CodeGen (while it is off). Their upstream tests keep running unmodified.
 - **One merge per upstream release**, as the README says: merge the tag, rebase the moo series,
@@ -456,7 +527,8 @@ with Glenn.
 3. **`number` = fixed.** `fixed_t` in the `TValue`; operators with saturation and named errors;
    literals; the compiler's folding and the bytecode constant; integer-valued indexing, `#` and
    `for`; the C API's `lua_Number`; the boundary functions; `vector` and `integer` out. Checked
-   by: bit-exact agreement with `fixed`'s C on every operator over random and edge operands.
+   by: bit-exact agreement with `fixed`'s C on every operator over random and edge operands (the
+   `moo-oracle` suite, above "Conformance (layer 3)"). *Built, awaiting its lock.*
 3b. **vec3, quat and transform.** Full Q48.16 components as immutable GC objects, the operations
    above on `fixed`'s functions, slerp upstreamed to `fixed`, and expression-temporary reuse in
    the compiler. Checked by: bit-exact agreement with fixed3d's vec, quat and transform over
@@ -464,10 +536,17 @@ with Glenn.
 4. **math and formatting.** The math library on `fixed`; `pow`/`^`; `tostring`, `tonumber`
    and `string.format`; float bytes in buffers and `string.pack`. Checked by: the CORE-MATH
    error table, round-trip of every formatted value, and bit-exact agreement with `fixed`.
-5. **Conformance.** The Luau suite adapted for fixed; a cross-platform determinism suite that
-   runs each program on Linux gcc and clang, macOS arm64 and Windows and compares full VM state
-   hashes and effect logs, including adversarial programs (object-keyed tables, heavy GC with
-   destructors and weak tables, coroutines); bit-exact agreement with `fixed`'s C; fuzzing; and
-   the coroutine TLA+ model.
+5. **Conformance.** The Luau suite adapted for fixed; every moved or skipped upstream case states
+   its reason in a `moo:` comment and, where it names the moo test that replaces it, that test
+   resolves; `tools/moo-check-skips.sh` lists them and fails on a missing reason or a replacement
+   that does not exist. A cross-platform determinism suite that runs each program on Linux gcc and
+   clang, macOS arm64, and Windows with MSVC and clang-cl and compares full VM state hashes and
+   effect logs, including adversarial programs (object-keyed tables, heavy GC with destructors and
+   weak tables, coroutines); bit-exact agreement with `fixed`'s C; libFuzzer targets for the
+   operators and the number formatter and parser (`fuzz/moo_arith.cpp`, `fuzz/number.cpp`,
+   `fuzz/format.cpp`); and the coroutine TLA+ model, still owed (there is no coroutine case in
+   `tla/CASES.tsv`). The Windows pair runs in the nightly, which gates nothing: it builds and runs
+   `Moo.Test` (the determinism suite and the math oracle) under both compilers and fails when
+   either hash differs from `tests/determinism/expected.txt`.
 6. **First adoption.** An existing Luau consumer switches from Luau to moo, and its own
    determinism checks pass.

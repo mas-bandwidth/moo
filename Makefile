@@ -8,7 +8,7 @@ CMAKE_PATH=cmake
 config=debug
 protobuf=system
 
-BUILD=build/$(config)
+BUILD=build/$(config)$(if $(overflow),-overflow-$(overflow))
 
 COMMON_SOURCES=$(wildcard Common/src/*.cpp)
 COMMON_OBJECTS=$(COMMON_SOURCES:%=$(BUILD)/%.o)
@@ -44,7 +44,8 @@ CODEGEN_SOURCES=CodeGen/src/moo_codegen_off.cpp
 CODEGEN_OBJECTS=$(CODEGEN_SOURCES:%=$(BUILD)/%.o)
 CODEGEN_TARGET=$(BUILD)/libluaucodegen.a
 
-VM_SOURCES=$(wildcard VM/src/*.cpp)
+# moo: the float vector library leaves the build in layer 3, as in Sources.cmake (docs/DESIGN.md, "vec3, quat and transform")
+VM_SOURCES=$(filter-out VM/src/lveclib.cpp,$(wildcard VM/src/*.cpp))
 FIXED_SOURCES=extern/fixed/src/fixed_math.c extern/fixed/src/fixed_vec.c
 FIXED_OBJECTS=$(FIXED_SOURCES:%=$(BUILD)/%.o)
 VM_OBJECTS=$(VM_SOURCES:%=$(BUILD)/%.o)
@@ -59,7 +60,7 @@ ISOCLINE_OBJECTS=$(ISOCLINE_SOURCES:%=$(BUILD)/%.o)
 ISOCLINE_TARGET=$(BUILD)/libisocline.a
 
 MOO_CODEGEN_TESTS=tests/AssemblyBuilderA64.test.cpp tests/AssemblyBuilderX64.test.cpp tests/CodeAllocator.test.cpp tests/IrAssembly.test.cpp tests/IrBuilder.test.cpp tests/IrCallWrapperX64.test.cpp tests/IrRegAllocX64.test.cpp tests/IrLowering.test.cpp tests/SharedCodeAllocator.test.cpp
-TESTS_SOURCES=$(filter-out tests/moo_main.cpp $(MOO_CODEGEN_TESTS),$(wildcard tests/*.cpp)) CLI/src/FileUtils.cpp CLI/src/Flags.cpp CLI/src/Profiler.cpp CLI/src/Coverage.cpp CLI/src/Counters.cpp CLI/src/Repl.cpp CLI/src/ReplRequirer.cpp CLI/src/VfsNavigator.cpp
+TESTS_SOURCES=$(filter-out tests/moo_main.cpp $(MOO_CODEGEN_TESTS),$(wildcard tests/*.cpp) $(wildcard tests/moo/*.cpp)) CLI/src/FileUtils.cpp CLI/src/Flags.cpp CLI/src/Profiler.cpp CLI/src/Coverage.cpp CLI/src/Counters.cpp CLI/src/Repl.cpp CLI/src/ReplRequirer.cpp CLI/src/VfsNavigator.cpp
 TESTS_OBJECTS=$(TESTS_SOURCES:%=$(BUILD)/%.o)
 TESTS_TARGET=$(BUILD)/luau-tests
 
@@ -126,6 +127,15 @@ ifneq ($(werror),)
 	CXXFLAGS+=-Wno-unused-but-set-variable
 endif
 
+# moo: checked arithmetic (docs/DESIGN.md, "Overflow"): overflow=on raises "number overflow in <op>" where
+# release saturates, overflow=off never; unset, it follows assertions (on in config=debug, off with NDEBUG)
+ifneq ($(filter on ON,$(overflow)),)
+	CXXFLAGS+=-DMOO_OVERFLOW_ERRORS=1
+endif
+ifneq ($(filter off OFF,$(overflow)),)
+	CXXFLAGS+=-DMOO_OVERFLOW_ERRORS=0
+endif
+
 # configuration-specific flags
 ifeq ($(config),release)
 	CXXFLAGS+=-O2 -DNDEBUG -fno-math-errno
@@ -186,7 +196,7 @@ $(VM_OBJECTS): CXXFLAGS+=-std=c++11 -ICommon/include -IVM/include -Iextern/fixed
 $(FIXED_OBJECTS): CXXFLAGS+=-std=c11 -Iextern/fixed/include -DFIX_SATURATE
 $(REQUIRE_OBJECTS): CXXFLAGS+=-std=c++17 -ICommon/include -IVM/include -IAst/include -IConfig/include -IRequire/include
 $(ISOCLINE_OBJECTS): CXXFLAGS+=-Wno-unused-function -Iextern/isocline/include
-$(TESTS_OBJECTS): CXXFLAGS+=-std=c++17 -ICommon/include -IAst/include -IBytecode/include -IInliner/include -ICompiler/include -IConfig/include -IAnalysis/include -ICodeGen/include -IVM/include -IVM/src -IRequire/include -ICLI/include -Iextern -Iextern/fixed/include -DFIX_SATURATE -DDOCTEST_CONFIG_DOUBLE_STRINGIFY -DDOCTEST_CONFIG_USE_STD_HEADERS -DLUAU_CONFORMANCE_SOURCE_DIR=$(LUAU_CONFORMANCE_SOURCE_DIR)
+$(TESTS_OBJECTS): CXXFLAGS+=-std=c++17 -ICommon/include -IAst/include -IBytecode/include -IInliner/include -ICompiler/include -IConfig/include -IAnalysis/include -ICodeGen/include -IVM/include -IVM/src -IRequire/include -ICLI/include -Itests -Iextern -Iextern/fixed/include -DFIX_SATURATE -DDOCTEST_CONFIG_DOUBLE_STRINGIFY -DDOCTEST_CONFIG_USE_STD_HEADERS -DLUAU_CONFORMANCE_SOURCE_DIR=$(LUAU_CONFORMANCE_SOURCE_DIR)
 $(REPL_CLI_OBJECTS): CXXFLAGS+=-std=c++17 -ICommon/include -IAst/include -IBytecode/include -IInliner/include -ICompiler/include -IVM/include -ICodeGen/include -IRequire/include -Iextern -Iextern/isocline/include -ICLI/include
 $(ANALYZE_CLI_OBJECTS): CXXFLAGS+=-std=c++17 -ICommon/include -IAst/include -IAnalysis/include -IConfig/include -IRequire/include -IVM/include -Iextern -ICLI/include
 $(COMPILE_CLI_OBJECTS): CXXFLAGS+=-std=c++17 -ICommon/include -IAst/include -IBytecode/include -ICompiler/include -IVM/include -ICodeGen/include -ICLI/include
