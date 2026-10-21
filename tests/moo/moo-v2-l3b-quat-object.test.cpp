@@ -294,7 +294,8 @@ TEST_CASE("QuatGcLeafAndChurn100k")
         MooQuat* q = moo_quat_new(L, fixed_t(i), fixed_t(-i), fixed_t(i * 3), fixed_t(i + 1));
         setquatvalue(L, L->top, q);
         incr_top(L);
-        if (i % 64 == 63)
+        // luaC_step requires the debt to be due (lgc.cpp asserts totalbytes >= GCthreshold in a checked build)
+        if (i % 64 == 63 && L->global->totalbytes >= L->global->GCthreshold)
             luaC_step(L, true);
         CHECK(L->global->dtorqueue == nullptr);
         lua_pop(L, 1);
