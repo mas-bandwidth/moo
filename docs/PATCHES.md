@@ -128,7 +128,7 @@ edits them, except where a row above records the seam.
 
 | file | why |
 |---|---|
-| `tests/BytecodeCallInliner.test.cpp` | the test skips the 3-byte moo header and expects the saturated fixed result where upstream expected infinity (DESIGN.md "Literals", "Overflow"). |
+| `tests/BytecodeCallInliner.test.cpp` | the test skips the 3-byte moo header, and `10 / 0` stays an unfolded `DIV` where upstream folded it to infinity (DESIGN.md "Literals", "Division by zero"). |
 | `tests/BytecodeCompiler.test.cpp` | the test skips the 3-byte moo header and reads raw number constants (DESIGN.md "Literals"). |
 | `tests/Compiler.test.cpp` | constant expectations are Q48.16 values and the vector-folding case is skipped (DESIGN.md "Literals", "vec3, quat and transform"). |
 | `tests/Conformance.test.cpp` | the vector C API and vector-freeze tests are removed and host floats enter through `MooHost.h` (DESIGN.md "Boundary", "vec3, quat and transform"). |

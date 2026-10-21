@@ -1075,7 +1075,8 @@ TEST_CASE_FIXTURE(BytecodeInlinerFixture, "fold_constants_div_by_zero")
         true
     );
 
-    // moo: 10 / 0 folds to the saturated MOO_NUMBER_MAX (raw INT64_MAX), not inf; moo has no infinity
+    // moo: 10 / 0 is never folded (Bytecode/include/Luau/Sccp.h evaluateNumberBinaryOp); the DIV stays so the VM raises
+    // "division by zero" at run time (DESIGN.md "Division by zero", docs/layer3/moo-l3-bytecode-graph-fixed.md)
     REQUIRE_EQ(
         "\n" + result,
         R"(
@@ -1083,8 +1084,8 @@ GETUPVAL R1 U0
 LOADK R2 K0 [10]
 LOADK R3 K1 [0]
 CMPPROTO R1 #0 L0
-LOADK R4 K2 [140737488355327.99998]
-LOADK R1 K2 [140737488355327.99998]
+DIV R4 R2 R3
+MOVE R1 R4
 JUMP L1
 L0: CALLFB R1 2 1 [-1]
 L1: ADD R2 R1 R0
