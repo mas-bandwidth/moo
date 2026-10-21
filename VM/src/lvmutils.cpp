@@ -185,6 +185,32 @@ static LUAU_NOINLINE void callTM(lua_State* L, const TValue* f, const TValue* p1
     }
 }
 
+// moo: v.x, v.y and v.z read a vec3's components (and X, Y, Z, as Luau's vector does), so Luau vector code
+// carries over (docs/DESIGN.md "vec3, quat and transform (layer 3b)", "Operations"). Any other key falls
+// through to the index error; a vec3 has no metatable and no __index.
+static bool moo_vec3_index(const MooVec3* v, const TValue* key, StkId val)
+{
+    if (!ttisstring(key) || tsvalue(key)->len != 1)
+        return false;
+    switch (getstr(tsvalue(key))[0])
+    {
+    case 'x':
+    case 'X':
+        setnvalue(val, v->x);
+        return true;
+    case 'y':
+    case 'Y':
+        setnvalue(val, v->y);
+        return true;
+    case 'z':
+    case 'Z':
+        setnvalue(val, v->z);
+        return true;
+    default:
+        return false;
+    }
+}
+
 void luaV_gettable(lua_State* L, const TValue* t, TValue* key, StkId val)
 {
     int loop;
@@ -269,6 +295,8 @@ void luaV_gettable(lua_State* L, const TValue* t, TValue* key, StkId val)
             setobj2s(L, val, &lco->staticmembers[offset - lco->numberofinstancemembers]);
             return;
         }
+        else if (ttisvec3(t) && moo_vec3_index(vec3value(t), key, val))
+            return; // moo: a vec3 component (docs/DESIGN.md "vec3, quat and transform (layer 3b)")
         else if (ttisnil(tm = luaT_gettmbyobj(L, t, TM_INDEX)))
             luaG_indexerror(L, t, key);
         if (ttisfunction(tm))

@@ -9,6 +9,7 @@
 #include "lapi.h"
 #include "lgc.h"
 #include "lnumutils.h"
+#include "moo_vec3.h" // moo: tostring of a vec3 (docs/layer3b/moo-v2-l3b-vec3-object.md, decision 5)
 
 #include <string.h>
 
@@ -636,6 +637,15 @@ const char* luaL_tolstring(lua_State* L, int idx, size_t* len)
         break;
     }
     // moo: the LUA_TVECTOR case is removed; no vector can be made (layer 3, docs/DESIGN.md "vec3, quat and transform")
+    case LUA_TVEC3:
+    {
+        // moo: a vec3 is a value and prints its components, vec3(x, y, z), never a creation number
+        // (docs/layer3b/moo-v2-l3b-vec3-object.md, decision 5; docs/DETERMINISM.md, 6)
+        char s[MOO_VEC3_TOSTR_MAX];
+        char* e = moo_vec3_tostring(s, vec3value(luaA_toobject(L, idx)));
+        lua_pushlstring(L, s, e - s);
+        break;
+    }
     case LUA_TSTRING:
         lua_pushvalue(L, idx);
         break;

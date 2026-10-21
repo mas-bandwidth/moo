@@ -36,11 +36,62 @@ fixed's `fixVecMul` and `fixMulSV` (fixed's `fixMul`, saturating under `FIX_SATU
   the analyzer does not know the `vec3` global until the analyzer-type card lands; without this the
   VM-globals-versus-RTTI check fails now that `luaL_openlibs` opens `vec3`.
 
+## Decisions added on review (2026-10-21)
+
+The carried head (`7dcc4e5b`, never gated) was re-reviewed on main `934c2e5`. What changed:
+
+- **Components.** `v.x`, `v.y`, `v.z` (and `X`, `Y`, `Z`, as Luau's vector) read a component, in
+  `luaV_gettable` (`moo_vec3_index`, `VM/src/lvmutils.cpp`), the path every non-table index takes.
+  Any other key is the ordinary index error; assigning a component is the index error too, because a
+  vec3 is immutable and has no metatable. DESIGN.md says the analyzer defines `vec3` "the way Luau
+  already defines `vector`", and that definition has `x`, `y` and `z`; without them a script could
+  read a component only through `vec3.dot` with a basis vector.
+- **tostring.** `luaL_tolstring` (`VM/src/laux.cpp`) prints `vec3(x, y, z)` through
+  `moo_vec3_tostring`, as decision 5 of `moo-v2-l3b-vec3-object.md` and its card gc item 7 asked;
+  before this, `tostring` printed `vec3: #<seq>`.
+- **Checked-build test bug.** The carried `Vec3SaturationEdges` required an overflow error for an
+  add that lands exactly on the domain end (`max - 1 + 1`), which is exact and raises nothing; the
+  case failed in every checked build. Each edge now says whether it saturates, and `*` (vec3 and
+  scalar, both orders) joined the edges.
+- **Carried allocation check.** It read `lua_pushvalue(L, -2)` below the stack after `lua_pcall`
+  (an assert crash in a checked build) and compared with `lua_rawequal`, which is by value for a vec3
+  and so could not see a new object. It now checks that one `+` adds exactly `sizeof(MooVec3)` (40)
+  to `lua_totalbytes` with the collector stopped.
+- **Constant folder.** Layer 3 removed upstream's vector cases from `foldBinary`, so `"a" + 1` or
+  `true < 2` reached `LUAU_ASSERT(!"Unexpected binary operation")` and a checked build crashed while
+  compiling (`tests/determinism/errors.luau` has such an expression). Those operators now leave the
+  expression unfolded for the VM's error (`tests/moo/moo-l3-fold-nonnumber-operand.test.cpp`).
+
 ## Re-pins
 
 Opening a library allocates its table and function-name strings, so every creation number shifts. Per
 the precedent of moo-v2-l3b-vec3-object-design, `tests/determinism/expected.txt` and five frozen values
 in `tests/Moo.test.cpp` are re-pinned once; clang and gcc produce the same new values.
+Re-checked on main `934c2e5` on hulk (x86_64): clang 18 and gcc 13 give the same new values, and no
+other value moved. Nothing in the re-review (components, `tostring`, the folder) creates a startup
+object, so the values are the carried head's.
+
+`tests/determinism/expected.txt` (effects, state):
+
+| program | old | new |
+|---|---|---|
+| coroutines | `87415de4bd8d788a` `5c5b83003f192d3f` | `14a9b3cff128eb95` `3b97a8bfb6d7a324` |
+| gcchurn | `457e563d872baf1e` `2abd24e2bddab39e` | `74af43e489ecf54b` `08a560138169a027` |
+| library | `4d053eec9658fe53` `1e2a00317a2595ce` | `9e5ba12ad834c77d` `9000ab43846170cf` |
+| objectkeys | `5e3e1deb0bac6e7b` `507a9f51a8f19397` | `863a034d939672ec` `d596ebcfc869f955` |
+| coroutines2 | `46858120d5307229` `f66cdf65627402aa` | `2ca405a9600143fa` `0e031fe08c2e96bf` |
+| errors | `f7037948e0d4bea2` `a8553ceb065dad36` | `73f268e45fb73545` `8d2b96bb8f979fec` |
+| math | `2f1dd357cba511b4` `dda4446980e68248` | `b166f5d6481b48ef` `7a977c8aef335485` |
+
+`tests/Moo.test.cpp`:
+
+| case | old | new |
+|---|---|---|
+| `TostringPrintsCreationNumber` | `table: #376 table: #377` | `table: #391 table: #392` |
+| `GcPacingIsAFunctionOfTheProgram` | `1918608859321230699` | `12944870832997013475` |
+| `DestructorsRunInCreationOrder` | `4673712535580941492` | `16890831982340340772` |
+| `WeakTableOrderIsAFunctionOfTheProgram` | `11785329807427589751` | `10528855066574528962` |
+| `ObjectKeyOrderIgnoresAddresses` | `42,27,41,56,8,...,20,2` | `27,12,41,17,16,...,13,29,47,54` |
 
 ## DESIGN.md sentences that must change
 
@@ -64,12 +115,23 @@ in `tests/Moo.test.cpp` are re-pinned once; clang and gcc produce the same new v
 - `tests/moo/moo-v2-l3b-vec3-ops.test.cpp`: 1024 seeded inputs per operator against `fixVecAdd`,
   `fixVecSub`, `fixVecMul`, `fixMulSV`, `fixVecNeg`; 1024 for `==`; 1024 per library function against
   `fixDot`, `fixCross`, `fixLength`, `fixNormalize`; allocation; saturation edges; the conformance file.
+- `Vec3OperatorsFullRange4096` and `Vec3LibraryFullRange4096`: 4096 seeded full-domain inputs (random
+  magnitudes plus the edges 0, +-1 raw, +-1, +-2^47 raw, the domain ends and their neighbours) against
+  `moo_numadd`/`moo_numsub`/`fixVecMul`/`fixMulSV`/`fixVecNeg` and `fixDot`/`fixLength`/`fixNormalize`;
+  a checked build must raise exactly where a component saturates. Reversed witnesses: the corpus
+  saturates each saturating operator more than 100 times, makes `fixDot` saturate more than 100 times,
+  and reaches more than 100 inputs where fixed's plain int64 add would wrap, so a corpus too small to
+  reach the edges fails. `cross` is compared only where fixCross's subtractions stay in the domain
+  (more than 1000 cases): outside it fixCross is the open gap of DESIGN.md "Saturation, stated
+  precisely", owed upstream in `fixed`.
+- `Vec3ComponentsAndTostring` and `Vec3Refusals`: components, `tostring`, the raw C API both ways,
+  and 29 refused operations each with its exact error (`vec3 + 1`, `vec3 / vec3`, `<`, `#`, `..`,
+  `v.w`, `v.x = 1`, calls, iteration, every library function's argument check).
 - `tests/conformance/moo/l3/moo-v2-l3b-vec3-ops.luau`: one `assert` per operator and library function,
-  a release/checked saturation edge, and `return "OK"`.
+  components and `tostring`, a release/checked saturation edge, and `return "OK"`.
 
 ## Not done
 
-- `tostring(vec3)` still prints `vec3: #<seq>`: `moo_vec3_tostring` is not wired into `luaL_tolstring`
-  (`VM/src/laux.cpp`, outside this card's PATHS). The conformance script reads components through
-  `vec3.dot` with a basis vector instead.
+- `fixCross` outside the domain (a plain int64 subtraction at this `fixed` pin) is owed upstream in
+  `fixed` as saturating adds under `FIX_SATURATE` (DESIGN.md "Saturation, stated precisely").
 - Quat and transform operators, and the analyzer's vec3 type, are later cards.

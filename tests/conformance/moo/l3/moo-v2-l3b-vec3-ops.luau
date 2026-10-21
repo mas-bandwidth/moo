@@ -3,14 +3,12 @@
 -- checked builds alike, as tests/moo/moo-l3-overflow-errors-debug.test.cpp does for number.
 local vec3 = vec3
 
--- a vec3's components are read through the library (there is no field access): dot with a basis vector is the
--- component itself, exactly, because fixDot accumulates at 128 bits and rounds once.
-local ex, ey, ez = vec3.new(1, 0, 0), vec3.new(0, 1, 0), vec3.new(0, 0, 1)
-local function dx(v) return vec3.dot(v, ex) end
-local function dy(v) return vec3.dot(v, ey) end
-local function dz(v) return vec3.dot(v, ez) end
-local function same(v, x, y, z) return dx(v) == x and dy(v) == y and dz(v) == z end
+-- a vec3's components read as v.x, v.y and v.z (and X, Y, Z, as Luau's vector)
+local function same(v, x, y, z) return v.x == x and v.y == y and v.z == z end
 
+assert(tostring(vec3.new(1, -2.5, 0.1)) == "vec3(1, -2.5, 0.1)")
+assert(vec3.new(4, 5, 6).Y == 5)
+assert(not pcall(function(v) v.x = 1 end, vec3.new()))
 assert(type(vec3.new(1, 2, 3)) == "vec3")
 assert(typeof(vec3.new(1, 2, 3)) == "vec3")
 assert(same(vec3.new(1, 2, 3), 1, 2, 3))
