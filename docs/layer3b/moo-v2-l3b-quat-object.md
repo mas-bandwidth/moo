@@ -124,6 +124,11 @@ cases moved, from the one cause the vec3 note names: interning `"quat"` shifts e
 
 ## Not done
 
+Closed by `docs/layer3b/moo-v2-l3b-quat.md` (the operations row, same PR): the operations, the script
+constructor, the C API and every seam listed below; its re-pin table replaces this note's, which was
+measured on the sprint base before the vec3 library existed.
+
+
 - No operation (`quat * quat`, `quat * vec3`, `conjugate`, `nlerp`), no script constructor and no C API entry point:
   card `moo-v2-l3b-quat`. `slerp` waits for `fixed`.
 - Seams in files outside this card's `PATHS` (`VM/src/lvmutils.cpp` `luaV_equalval`, `VM/src/lvmexecute.cpp`

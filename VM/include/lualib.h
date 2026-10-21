@@ -43,6 +43,10 @@ LUALIB_API unsigned luaL_optunsigned(lua_State* L, int numArg, unsigned def);
 LUALIB_API void moo_pushvec3(lua_State* L, lua_Number x, lua_Number y, lua_Number z);
 LUALIB_API int moo_tovec3(lua_State* L, int idx, lua_Number out[3]);
 
+// moo: the quat C API, the vec3 shape with four raw components x, y, z and s (fixed's fixQuat order).
+LUALIB_API void moo_pushquat(lua_State* L, lua_Number x, lua_Number y, lua_Number z, lua_Number s);
+LUALIB_API int moo_toquat(lua_State* L, int idx, lua_Number out[4]);
+
 LUALIB_API void luaL_checkstack(lua_State* L, int sz, const char* msg);
 LUALIB_API void luaL_checktype(lua_State* L, int narg, int t);
 LUALIB_API void luaL_checkany(lua_State* L, int narg);
@@ -159,6 +163,9 @@ LUALIB_API int luaopen_integer(lua_State* L);
 
 // moo: the vec3 library (docs/DESIGN.md "vec3, quat and transform (layer 3b)"), opened by luaL_openlibs.
 LUALIB_API int luaopen_vec3(lua_State* L);
+
+// moo: the quat library (docs/DESIGN.md "vec3, quat and transform (layer 3b)"), opened by luaL_openlibs.
+LUALIB_API int luaopen_quat(lua_State* L);
 
 // open all builtin libraries
 LUALIB_API void luaL_openlibs(lua_State* L);

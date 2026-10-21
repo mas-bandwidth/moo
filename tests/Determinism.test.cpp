@@ -202,6 +202,17 @@ bool hashObject(void* context, lua_Page* page, GCObject* o)
         f.u64(gco2buf(o)->len);
         f.bytes(gco2buf(o)->data, gco2buf(o)->len);
         break;
+    case LUA_TVEC3: // moo: a vec3's payload is state (docs/layer3b/moo-v2-l3b-vec3-object.md, card gc item 10)
+        f.u64(uint64_t(gco2vec3(o)->x));
+        f.u64(uint64_t(gco2vec3(o)->y));
+        f.u64(uint64_t(gco2vec3(o)->z));
+        break;
+    case LUA_TQUAT: // moo: a quat's payload is state (docs/layer3b/moo-v2-l3b-quat-object.md)
+        f.u64(uint64_t(gco2quat(o)->v.x));
+        f.u64(uint64_t(gco2quat(o)->v.y));
+        f.u64(uint64_t(gco2quat(o)->v.z));
+        f.u64(uint64_t(gco2quat(o)->s));
+        break;
     case LUA_TFUNCTION:
     {
         Closure* c = gco2cl(o);

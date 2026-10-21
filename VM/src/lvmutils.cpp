@@ -11,6 +11,7 @@
 #include "ldo.h"
 #include "lnumutils.h"
 #include "moo_vec3.h" // moo: vec3 operators call fixed's vector functions (docs/DESIGN.md "vec3, quat and transform (layer 3b)")
+#include "moo_quat.h" // moo: quat operators call fixed's quaternion functions (docs/DESIGN.md "vec3, quat and transform (layer 3b)")
 
 #include <string.h>
 
@@ -185,26 +186,47 @@ static LUAU_NOINLINE void callTM(lua_State* L, const TValue* f, const TValue* p1
     }
 }
 
-// moo: v.x, v.y and v.z read a vec3's components (and X, Y, Z, as Luau's vector does), so Luau vector code
-// carries over (docs/DESIGN.md "vec3, quat and transform (layer 3b)", "Operations"). Any other key falls
-// through to the index error; a vec3 has no metatable and no __index.
-static bool moo_vec3_index(const MooVec3* v, const TValue* key, StkId val)
+// moo: v.x, v.y and v.z read a vec3's components, and q.x, q.y, q.z and q.w a quat's (w is fixed's scalar s),
+// in either case (X, Y, Z, W, as Luau's vector), so Luau vector code carries over (docs/DESIGN.md "vec3, quat and
+// transform (layer 3b)", "Operations"). Any other key falls through to the index error; neither type has a
+// metatable or an __index.
+static bool moo_value_index(const TValue* t, const TValue* key, StkId val)
 {
     if (!ttisstring(key) || tsvalue(key)->len != 1)
+        return false;
+    fixed_t x, y, z, w;
+    bool hasw;
+    if (ttisvec3(t))
+    {
+        const MooVec3* v = vec3value(t);
+        x = v->x, y = v->y, z = v->z, w = 0, hasw = false;
+    }
+    else if (ttisquat(t))
+    {
+        const MooQuat* q = quatvalue(t);
+        x = q->v.x, y = q->v.y, z = q->v.z, w = q->s, hasw = true;
+    }
+    else
         return false;
     switch (getstr(tsvalue(key))[0])
     {
     case 'x':
     case 'X':
-        setnvalue(val, v->x);
+        setnvalue(val, x);
         return true;
     case 'y':
     case 'Y':
-        setnvalue(val, v->y);
+        setnvalue(val, y);
         return true;
     case 'z':
     case 'Z':
-        setnvalue(val, v->z);
+        setnvalue(val, z);
+        return true;
+    case 'w':
+    case 'W':
+        if (!hasw)
+            return false;
+        setnvalue(val, w);
         return true;
     default:
         return false;
@@ -295,8 +317,8 @@ void luaV_gettable(lua_State* L, const TValue* t, TValue* key, StkId val)
             setobj2s(L, val, &lco->staticmembers[offset - lco->numberofinstancemembers]);
             return;
         }
-        else if (ttisvec3(t) && moo_vec3_index(vec3value(t), key, val))
-            return; // moo: a vec3 component (docs/DESIGN.md "vec3, quat and transform (layer 3b)")
+        else if ((ttisvec3(t) || ttisquat(t)) && moo_value_index(t, key, val))
+            return; // moo: a vec3 or quat component (docs/DESIGN.md "vec3, quat and transform (layer 3b)")
         else if (ttisnil(tm = luaT_gettmbyobj(L, t, TM_INDEX)))
             luaG_indexerror(L, t, key);
         if (ttisfunction(tm))
@@ -486,6 +508,8 @@ int luaV_equalval(lua_State* L, const TValue* t1, const TValue* t2)
         return pvalue(t1) == pvalue(t2) && lightuserdatatag(t1) == lightuserdatatag(t2);
     case LUA_TVEC3: // moo: == is the three raw components, never the address (docs/DESIGN.md "vec3, quat and transform (layer 3b)", "Operations")
         return moo_vec3_equal(vec3value(t1), vec3value(t2));
+    case LUA_TQUAT: // moo: == is the four raw components, never the address (docs/DESIGN.md "vec3, quat and transform (layer 3b)", "Operations")
+        return moo_quat_equal(quatvalue(t1), quatvalue(t2));
     case LUA_TUSERDATA:
     {
         tm = get_compTM(L, uvalue(t1)->metatable, uvalue(t2)->metatable, TM_EQ);
@@ -646,6 +670,26 @@ void luaV_doarithimpl(lua_State* L, StkId ra, const TValue* rb, const TValue* rc
     // follow number's saturation and checked-build error; * calls fixVecMul/fixMulSV, whose fixMul is saturating
     // in moo's build. A vec3 with any other operand falls through to the metamethod path, which raises the
     // ordinary arithmetic error. Every result is a new object.
+    // moo: quat operators (docs/DESIGN.md "vec3, quat and transform (layer 3b)", "Operations"): quat * quat is
+    // fixMulQuat and quat * vec3 is fixRotateVector, fixed's compound functions verbatim (each component one
+    // 128-bit reduction, saturating under FIX_SATURATE; "Saturation, stated precisely"). Any other operator or
+    // operand falls through to the ordinary arithmetic error. Every result is a new object.
+    if (op == TM_MUL && ttisquat(rb) && (ttisquat(rc) || ttisvec3(rc)))
+    {
+        const MooQuat* qb = quatvalue(rb);
+        fixQuat q = FIX_LITERAL(fixQuat){{qb->v.x, qb->v.y, qb->v.z}, qb->s};
+        if (ttisquat(rc))
+        {
+            const MooQuat* qc = quatvalue(rc);
+            fixQuat r = fixMulQuat(q, FIX_LITERAL(fixQuat){{qc->v.x, qc->v.y, qc->v.z}, qc->s});
+            luaC_checkGC(L);
+            MooQuat* out = moo_quat_new(L, r.v.x, r.v.y, r.v.z, r.s);
+            setquatvalue(L, ra, out);
+        }
+        else
+            mooVec3SetResult(L, ra, fixRotateVector(q, mooVec3Payload(vec3value(rc))));
+        return;
+    }
     if (ttisvec3(rb) || ttisvec3(rc))
     {
         fixVec3 a = ttisvec3(rb) ? mooVec3Payload(vec3value(rb)) : FIX_LITERAL(fixVec3){0, 0, 0};
