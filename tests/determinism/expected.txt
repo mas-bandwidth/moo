@@ -7,10 +7,13 @@
 # (docs/layer3b/moo-v2-l3b-vec3-object.md, decision 1, item 3).
 # moo: re-pinned when the vec3 library was added to luaL_openlibs: its table and function names shift every
 # creation number (docs/layer3b/moo-v2-l3b-vec3-ops.md).
-coroutines.luau 14a9b3cff128eb95 3b97a8bfb6d7a324
-gcchurn.luau 74af43e489ecf54b 08a560138169a027
-library.luau 9e5ba12ad834c77d 9000ab43846170cf
-objectkeys.luau 863a034d939672ec d596ebcfc869f955
-coroutines2.luau 2ca405a9600143fa 0e031fe08c2e96bf
-errors.luau 73f268e45fb73545 8d2b96bb8f979fec
-math.luau b166f5d6481b48ef 7a977c8aef335485
+# moo: re-pinned when layer 3b added the quat tag and the quat library: the "quat" type-name string,
+# the library table and its function names shift every creation number, and global_State grows by two tag
+# slots (docs/layer3b/moo-v2-l3b-quat.md).
+coroutines.luau c2101c58c9141949 a3ad70d2a2a436f6
+gcchurn.luau b7383413c6b36272 f8f78138d7b28a73
+library.luau 9c77cd6d0d41264c f5aab4ca0098fe2c
+objectkeys.luau 80a94f70cf379757 7abd0f05a1425361
+coroutines2.luau 45af4a6f2428da59 e6f28947afabc910
+errors.luau f7037948e0d4bea2 568a4adad73fccd8
+math.luau 61226f5f25360f4e 04a505678c06a75e

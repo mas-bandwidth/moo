@@ -17,6 +17,7 @@
 #include "lbuffer.h"
 #include "lvector.h"
 #include "moo_vec3.h" // moo: the vec3 C API (docs/DESIGN.md "vec3, quat and transform (layer 3b)")
+#include "moo_quat.h" // moo: the quat C API (docs/DESIGN.md "vec3, quat and transform (layer 3b)")
 
 #include <string.h>
 
@@ -596,6 +597,20 @@ int moo_tovec3(lua_State* L, int idx, lua_Number out[3])
     return 1;
 }
 
+// moo: the quat C API (docs/DESIGN.md "vec3, quat and transform (layer 3b)"). out is x, y, z and s, raw Q48.16.
+int moo_toquat(lua_State* L, int idx, lua_Number out[4])
+{
+    StkId o = index2addr(L, idx);
+    if (!ttisquat(o))
+        return 0;
+    const MooQuat* q = quatvalue(o);
+    out[0] = q->v.x;
+    out[1] = q->v.y;
+    out[2] = q->v.z;
+    out[3] = q->s;
+    return 1;
+}
+
 int lua_objlen(lua_State* L, int idx)
 {
     StkId o = index2addr(L, idx);
@@ -695,6 +710,11 @@ const void* lua_topointer(lua_State* L, int idx)
         return uvalue(o)->data;
     case LUA_TLIGHTUSERDATA:
         return pvalue(o);
+    // moo: a vec3 or quat is a value, like a number: two equal ones are one value, so no address is exposed
+    // (docs/layer3b/moo-v2-l3b-vec3-object.md, card gc item 9; docs/DETERMINISM.md, 6)
+    case LUA_TVEC3:
+    case LUA_TQUAT:
+        return NULL;
     default:
         return iscollectable(o) ? gcvalue(o) : NULL;
     }
@@ -750,6 +770,17 @@ void moo_pushvec3(lua_State* L, lua_Number x, lua_Number y, lua_Number z)
     ensure_stack(L, 1);
     MooVec3* v = moo_vec3_new(L, x, y, z);
     setvec3value(L, L->top, v);
+    api_incr_top(L);
+}
+
+// moo: one new quat on the stack (docs/DESIGN.md "vec3, quat and transform (layer 3b)").
+void moo_pushquat(lua_State* L, lua_Number x, lua_Number y, lua_Number z, lua_Number s)
+{
+    luaC_checkGC(L);
+    luaC_threadbarrier(L);
+    ensure_stack(L, 1);
+    MooQuat* q = moo_quat_new(L, x, y, z, s);
+    setquatvalue(L, L->top, q);
     api_incr_top(L);
 }
 

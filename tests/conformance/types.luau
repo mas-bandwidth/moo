@@ -18,6 +18,7 @@ local ignore =
 	-- moo: the analyzer's vec3 type is a later card (docs/layer3b/moo-v2-l3b-vec3-ops.md "Not done"),
 	-- but the VM exposes the vec3 library now, so ignore it until that type lands.
 	"_G.vec3",
+	"_G.quat", -- moo: likewise for quat (docs/layer3b/moo-v2-l3b-quat.md)
 }
 
 function verify(real, rtti, path)

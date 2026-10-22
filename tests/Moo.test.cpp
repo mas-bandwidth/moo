@@ -297,8 +297,9 @@ TEST_CASE("ObjectKeyOrderIgnoresAddresses")
     // moo: re-pinned when layer 3 removed the vector and integer libraries: fewer startup objects shift every creation number.
     // moo: re-pinned when layer 3b added the vec3 tag: its type-name string shifts every creation number by one
     // (docs/layer3b/moo-v2-l3b-vec3-object.md, decision 1, item 3), and again when the vec3 library added its table
-    // and function names (docs/layer3b/moo-v2-l3b-vec3-ops.md).
-    CHECK(order == "27,12,41,17,16,14,5,52,6,2,60,59,58,30,46,20,40,45,36,53,55,21,4,56,10,28,50,49,24,43,44,9,48,42,57,39,23,37,34,51,15,3,31,13,29,47,54");
+    // and function names (docs/layer3b/moo-v2-l3b-vec3-ops.md), and again for the quat tag and library
+    // (docs/layer3b/moo-v2-l3b-quat.md).
+    CHECK(order == "17,2,31,7,8,4,23,19,59,53,49,36,10,51,60,12,26,58,55,50,54,46,27,52,18,48,42,43,25,34,45,24,47,22,32,13,38,28,41,15,6,21,56,3,30,57,44");
 }
 
 // DETERMINISM.md 6: tostring prints the creation number, never the address.
@@ -310,7 +311,8 @@ TEST_CASE("TostringPrintsCreationNumber")
     // moo: re-pinned #400/#401 -> #375/#376 when layer 3 removed the vector and integer libraries (fewer startup objects).
     // moo: re-pinned #375/#376 -> #376/#377 when layer 3b added the vec3 type-name string, then #376/#377 -> #391/#392
     // when the vec3 library added its table and names (docs/layer3b/moo-v2-l3b-vec3-ops.md).
-    CHECK(pair == "table: #391 table: #392");
+    // moo: re-pinned #391/#392 -> #401/#402 when layer 3b added the quat tag and library (docs/layer3b/moo-v2-l3b-quat.md).
+    CHECK(pair == "table: #401 table: #402");
 
     const char* const kinds = R"(
         local values = { {}, function() end, coroutine.create(function() end), buffer.create(1), newproxy() }
@@ -364,7 +366,8 @@ TEST_CASE("GcPacingIsAFunctionOfTheProgram")
     // moo: re-pinned when number became Q48.16, and again when layer 3 removed the vector and integer libraries
     // (fewer startup objects shift every creation number).
     // moo: re-pinned when layer 3b added the vec3 type-name string (docs/layer3b/moo-v2-l3b-vec3-object.md).
-    CHECK(mooHash(trace) == 12944870832997013475ull);
+    // moo: re-pinned for the quat tag and library (docs/layer3b/moo-v2-l3b-quat.md).
+    CHECK(mooHash(trace) == 7693531136235502622ull);
 }
 
 // Replaces upstream ApiAllocationRateAfterFullGC, which checked that lua_allocationrate measures bytes
@@ -425,7 +428,8 @@ TEST_CASE("DestructorsRunInCreationOrder")
     // Pinned: a change here changes when and in what order every host's destructors run.
     // moo: re-pinned when layer 3 removed the vector and integer libraries: fewer startup objects shift every creation number.
     // moo: re-pinned when layer 3b added the vec3 type-name string (docs/layer3b/moo-v2-l3b-vec3-object.md).
-    CHECK(mooHash(text) == 16890831982340340772ull);
+    // moo: re-pinned for the quat tag and library (docs/layer3b/moo-v2-l3b-quat.md).
+    CHECK(mooHash(text) == 17132068042409053668ull);
 }
 
 // DETERMINISM.md 13: which weak entries clear, and the order of what is left, under churn with object keys,
@@ -473,7 +477,8 @@ TEST_CASE("WeakTableOrderIsAFunctionOfTheProgram")
     // Pinned.
     // moo: re-pinned when layer 3 removed the vector and integer libraries: fewer startup objects shift every creation number.
     // moo: re-pinned when layer 3b added the vec3 type-name string (docs/layer3b/moo-v2-l3b-vec3-object.md).
-    CHECK(mooHash(trace) == 10528855066574528962ull);
+    // moo: re-pinned for the quat tag and library (docs/layer3b/moo-v2-l3b-quat.md).
+    CHECK(mooHash(trace) == 1561155198007178439ull);
 }
 
 // DESIGN.md "Semantics": number is built on the vendored fixed, compiled with FIX_SATURATE.

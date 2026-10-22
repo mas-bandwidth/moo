@@ -16,39 +16,39 @@ edits them, except where a row above records the seam.
 
 | file | why |
 |---|---|
-| `VM/include/lua.h` | `lua_Number` is `fixed_t` and a host float crosses only through `moo_fromdouble`; the vector C API is removed, and `LUA_TVEC3` follows `LUA_TOBJECT` (DESIGN.md "Boundary", "Layer 3 as built", "vec3, quat and transform"). |
-| `VM/include/lualib.h` | the vector library entry points are removed with the vector API; the name stays defined for merges (DESIGN.md "vec3, quat and transform"); layer 3b declares `luaopen_vec3` and the raw-component vec3 C API `moo_pushvec3`/`moo_tovec3` (docs/layer3b/moo-v2-l3b-vec3-ops.md). |
-| `VM/src/lapi.cpp` | numbers cross the C API as raw Q48.16, integer arguments refuse a fraction by name, and `lua_pushvector`/`lua_tovector` are gone (DESIGN.md "Boundary", "Exact integers", "vec3, quat and transform"); layer 3b defines `moo_pushvec3` and `moo_tovec3` (docs/layer3b/moo-v2-l3b-vec3-ops.md). |
-| `VM/src/laux.cpp` | `luaL_checkinteger` and the unsigned variant use the exact-integer rule, and the vector check helpers are removed (DESIGN.md "Exact integers", "vec3, quat and transform"); `tostring` of a vec3 prints `vec3(x, y, z)` (docs/layer3b/moo-v2-l3b-vec3-ops.md). |
+| `VM/include/lua.h` | `lua_Number` is `fixed_t` and a host float crosses only through `moo_fromdouble`; the vector C API is removed, and `LUA_TVEC3` follows `LUA_TOBJECT` (DESIGN.md "Boundary", "Layer 3 as built", "vec3, quat and transform"); layer 3b adds the `LUA_TQUAT` tag after `LUA_TVEC3` (docs/layer3b/moo-v2-l3b-quat.md). |
+| `VM/include/lualib.h` | the vector library entry points are removed with the vector API; the name stays defined for merges (DESIGN.md "vec3, quat and transform"); layer 3b declares `luaopen_vec3` and the raw-component vec3 C API `moo_pushvec3`/`moo_tovec3` (docs/layer3b/moo-v2-l3b-vec3-ops.md); `luaopen_quat` and `moo_pushquat`/`moo_toquat` (docs/layer3b/moo-v2-l3b-quat.md). |
+| `VM/src/lapi.cpp` | numbers cross the C API as raw Q48.16, integer arguments refuse a fraction by name, and `lua_pushvector`/`lua_tovector` are gone (DESIGN.md "Boundary", "Exact integers", "vec3, quat and transform"); layer 3b defines `moo_pushvec3` and `moo_tovec3` (docs/layer3b/moo-v2-l3b-vec3-ops.md); `moo_pushquat`/`moo_toquat`, and `lua_topointer` exposes no address for a vec3 or quat (docs/layer3b/moo-v2-l3b-quat.md). |
+| `VM/src/laux.cpp` | `luaL_checkinteger` and the unsigned variant use the exact-integer rule, and the vector check helpers are removed (DESIGN.md "Exact integers", "vec3, quat and transform"); `tostring` of a vec3 prints `vec3(x, y, z)` (docs/layer3b/moo-v2-l3b-vec3-ops.md); and a quat `quat(x, y, z, s)` (docs/layer3b/moo-v2-l3b-quat.md). |
 | `VM/src/lbaselib.cpp` | `tonumber` reads and returns the raw Q48.16 value and saturates at the int range (DESIGN.md "Literals", "Exact integers"). |
 | `VM/src/lbuflib.cpp` | `readf32`/`writef32` and `readf64`/`writef64` use the boundary rounding rule, and buffer offsets require an integer-valued number (DESIGN.md "Boundary", "Exact integers"). |
 | `VM/src/lbuiltins.cpp` | fastcalls compute on fixed, use the library's shared trig/exp/log definitions, and the SSE4.1 floor/ceil/round choice is gone; the vector fastcalls are replaced with `luauF_missing` (DESIGN.md "Layer 3 as built", "math library", "vec3, quat and transform"). |
 | `VM/src/lclass.cpp` | class member offsets are read and written as raw Q48.16 values through the moo integer conversions (DESIGN.md "Layer 3 as built", "Exact integers"). |
 | `VM/src/lcommon.h` | integer-to-number conversion is one saturating Q48.16 helper (DESIGN.md "Layer 3 as built", "Exact integers"). |
 | `VM/src/ldo.cpp` | the finalizer count is pushed as a number through the moo cast, not a double (DESIGN.md "Layer 3 as built", "Exact integers"). |
-| `VM/src/lgc.cpp` | GC pacing reads no clock and dead userdata destructors run from a queue in creation order at the end of the step (DETERMINISM.md, 4 and 13). |
+| `VM/src/lgc.cpp` | GC pacing reads no clock and dead userdata destructors run from a queue in creation order at the end of the step (DETERMINISM.md, 4 and 13); a quat is a leaf like a vec3 (docs/layer3b/moo-v2-l3b-quat.md). |
 | `VM/src/lgc.h` | the object header carries a creation number, so object keys hash by it and `tostring` can print it (DETERMINISM.md, 1 and 6). |
-| `VM/src/lgcdebug.cpp` | the heap dump prints numbers with moo's exact formatter instead of the libc double printer (DETERMINISM.md, 8). |
-| `VM/src/linit.cpp` | `luaL_openlibs` always uses the table without the integer library, opens no vector library, and the vector sandbox freeze is removed (DESIGN.md "integer", "vec3, quat and transform"); `luaL_openlibs` opens the fixed `vec3` library (docs/layer3b/moo-v2-l3b-vec3-ops.md). |
+| `VM/src/lgcdebug.cpp` | the heap dump prints numbers with moo's exact formatter instead of the libc double printer (DETERMINISM.md, 8); vec3 and quat are leaves in the validate, dump and enumerate walks (docs/layer3b/moo-v2-l3b-quat.md). |
+| `VM/src/linit.cpp` | `luaL_openlibs` always uses the table without the integer library, opens no vector library, and the vector sandbox freeze is removed (DESIGN.md "integer", "vec3, quat and transform"); `luaL_openlibs` opens the fixed `vec3` library (docs/layer3b/moo-v2-l3b-vec3-ops.md); and the fixed `quat` library (docs/layer3b/moo-v2-l3b-quat.md). |
 | `VM/src/lintlib.cpp` | the integer library converts through the exact-integer and saturating Q48.16 rules (DESIGN.md "Exact integers", "Layer 3 as built"). |
 | `VM/src/lmathlib.cpp` | `math` is rebuilt on `fixed` with no libm: exact Q48.16 constants and the fixed compositions for trig, exp/log, pow and the rest (DESIGN.md "math library"). |
-| `VM/src/lmem.cpp` | the creation number grows every object header and the size asserts pin the new layout (DETERMINISM.md, 1 and 5). |
+| `VM/src/lmem.cpp` | the creation number grows every object header and the size asserts pin the new layout (DETERMINISM.md, 1 and 5); the quat object size is pinned (docs/layer3b/moo-v2-l3b-quat.md). |
 | `VM/src/lnumutils.h` | `luai_num*` are the fixed-point seams: operators, integer checks, overflow errors, `pow` and the exact-integer rule (DESIGN.md "Layer 3 as built", "Overflow", "Exact integers", "math library"). |
-| `VM/src/lobject.cpp` | `tonumber` and string coercion use the exact parser, and `tostring` uses the exact formatter (DESIGN.md "Literals", "Number formatting"). |
-| `VM/src/lobject.h` | `TValue` stores the raw Q48.16 number, and the header carries `gcseq`, the destructor-queue page and its link (DETERMINISM.md, 1, 5 and 13; DESIGN.md "Representation"). |
+| `VM/src/lobject.cpp` | `tonumber` and string coercion use the exact parser, and `tostring` uses the exact formatter (DESIGN.md "Literals", "Number formatting"); quat allocation, value equality and tostring (docs/layer3b/moo-v2-l3b-quat.md). |
+| `VM/src/lobject.h` | `TValue` stores the raw Q48.16 number, and the header carries `gcseq`, the destructor-queue page and its link (DETERMINISM.md, 1, 5 and 13; DESIGN.md "Representation"); the quat accessors, and `TKey::tt` widened to 5 bits (docs/layer3b/moo-v2-l3b-quat.md). |
 | `VM/src/loslib.cpp` | deleted: the `os` library and every clock and time read are removed (DETERMINISM.md, 9). |
 | `VM/src/lstate.cpp` | the per-VM creation counter, the destructor queue and the constant default random seed are state, not clocks (DETERMINISM.md, 1, 10 and 13). |
-| `VM/src/lstate.h` | the global state carries `gcseq`, the allocation-count pacing fields and the destructor queue (DETERMINISM.md, 1, 4 and 13). |
+| `VM/src/lstate.h` | the global state carries `gcseq`, the allocation-count pacing fields and the destructor queue (DETERMINISM.md, 1, 4 and 13); `MooQuat` in `union GCObject` (docs/layer3b/moo-v2-l3b-quat.md). |
 | `VM/src/lstrlib.cpp` | integer-only formats require an integer-valued number, and `string.pack`/`unpack` `f`/`d` use the boundary rule (DESIGN.md "Exact integers", "Boundary"). |
-| `VM/src/ltable.cpp` | a collectable key hashes by its creation number and a number by its raw value, never by address or IEEE bits (DETERMINISM.md, 1 and 2). |
-| `VM/src/ltm.cpp` | `luaT_typenames` names the new `LUA_TVEC3` tag `"vec3"`; interning it at startup shifts every creation number by one (DESIGN.md "vec3, quat and transform", docs/layer3b/moo-v2-l3b-vec3-object.md decision 1). |
+| `VM/src/ltable.cpp` | a collectable key hashes by its creation number and a number by its raw value, never by address or IEEE bits (DETERMINISM.md, 1 and 2); and a quat by its four components (docs/layer3b/moo-v2-l3b-quat.md). |
+| `VM/src/ltm.cpp` | `luaT_typenames` names the new `LUA_TVEC3` tag `"vec3"`; interning it at startup shifts every creation number by one (DESIGN.md "vec3, quat and transform", docs/layer3b/moo-v2-l3b-vec3-object.md decision 1); and `quat` (docs/layer3b/moo-v2-l3b-quat.md). |
 | `VM/src/ltablib.cpp` | the table library keeps counts and keys as raw Q48.16 values, not doubles (DESIGN.md "Exact integers"). |
 | `VM/src/ludata.cpp` | a dead userdata with a destructor is queued for the end of the GC step instead of running during the sweep (DETERMINISM.md, 13). |
 | `VM/src/ludata.h` | userdata holds the destructor-queue page pointer used by the ordered destructor queue (DETERMINISM.md, 13). |
 | `VM/src/lveclib.cpp` | the float vector library converts its components through the boundary rule; it is out of the build while the type is removed (DESIGN.md "Layer 3 as built", "vec3, quat and transform"). |
-| `VM/src/lvmexecute.cpp` | the arithmetic opcodes go through the fixed seams, a checked build raises the named overflow error, and `^` uses the fixed power path (DESIGN.md "Layer 3 as built", "Overflow", "math library"); vec3 `==` compares by value in the equality jumps (docs/layer3b/moo-v2-l3b-vec3-ops.md). |
+| `VM/src/lvmexecute.cpp` | the arithmetic opcodes go through the fixed seams, a checked build raises the named overflow error, and `^` uses the fixed power path (DESIGN.md "Layer 3 as built", "Overflow", "math library"); vec3 `==` compares by value in the equality jumps (docs/layer3b/moo-v2-l3b-vec3-ops.md); and quat `==` (docs/layer3b/moo-v2-l3b-quat.md). |
 | `VM/src/lvmload.cpp` | the loader accepts only the moo bytecode version, reads number constants as raw Q48.16, and refuses a vector constant and `INT64_MIN` by name (DESIGN.md "Literals", "Layer 3 as built", "vec3, quat and transform"). |
-| `VM/src/lvmutils.cpp` | division by zero is the named error, a checked overflow stops with the named error, and the numeric `for` trip count is exact with a zero step refused (DESIGN.md "Division by zero", "Overflow", "Exact integers"); vec3 arithmetic, equality and component reads (docs/layer3b/moo-v2-l3b-vec3-ops.md). |
+| `VM/src/lvmutils.cpp` | division by zero is the named error, a checked overflow stops with the named error, and the numeric `for` trip count is exact with a zero step refused (DESIGN.md "Division by zero", "Overflow", "Exact integers"); vec3 arithmetic, equality and component reads (docs/layer3b/moo-v2-l3b-vec3-ops.md); quat `*` (fixMulQuat, fixRotateVector), equality and component reads (docs/layer3b/moo-v2-l3b-quat.md). |
 
 ### Compiler
 
@@ -114,7 +114,7 @@ edits them, except where a row above records the seam.
 |---|---|
 | `CMakeLists.txt` | native codegen and the JIT inliner are off, FMA contraction is off, the vendored fixed library is built saturating, Moo.Test globs each layer's own test files, and the Windows test binaries get a 2 MB stack in every optimized configuration (DESIGN.md "Native codegen", "Upstream merges", "Overflow"). |
 | `Makefile` | the same codegen/inliner exclusion, `-ffp-contract=off`, the fixed library include and the vector source leaving the build (DESIGN.md "Native codegen", "vec3, quat and transform"). |
-| `Sources.cmake` | the vector library, codegen and the JIT inliner leave the source lists, and the fixed sources are added (DESIGN.md "Native codegen", "vec3, quat and transform"); the vec3 library source is added (docs/layer3b/moo-v2-l3b-vec3-ops.md). |
+| `Sources.cmake` | the vector library, codegen and the JIT inliner leave the source lists, and the fixed sources are added (DESIGN.md "Native codegen", "vec3, quat and transform"); the vec3 library source is added (docs/layer3b/moo-v2-l3b-vec3-ops.md); and the quat library source (docs/layer3b/moo-v2-l3b-quat.md). |
 
 ### fuzz
 
@@ -147,7 +147,7 @@ edits them, except where a row above records the seam.
 | `tests/TypeInfer.tables.test.cpp` | the `os` builtin cases are skipped because the analyzer drops it (DESIGN.md "Analyzer"). |
 | `tests/conformance/datetime.luau` | deleted: the case tested `os.date` and `os.time`, which are removed; the moo datetime script replaces it (DETERMINISM.md, 9). |
 | `tests/conformance/sort.luau` | the timing print uses `os.clock`, so the script no longer measures time (DETERMINISM.md, 9). |
-| `tests/conformance/types.luau` | the analyzer and VM no longer define `os` and `vector`, so those globals are ignored rather than required (DESIGN.md "Analyzer", "vec3, quat and transform"); `vec3` is ignored until the analyzer defines it (docs/layer3b/moo-v2-l3b-vec3-ops.md). |
+| `tests/conformance/types.luau` | the analyzer and VM no longer define `os` and `vector`, so those globals are ignored rather than required (DESIGN.md "Analyzer", "vec3, quat and transform"); `vec3` is ignored until the analyzer defines it (docs/layer3b/moo-v2-l3b-vec3-ops.md); and `quat` (docs/layer3b/moo-v2-l3b-quat.md). |
 | `tests/require/without_config/types/vector.luau` | the fixture returns a plain table because the vector library is out (DESIGN.md "vec3, quat and transform"). |
 
 ### workflows
@@ -175,8 +175,8 @@ own code, tests, notes or vendored `fixed` sources.
 - `Common/include/` (`moo_number.h`, `moo_parse.h`, `moo_format.h`, `moo_pow.h`)
 - `Inliner/src/` (`moo_jitinliner_off.cpp`)
 - `VM/include/` (`moo.h`)
-- `VM/src/` (`moo_api.cpp`, `moo_layout.cpp`)
-- `docs/` (`DESIGN.md`, `DETERMINISM.md`, `layer3/`, `layer4/`, `layer5/`, `PATCHES.md`)
+- `VM/src/` (`moo_api.cpp`, `moo_layout.cpp`, and layer 3b's `moo_vec3.h`, `moo_vec3lib.cpp`, `moo_quat.h`, `moo_quatlib.cpp`)
+- `docs/` (`DESIGN.md`, `DETERMINISM.md`, `layer3/`, `layer3b/`, `layer4/`, `layer5/`, `PATCHES.md`)
 - `extern/fixed/` (the vendored `fixed` library at its pinned commit)
 - `fuzz/` (`moo_arith.cpp`)
 - `tests/` (`Moo.test.cpp`, `MooCompiler.test.cpp`, `MooNumber.test.cpp`, `Determinism.test.cpp`, `MooHost.h`, `MooWide.h`, `moo_main.cpp`)
