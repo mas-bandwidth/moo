@@ -78,17 +78,17 @@ values, weak both and userdata destructors in five size classes (`gcchurn`), cor
 (generators, yields across `pcall`, errors, close, wrap, nesting: `coroutines`, and the
 adversarial transitions and refusals in `coroutines2`), every error string and traceback
 (`errors`), the rest of the surface without transcendentals (`library`), and the math oracle's
-programs (`math`). Every platform cell is `same` or `pending nightly`:
+programs (`math`). Every platform cell is `same` or `pending`:
 
-| program | effects | state | hulk gcc 15.2 | hulk clang 21.1 | hulk clang Debug ASan+UBSan | mini-m5-1 arm64 Apple clang 21 | windows-msvc | windows-clang-cl |
+| program | effects | state | linux-gcc | linux-clang | macos-arm64 | windows-msvc | windows-clang-cl | clang Debug ASan+UBSan |
 |---|---|---|---|---|---|---|---|---|
-| coroutines | `5cb7f17a10d68cc4` | `6fad6a2c9bf8a173` | pending nightly | pending nightly | pending nightly | pending nightly | pending nightly | pending nightly |
-| coroutines2 | `45af4a6f2428da59` | `5359668bdc22dc58` | pending nightly | pending nightly | pending nightly | pending nightly | pending nightly | pending nightly |
-| errors | `f7037948e0d4bea2` | `be21c103205a5f40` | pending nightly | pending nightly | pending nightly | pending nightly | pending nightly | pending nightly |
-| gcchurn | `971f095d77280529` | `99a32dc86877a486` | pending nightly | pending nightly | pending nightly | pending nightly | pending nightly | pending nightly |
-| library | `b37b92ae87f532ba` | `d8e5f88d20c961f8` | pending nightly | pending nightly | pending nightly | pending nightly | pending nightly | pending nightly |
-| math | `0d7b989a30435fce` | `6f1e734e163b3843` | pending nightly | pending nightly | pending nightly | pending nightly | pending nightly | pending nightly |
-| objectkeys | `1067f47a944c9471` | `673230ee8047eeaa` | pending nightly | pending nightly | pending nightly | pending nightly | pending nightly | pending nightly |
+| coroutines | `5cb7f17a10d68cc4` | `6fad6a2c9bf8a173` | same | same | same | same | same | pending |
+| coroutines2 | `45af4a6f2428da59` | `5359668bdc22dc58` | same | same | same | same | same | pending |
+| errors | `f7037948e0d4bea2` | `be21c103205a5f40` | same | same | same | same | same | pending |
+| gcchurn | `971f095d77280529` | `99a32dc86877a486` | same | same | same | same | same | pending |
+| library | `b37b92ae87f532ba` | `d8e5f88d20c961f8` | same | same | same | same | same | pending |
+| math | `0d7b989a30435fce` | `6f1e734e163b3843` | same | same | same | same | same | pending |
+| objectkeys | `1067f47a944c9471` | `673230ee8047eeaa` | same | same | same | same | same | pending |
 
 The last full nightly-workflow matrix the coordinator dispatched was
 [run 39176151564](https://github.com/mas-bandwidth/moo/actions/runs/39176151564), created
@@ -110,8 +110,11 @@ creation number shifts, and each tag grows `global_State` by two tag slots (one 
 bytes), which moves GC pacing. The mechanism (creation number, not address) is unchanged. The old and new values of
 each re-pin are in `docs/layer3b/` (`moo-v2-l3b-vec3-object.md`, `moo-v2-l3b-vec3-ops.md`, `moo-v2-l3b-quat.md`,
 `moo-v2-l3b-transform.md`). The vec3 library and quat re-pins were identical on clang 18 and gcc 13; the transform
-note does not name its compilers. The table's platform columns have not been re-run at these values, so every cell
-is `pending nightly`.
+note does not name its compilers. The platform columns are the nightly workflow's jobs, dispatched on the transform branch at
+`e896313c` ([run 39777445857](https://github.com/mas-bandwidth/moo/actions/runs/39777445857), 2026-10-22): each
+built `Moo.Test` and found every effects and state hash equal to `tests/determinism/expected.txt`, which holds these
+values (GitHub's `ubuntu-latest` with gcc and clang, `macos-latest` arm64, `windows-latest` with MSVC and
+clang-cl). The sanitizer configuration is not in that matrix and stays pending.
 
 The closing card re-verified the Linux gate at this tree: `tools/revendor-fixed.sh --check` is
 clean, the no-clock check is clean, and `Moo.Test` passes all 175 cases on both gcc and clang, so
