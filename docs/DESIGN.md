@@ -590,15 +590,15 @@ Each is detailed, with file and line, in [DETERMINISM.md](DETERMINISM.md):
   `tests/determinism/coroutines2.luau` in the determinism suite, the conformance script
   `tests/conformance/moo/l3/moo-l5-coroutine-programs.luau`, and the C++ cases in
   `tests/moo/moo-l5-coroutine-programs.test.cpp`. The TLA+ model of their resume/yield/close/error
-  states is owed.
+  states is `tla/Coroutines.tla`.
 
 ## State machines and TLA+
 
 Per house practice, each state machine moo adds or changes gets a TLA+ module beside it, checked
 with TLC on a small instance before the code is merged: the GC pacing and destructor queue
 (layer 2, `tla/DestructorQueue.tla`) and the numeric `for` trip count (layer 3,
-`tla/NumericFor.tla`). The coroutine resume/yield/close/error model is still owed; no coroutine
-case appears in `tla/CASES.tsv`.
+`tla/NumericFor.tla`), and the coroutine resume/yield/close/error states (layer 5, `tla/Coroutines.tla`, with
+two plants).
 
 ## Upstream merges
 
@@ -662,8 +662,7 @@ with Glenn.
    effect logs, including adversarial programs (object-keyed tables, heavy GC with destructors and
    weak tables, coroutines); bit-exact agreement with `fixed`'s C; libFuzzer targets for the
    operators and the number formatter and parser (`fuzz/moo_arith.cpp`, `fuzz/number.cpp`,
-   `fuzz/format.cpp`); and the coroutine TLA+ model, still owed (there is no coroutine case in
-   `tla/CASES.tsv`). The Windows pair runs in the nightly, which gates nothing: it builds and runs
+   `fuzz/format.cpp`); and the coroutine TLA+ model (`tla/Coroutines.tla`, three cases in `tla/CASES.tsv`). The Windows pair runs in the nightly, which gates nothing: it builds and runs
    `Moo.Test` (the determinism suite and the math oracle) under both compilers and fails when
    either hash differs from `tests/determinism/expected.txt`.
 6. **First adoption.** An existing Luau consumer switches from Luau to moo, and its own
