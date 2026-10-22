@@ -682,12 +682,14 @@ bool mooVec3MulScalarSaturates(fixed_t s, fixVec3 a)
 }
 #endif
 
-// Every vec3 operation allocates a new object (docs/DESIGN.md "vec3, quat and transform (layer 3b)").
+// Every vec3 operation allocates a new object (docs/DESIGN.md "vec3, quat and transform (layer 3b)"). The result is
+// stored before the GC check, as upstream's LOP_NEWTABLE does: a GC step can reallocate the stack (shrinkstack in
+// the propagate phase), so ra is not valid after luaC_checkGC.
 void mooVec3SetResult(lua_State* L, StkId ra, fixVec3 v)
 {
-    luaC_checkGC(L);
     MooVec3* out = moo_vec3_new(L, v.x, v.y, v.z);
     setvec3value(L, ra, out);
+    luaC_checkGC(L);
 }
 
 } // namespace
@@ -732,9 +734,9 @@ void luaV_doarithimpl(lua_State* L, StkId ra, const TValue* rb, const TValue* rc
         {
             const MooQuat* qc = quatvalue(rc);
             fixQuat r = fixMulQuat(q, FIX_LITERAL(fixQuat){{qc->v.x, qc->v.y, qc->v.z}, qc->s});
-            luaC_checkGC(L);
             MooQuat* out = moo_quat_new(L, r.v.x, r.v.y, r.v.z, r.s);
             setquatvalue(L, ra, out);
+            luaC_checkGC(L); // after the store: ra is not valid after a GC step (mooVec3SetResult)
         }
         else
             mooVec3SetResult(L, ra, fixRotateVector(q, mooVec3Payload(vec3value(rc))));
