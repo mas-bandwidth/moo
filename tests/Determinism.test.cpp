@@ -213,6 +213,15 @@ bool hashObject(void* context, lua_Page* page, GCObject* o)
         f.u64(uint64_t(gco2quat(o)->v.z));
         f.u64(uint64_t(gco2quat(o)->s));
         break;
+    case LUA_TTRANSFORM: // moo: a transform's payload is state (docs/layer3b/moo-v2-l3b-transform.md)
+        f.u64(uint64_t(gco2transform(o)->p.x));
+        f.u64(uint64_t(gco2transform(o)->p.y));
+        f.u64(uint64_t(gco2transform(o)->p.z));
+        f.u64(uint64_t(gco2transform(o)->q.v.x));
+        f.u64(uint64_t(gco2transform(o)->q.v.y));
+        f.u64(uint64_t(gco2transform(o)->q.v.z));
+        f.u64(uint64_t(gco2transform(o)->q.s));
+        break;
     case LUA_TFUNCTION:
     {
         Closure* c = gco2cl(o);

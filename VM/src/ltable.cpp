@@ -33,6 +33,7 @@
 #include "ltm.h"
 #include "moo_vec3.h" // moo: vec3 key hashing and value equality (layer 3b, decision 4)
 #include "moo_quat.h" // moo: quat key hashing and value equality (layer 3b, vec3 note decision 4)
+#include "moo_transform.h" // moo: transform key hashing and value equality (layer 3b, vec3 note decision 4)
 
 #include <string.h>
 
@@ -209,6 +210,19 @@ unsigned int moo_quat_hash(const MooQuat* q)
     return h;
 }
 
+// moo: the 32-bit table hash of a transform's seven raw components, before hashpow2, so two equal transforms are
+// one key (docs/layer3b/moo-v2-l3b-vec3-object.md, decision 4): the position's vec3 hash and the rotation's quat
+// hash, each component through moo_vec3_comp_hash, combined with one more odd multiplier. Depends only on the raw
+// integers.
+unsigned int moo_transform_hash(const MooTransform* t)
+{
+    uint32_t hp = moo_vec3_comp_hash(t->p.x) * 73856093u ^ moo_vec3_comp_hash(t->p.y) * 19349663u ^
+                  moo_vec3_comp_hash(t->p.z) * 83492791u;
+    uint32_t hq = moo_vec3_comp_hash(t->q.v.x) * 73856093u ^ moo_vec3_comp_hash(t->q.v.y) * 19349663u ^
+                  moo_vec3_comp_hash(t->q.v.z) * 83492791u ^ moo_vec3_comp_hash(t->q.s) * 39916801u;
+    return hp ^ hq * 2654435761u;
+}
+
 LUAU_MAYBE_UNUSED static LuaNode* hashvec(const LuaTable* t, const float* v)
 {
     unsigned int i[LUA_VECTOR_SIZE];
@@ -287,6 +301,8 @@ static LuaNode* mainposition(const LuaTable* t, const TValue* key)
         return hashpow2(t, moo_vec3_hash(vec3value(key)));
     case LUA_TQUAT: // moo: quat hashes by its four raw components (layer 3b, vec3 note decision 4)
         return hashpow2(t, moo_quat_hash(quatvalue(key)));
+    case LUA_TTRANSFORM: // moo: transform hashes by its seven raw components (layer 3b, vec3 note decision 4)
+        return hashpow2(t, moo_transform_hash(transformvalue(key)));
     case LUA_TSTRING:
         return hashstr(t, tsvalue(key));
     case LUA_TBOOLEAN:
@@ -346,6 +362,12 @@ LUAU_FORCEINLINE LuaNode* mainpositiontagged<LUA_TQUAT>(const LuaTable* t, MooQu
     return hashpow2(t, moo_quat_hash(key));
 }
 
+template<> // moo: transform main position by its component hash (layer 3b, vec3 note decision 4)
+LUAU_FORCEINLINE LuaNode* mainpositiontagged<LUA_TTRANSFORM>(const LuaTable* t, MooTransform* key)
+{
+    return hashpow2(t, moo_transform_hash(key));
+}
+
 template<>
 LUAU_FORCEINLINE LuaNode* mainpositiontagged<LUA_TSTRING>(const LuaTable* t, TString* key)
 {
@@ -396,6 +418,12 @@ template<> // moo: quat key equality is by value (layer 3b, vec3 note decision 3
 LUAU_FORCEINLINE int rawequalkeyvalue<LUA_TQUAT>(const TKey* t1, MooQuat* key)
 {
     return moo_quat_equal(quatvalue(t1), key);
+}
+
+template<> // moo: transform key equality is by value (layer 3b, vec3 note decision 3)
+LUAU_FORCEINLINE int rawequalkeyvalue<LUA_TTRANSFORM>(const TKey* t1, MooTransform* key)
+{
+    return moo_transform_equal(transformvalue(t1), key);
 }
 
 template<>
@@ -1376,6 +1404,8 @@ const TValue* luaH_get(LuaTable* t, const TValue* key)
             return chainsearchtagged<LUA_TVEC3>(t, vec3value(key), LUA_TVEC3);
         case LUA_TQUAT: // moo: quat key lookup by value (layer 3b, vec3 note decision 4)
             return chainsearchtagged<LUA_TQUAT>(t, quatvalue(key), LUA_TQUAT);
+        case LUA_TTRANSFORM: // moo: transform key lookup by value (layer 3b, vec3 note decision 4)
+            return chainsearchtagged<LUA_TTRANSFORM>(t, transformvalue(key), LUA_TTRANSFORM);
         case LUA_TSTRING:
             return luaH_getstr(t, tsvalue(key));
         default:
@@ -1464,6 +1494,8 @@ TValue* luaH_newkey(lua_State* L, LuaTable* t, const TValue* key)
             return newkeytagged<LUA_TVEC3, false>(L, t, key, vec3value(key), -1);
         case LUA_TQUAT: // moo: quat key insert by value; Q48.16 has no NaN, so no NaN refusal (vec3 note decision 4)
             return newkeytagged<LUA_TQUAT, false>(L, t, key, quatvalue(key), -1);
+        case LUA_TTRANSFORM: // moo: transform key insert by value; Q48.16 has no NaN, so no NaN refusal (vec3 note decision 4)
+            return newkeytagged<LUA_TTRANSFORM, false>(L, t, key, transformvalue(key), -1);
         case LUA_TSTRING:
             return newkeytagged<LUA_TSTRING, false>(L, t, key, tsvalue(key), -1);
         default:

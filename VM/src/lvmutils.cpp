@@ -12,6 +12,7 @@
 #include "lnumutils.h"
 #include "moo_vec3.h" // moo: vec3 operators call fixed's vector functions (docs/DESIGN.md "vec3, quat and transform (layer 3b)")
 #include "moo_quat.h" // moo: quat operators call fixed's quaternion functions (docs/DESIGN.md "vec3, quat and transform (layer 3b)")
+#include "moo_transform.h" // moo: transform operators (docs/DESIGN.md "vec3, quat and transform (layer 3b)")
 
 #include <string.h>
 
@@ -233,6 +234,33 @@ static bool moo_value_index(const TValue* t, const TValue* key, StkId val)
     }
 }
 
+// moo: t.p reads a transform's position as a new vec3 and t.q its rotation as a new quat (fixed's field names, the
+// lower case only). Any other key falls through to the index error; a transform has no metatable and no __index
+// (docs/layer3b/moo-v2-l3b-transform.md, decision 3). The new object is allocated with no GC step here: the debt
+// is paid at the next check, as for any allocation inside an instruction.
+static bool moo_transform_index(lua_State* L, const MooTransform* t, const TValue* key, StkId val)
+{
+    if (!ttisstring(key) || tsvalue(key)->len != 1)
+        return false;
+    switch (getstr(tsvalue(key))[0])
+    {
+    case 'p':
+    {
+        MooVec3* v = moo_vec3_new(L, t->p.x, t->p.y, t->p.z);
+        setvec3value(L, val, v);
+        return true;
+    }
+    case 'q':
+    {
+        MooQuat* q = moo_quat_new(L, t->q.v.x, t->q.v.y, t->q.v.z, t->q.s);
+        setquatvalue(L, val, q);
+        return true;
+    }
+    default:
+        return false;
+    }
+}
+
 void luaV_gettable(lua_State* L, const TValue* t, TValue* key, StkId val)
 {
     int loop;
@@ -319,6 +347,8 @@ void luaV_gettable(lua_State* L, const TValue* t, TValue* key, StkId val)
         }
         else if ((ttisvec3(t) || ttisquat(t)) && moo_value_index(t, key, val))
             return; // moo: a vec3 or quat component (docs/DESIGN.md "vec3, quat and transform (layer 3b)")
+        else if (ttistransform(t) && moo_transform_index(L, transformvalue(t), key, val))
+            return; // moo: a transform's position or rotation (docs/layer3b/moo-v2-l3b-transform.md, decision 3)
         else if (ttisnil(tm = luaT_gettmbyobj(L, t, TM_INDEX)))
             luaG_indexerror(L, t, key);
         if (ttisfunction(tm))
@@ -510,6 +540,8 @@ int luaV_equalval(lua_State* L, const TValue* t1, const TValue* t2)
         return moo_vec3_equal(vec3value(t1), vec3value(t2));
     case LUA_TQUAT: // moo: == is the four raw components, never the address (docs/DESIGN.md "vec3, quat and transform (layer 3b)", "Operations")
         return moo_quat_equal(quatvalue(t1), quatvalue(t2));
+    case LUA_TTRANSFORM: // moo: == is the seven raw components, never the address (docs/DESIGN.md "vec3, quat and transform (layer 3b)", "Operations")
+        return moo_transform_equal(transformvalue(t1), transformvalue(t2));
     case LUA_TUSERDATA:
     {
         tm = get_compTM(L, uvalue(t1)->metatable, uvalue(t2)->metatable, TM_EQ);
@@ -674,6 +706,24 @@ void luaV_doarithimpl(lua_State* L, StkId ra, const TValue* rb, const TValue* rc
     // fixMulQuat and quat * vec3 is fixRotateVector, fixed's compound functions verbatim (each component one
     // 128-bit reduction, saturating under FIX_SATURATE; "Saturation, stated precisely"). Any other operator or
     // operand falls through to the ordinary arithmetic error. Every result is a new object.
+    // moo: transform operators (docs/DESIGN.md "vec3, quat and transform (layer 3b)", "Operations";
+    // docs/layer3b/moo-v2-l3b-transform.md, decision 2): transform * transform composes (fixMulTransforms) and
+    // transform * vec3 transforms a point (fixTransformPoint), each with its position add saturating (moo_transform.h).
+    // Any other operator or operand falls through to the ordinary arithmetic error. Every result is a new object.
+    if (op == TM_MUL && ttistransform(rb) && (ttistransform(rc) || ttisvec3(rc)))
+    {
+        fixTransform a = moo_transform_payload(transformvalue(rb));
+        if (ttistransform(rc))
+        {
+            fixTransform r = moo_transform_mul(a, moo_transform_payload(transformvalue(rc)));
+            luaC_checkGC(L);
+            MooTransform* out = moo_transform_new(L, r);
+            settransformvalue(L, ra, out);
+        }
+        else
+            mooVec3SetResult(L, ra, moo_transform_point(a, mooVec3Payload(vec3value(rc))));
+        return;
+    }
     if (op == TM_MUL && ttisquat(rb) && (ttisquat(rc) || ttisvec3(rc)))
     {
         const MooQuat* qb = quatvalue(rb);

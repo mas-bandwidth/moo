@@ -23,6 +23,7 @@ LUAU_FASTFLAGVARIABLE(LuauSandboxFreezesVectorMetatable)
     // moo: the float32 vector library entry is removed here (layer 3, docs/DESIGN.md "vec3, quat and transform").
     {"vec3", luaopen_vec3}, // moo: the fixed vec3 library (layer 3b, docs/DESIGN.md "vec3, quat and transform")
     {"quat", luaopen_quat}, // moo: the fixed quat library (layer 3b, docs/DESIGN.md "vec3, quat and transform")
+    {"transform", luaopen_transform}, // moo: the fixed transform library (layer 3b, docs/DESIGN.md "vec3, quat and transform")
     {LUA_INTLIBNAME, luaopen_integer},
     {NULL, NULL},
 };
@@ -39,6 +40,7 @@ static const luaL_Reg lualibs_NOINTEGER[] = {
     {LUA_BUFFERLIBNAME, luaopen_buffer},
     {"vec3", luaopen_vec3}, // moo: the fixed vec3 library (layer 3b, docs/DESIGN.md "vec3, quat and transform")
     {"quat", luaopen_quat}, // moo: the fixed quat library (layer 3b, docs/DESIGN.md "vec3, quat and transform")
+    {"transform", luaopen_transform}, // moo: the fixed transform library (layer 3b, docs/DESIGN.md "vec3, quat and transform")
     {NULL, NULL},
 };
 

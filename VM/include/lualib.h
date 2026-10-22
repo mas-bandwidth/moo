@@ -47,6 +47,12 @@ LUALIB_API int moo_tovec3(lua_State* L, int idx, lua_Number out[3]);
 LUALIB_API void moo_pushquat(lua_State* L, lua_Number x, lua_Number y, lua_Number z, lua_Number s);
 LUALIB_API int moo_toquat(lua_State* L, int idx, lua_Number out[4]);
 
+// moo: the transform C API, the vec3 shape with seven raw components: the position px, py, pz, then the rotation
+// qx, qy, qz, qs (fixed's fixTransform order).
+LUALIB_API void moo_pushtransform(
+    lua_State* L, lua_Number px, lua_Number py, lua_Number pz, lua_Number qx, lua_Number qy, lua_Number qz, lua_Number qs);
+LUALIB_API int moo_totransform(lua_State* L, int idx, lua_Number out[7]);
+
 LUALIB_API void luaL_checkstack(lua_State* L, int sz, const char* msg);
 LUALIB_API void luaL_checktype(lua_State* L, int narg, int t);
 LUALIB_API void luaL_checkany(lua_State* L, int narg);
@@ -166,6 +172,9 @@ LUALIB_API int luaopen_vec3(lua_State* L);
 
 // moo: the quat library (docs/DESIGN.md "vec3, quat and transform (layer 3b)"), opened by luaL_openlibs.
 LUALIB_API int luaopen_quat(lua_State* L);
+
+// moo: the transform library (docs/DESIGN.md "vec3, quat and transform (layer 3b)"), opened by luaL_openlibs.
+LUALIB_API int luaopen_transform(lua_State* L);
 
 // open all builtin libraries
 LUALIB_API void luaL_openlibs(lua_State* L);

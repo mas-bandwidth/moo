@@ -30,6 +30,8 @@ static_assert(sizeof(LuauVector) == 24, "vector object layout changed");
 static_assert(sizeof(MooVec3) == 40, "vec3 object layout changed");
 // moo: quat object size (docs/DESIGN.md "vec3, quat and transform (layer 3b)"; docs/layer3b/moo-v2-l3b-quat-object.md, decision 2)
 static_assert(sizeof(MooQuat) == 48, "quat object layout changed");
+// moo: transform object size (docs/DESIGN.md "vec3, quat and transform (layer 3b)"; docs/layer3b/moo-v2-l3b-transform.md)
+static_assert(sizeof(MooTransform) == 72, "transform object layout changed");
 static_assert(sizeof(Proto) == 224, "function prototype layout changed");
 static_assert(sizeof(LocVar) == 24, "local variable record layout changed");
 static_assert(sizeof(FeedbackVectorSlot) == 16, "feedback vector slot layout changed");
@@ -41,4 +43,4 @@ static_assert(sizeof(LuauClass) == 96, "class layout changed");
 static_assert(sizeof(LuauObject) == 48, "class object layout changed");
 static_assert(sizeof(lua_State) == 144, "thread layout changed");
 static_assert(sizeof(CallInfo) == 48, "call frame layout changed");
-static_assert(sizeof(global_State) == 19248, "global state layout changed (the initial totalbytes includes it)");
+static_assert(sizeof(global_State) == 19264, "global state layout changed (the initial totalbytes includes it)");

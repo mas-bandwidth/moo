@@ -19,6 +19,7 @@ local ignore =
 	-- but the VM exposes the vec3 library now, so ignore it until that type lands.
 	"_G.vec3",
 	"_G.quat", -- moo: likewise for quat (docs/layer3b/moo-v2-l3b-quat.md)
+	"_G.transform", -- moo: likewise for transform (docs/layer3b/moo-v2-l3b-transform.md)
 }
 
 function verify(real, rtti, path)
