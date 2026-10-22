@@ -23,7 +23,10 @@ The transform object, operators and library of layer 3b (`docs/DESIGN.md` "vec3,
    already use (`VM/src/moo_transformlib.cpp`, `moo_transform_mul`, `moo_transform_point`,
    `moo_transform_invpoint`). Wherever fixed's add does not overflow the bits are fixed's, and the tests compare
    them with fixed's own functions; where it would overflow, moo saturates. As for quat's compound functions, a
-   checked build raises no named error for it. `inverse` has no add (negation is exact on the domain), so it is
+   checked build raises no named error for it. What this buys is stated narrowly: the add itself is defined
+   everywhere, but with a non-identity rotation a position near the range ends also reaches `fixRotateVector` or
+   `fixInvRotateVector` (compose's input, invpoint's subtract result), whose sums can still overflow, so outside
+   fixed's defined range the saturation makes the result determined only for the identity rotation. `inverse` has no add (negation is exact on the domain), so it is
    `fixInvertTransform` verbatim. The rotations inside are fixed's verbatim, with the gap quat already names
    (`fixRotateVector`'s `fixCross`/`fixMulAdd` sums are plain int64 outside fixed's defined range).
 3. **Parts.** `t.p` reads the position as a new vec3 and `t.q` the rotation as a new quat, fixed's field names,
@@ -71,8 +74,10 @@ The transform object, operators and library of layer 3b (`docs/DESIGN.md` "vec3,
   the conjugate is applied, and the position is.
 - `TransformInverseMatchesFixed4096`: against `fixInvertTransform`. Reversed witness: the inverse's position is
   the rotated negation, not the plain one.
-- `TransformPositionSaturates`: compose, point and invpoint saturate where fixed's add would overflow, and one raw
-  unit inside the range the bits are fixed's.
+- `TransformPositionSaturates`: compose, point and invpoint saturate where fixed's add would overflow; one raw
+  unit inside the range the result is `MAX - 1` and `MIN + 1`, fixed's own bits.
+- `tests/moo/moo-v2-l3b-gc-stack.test.cpp` (`TransformResultSurvivesStackShrinkInGcStep`): the result is stored
+  before the GC check, as the quat PR's fix does for vec3 and quat.
 - `TransformRefusals`: 28 refused operations, each with its exact error.
 - `TransformConformance`: `tests/conformance/moo/l3/moo-v2-l3b-transform.luau`, the behaviour a script sees
   (exact half-turn frames, identity, inverse round trip, composition order).

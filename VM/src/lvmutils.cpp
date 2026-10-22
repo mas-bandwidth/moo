@@ -718,9 +718,9 @@ void luaV_doarithimpl(lua_State* L, StkId ra, const TValue* rb, const TValue* rc
         if (ttistransform(rc))
         {
             fixTransform r = moo_transform_mul(a, moo_transform_payload(transformvalue(rc)));
-            luaC_checkGC(L);
             MooTransform* out = moo_transform_new(L, r);
             settransformvalue(L, ra, out);
+            luaC_checkGC(L); // after the store: ra is not valid after a GC step (mooVec3SetResult)
         }
         else
             mooVec3SetResult(L, ra, moo_transform_point(a, mooVec3Payload(vec3value(rc))));

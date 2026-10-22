@@ -128,4 +128,16 @@ TEST_CASE("QuatResultSurvivesStackShrinkInGcStep")
     CHECK(runWhileStackShrinks(source.c_str(), 200) > 0);
 }
 
+TEST_CASE("TransformResultSurvivesStackShrinkInGcStep")
+{
+    std::string source = std::string(kDeep) +
+                         "function op(i) "
+                         "  local a = transform.new(vec3.new(i, 0, 0)) "
+                         "  local c = a * a "
+                         "  local p = a * vec3.new(0, i, 0) "
+                         "  return c == transform.new(vec3.new(2 * i, 0, 0)) and p == vec3.new(i, i, 0) "
+                         "end";
+    CHECK(runWhileStackShrinks(source.c_str(), 200) > 0);
+}
+
 TEST_SUITE_END();

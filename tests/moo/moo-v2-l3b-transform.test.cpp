@@ -513,8 +513,8 @@ TEST_CASE("TransformInversePointAndDirectionMatchFixed4096")
     CHECK(positionApplied > 4000);
 }
 
-// transform.inverse is fixInvertTransform: negation is exact on the domain, so this holds over the full domain of
-// the position with a unit rotation. Reversed witness: the inverse's position is the rotated negation, which differs
+// transform.inverse is fixInvertTransform on rigid transforms inside fixed's defined range (negation is exact, but
+// fixInvRotateVector's sums are plain int64 outside it). Reversed witness: the inverse's position is the rotated negation, which differs
 // from the plain negation on the corpus, so a VM that only negated would fail.
 TEST_CASE("TransformInverseMatchesFixed4096")
 {
@@ -569,10 +569,14 @@ TEST_CASE("TransformPositionSaturates")
     CHECK(gi.y == MOO_NUMBER_MAX);
     CHECK(gi.z == 0);
 
-    // just inside the range nothing saturates and the bits are fixed's
-    fixTransform c = FIX_LITERAL(fixTransform){{MOO_NUMBER_MAX - 3, 0, 0}, fixQuat_identity};
-    call(s.L, "moo_tf_point", c, FIX_LITERAL(fixVec3){3, 0, 0});
-    CHECK(popVec3(s.L).x == MOO_NUMBER_MAX);
+    // one raw unit inside the range nothing saturates and the bits are fixed's own (a clamp one unit early fails)
+    fixTransform c = FIX_LITERAL(fixTransform){{MOO_NUMBER_MAX - 4, MOO_NUMBER_MIN + 4, 0}, fixQuat_identity};
+    fixVec3 w = FIX_LITERAL(fixVec3){3, -3, 0};
+    call(s.L, "moo_tf_point", c, w);
+    fixVec3 gc = popVec3(s.L);
+    CHECK(gc.x == MOO_NUMBER_MAX - 1);
+    CHECK(gc.y == MOO_NUMBER_MIN + 1);
+    CHECK(sameVec3(gc, fixTransformPoint(c, w)));
 }
 
 // Every operation outside the table of docs/DESIGN.md "Operations" is refused with the ordinary error, by name.
