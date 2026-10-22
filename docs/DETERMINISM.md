@@ -37,7 +37,7 @@ test in `tests/Moo.test.cpp`. This table is the state of `main`:
 
 | # | Source | State |
 |---|---|---|
-| 1 | object keys hash by address | **fixed**: every object header starts with its 8-byte creation number (`gcseq`); object keys hash by it |
+| 1 | object keys hash by address | **fixed**: every object header starts with its 8-byte creation number (`gcseq`); object keys hash by it, except a vec3, a quat or a transform, which are values and hash by their raw components (layer 3b) |
 | 4 | GC pacing by clock | **fixed**: no clock in the VM; the heap trigger's growth estimate is the bytes allocated during the last mark phase, and the PI controller is integer arithmetic. `tools/moo-check-no-clock.sh` refuses, at the link level, any VM object but `lperf.cpp` that references a clock, `getenv` or the C random generator; `LUAI_GCMETRICS` does not build |
 | 5 | GC accounting by `sizeof` | **fixed, by pinning**: see below |
 | 6 | `tostring` shows an address | **fixed**: `table: #123`; light userdata prints `userdata: light`; `moo_objectseq` gives the number to the host |
@@ -52,7 +52,7 @@ test in `tests/Moo.test.cpp`. This table is the state of `main`:
 
 The creation number costs 8 bytes in every object (16 in a userdata, whose data stays 16-byte
 aligned at offset 32): a table header is 56 bytes (was 48), a string header 32 (24), a closure
-72 (64), an upvalue 48 (40), a buffer header 16 (8). The static asserts in `VM/src/lmem.cpp` pin
+72 (64), an upvalue 48 (40), a buffer header 16 (8), a vec3 40 (32), a quat 48 (40), a transform 72 (64). The static asserts in `VM/src/lmem.cpp` pin
 these sizes, and moo now refuses to build for a 32-bit target.
 
 **Allocation units (5), as built.** The proposal below was a separate unit counter with its own
@@ -70,7 +70,8 @@ no change to the hot allocation path. `lua_gc` and `gcinfo` report it, so both a
 host seed and logging host functions, twice, and takes two hashes: the **effects** (every log line,
 every destructor with the GC step boundaries, `lua_close`'s destructors) and the **state** (every GC
 object's header mid-cycle, then after a full collection every object's header and contents: table
-slots, strings, buffers, userdata, closures, threads; and the GC counters). Both must equal
+slots, strings, buffers, userdata, closures, threads, and the components of a vec3, a quat or a transform; and the
+GC counters). Both must equal
 `tests/determinism/expected.txt` everywhere. The programs: object-keyed tables of every
 collectable kind with deletes and rehash (`objectkeys`), allocation churn with weak keys, weak
 values, weak both and userdata destructors in five size classes (`gcchurn`), coroutines
@@ -81,13 +82,13 @@ programs (`math`). Every platform cell is `same` or `pending nightly`:
 
 | program | effects | state | hulk gcc 15.2 | hulk clang 21.1 | hulk clang Debug ASan+UBSan | mini-m5-1 arm64 Apple clang 21 | windows-msvc | windows-clang-cl |
 |---|---|---|---|---|---|---|---|---|
-| coroutines | `a2351a1850f47a3e` | `eae7f9734f410e3a` | same | same | pending nightly | pending nightly | pending nightly | pending nightly |
-| coroutines2 | `2ca405a9600143fa` | `dc579a5432f7898e` | same | same | pending nightly | pending nightly | pending nightly | pending nightly |
-| errors | `ee7b3d6f2b3bfb9e` | `4d4a67e1614c5a55` | same | same | pending nightly | pending nightly | pending nightly | pending nightly |
-| gcchurn | `6d789a68240b8976` | `5ee2eb0d2642bda5` | same | same | pending nightly | pending nightly | pending nightly | pending nightly |
-| library | `9ce6b3fc5ed7d5fe` | `039fbc53f46d1d5a` | same | same | pending nightly | pending nightly | pending nightly | pending nightly |
-| math | `a005f1cb6d366b18` | `bb3e5e4465819cce` | same | same | pending nightly | pending nightly | pending nightly | pending nightly |
-| objectkeys | `c026a789bb37c024` | `38780e98f3910393` | same | same | pending nightly | pending nightly | pending nightly | pending nightly |
+| coroutines | `5cb7f17a10d68cc4` | `6fad6a2c9bf8a173` | pending nightly | pending nightly | pending nightly | pending nightly | pending nightly | pending nightly |
+| coroutines2 | `45af4a6f2428da59` | `5359668bdc22dc58` | pending nightly | pending nightly | pending nightly | pending nightly | pending nightly | pending nightly |
+| errors | `f7037948e0d4bea2` | `be21c103205a5f40` | pending nightly | pending nightly | pending nightly | pending nightly | pending nightly | pending nightly |
+| gcchurn | `971f095d77280529` | `99a32dc86877a486` | pending nightly | pending nightly | pending nightly | pending nightly | pending nightly | pending nightly |
+| library | `b37b92ae87f532ba` | `d8e5f88d20c961f8` | pending nightly | pending nightly | pending nightly | pending nightly | pending nightly | pending nightly |
+| math | `0d7b989a30435fce` | `6f1e734e163b3843` | pending nightly | pending nightly | pending nightly | pending nightly | pending nightly | pending nightly |
+| objectkeys | `1067f47a944c9471` | `673230ee8047eeaa` | pending nightly | pending nightly | pending nightly | pending nightly | pending nightly | pending nightly |
 
 The last full nightly-workflow matrix the coordinator dispatched was
 [run 39176151564](https://github.com/mas-bandwidth/moo/actions/runs/39176151564), created
@@ -101,6 +102,16 @@ Linux bench (gcc 15.2 and clang 21.1) and `pending nightly` elsewhere. The earli
 [run 39107758768](https://github.com/mas-bandwidth/moo/actions/runs/39107758768), created
 2026-10-18 07:27:59Z at head `8317486459d8b67e2b4a4f4685e31141d3ee941b`, passed the four programs
 then present on Linux gcc, Linux clang, macOS arm64 and Windows MSVC; that Windows job took 8m23s.
+
+Re-pinned again when layer 3b added the vec3 tag: its type-name string shifts every creation number by one. Re-pinned
+again when the vec3 library joined `luaL_openlibs`, when layer 3b added the quat tag and library, and when it added the
+transform tag and library: each type-name string, library table and function name is a startup object, so every
+creation number shifts, and each tag grows `global_State` by two tag slots (one in `mt[]`, one in `ttname[]`, 16
+bytes), which moves GC pacing. The mechanism (creation number, not address) is unchanged. The old and new values of
+each re-pin are in `docs/layer3b/` (`moo-v2-l3b-vec3-object.md`, `moo-v2-l3b-vec3-ops.md`, `moo-v2-l3b-quat.md`,
+`moo-v2-l3b-transform.md`). The vec3 library and quat re-pins were identical on clang 18 and gcc 13; the transform
+note does not name its compilers. The table's platform columns have not been re-run at these values, so every cell
+is `pending nightly`.
 
 The closing card re-verified the Linux gate at this tree: `tools/revendor-fixed.sh --check` is
 clean, the no-clock check is clean, and `Moo.Test` passes all 175 cases on both gcc and clang, so
@@ -147,7 +158,8 @@ Upstream tests moo changed, and why:
   tests/Moo.test.cpp, because moo has no clock.
 - `tests/conformance/types.luau` checks that the VM's globals match the analyzer's builtin
   definitions. The `_G.os` ignore is gone; `_G.vector` is ignored until the VM removal lands (see
-  DESIGN.md "Analyzer").
+  DESIGN.md "Analyzer"). `_G.vec3`, `_G.quat` and `_G.transform` are checked on both sides; only
+  `_G.quat.slerp` is ignored, because the VM refuses it by name and the analyzer does not declare it.
 
 ## Inventory
 
@@ -164,8 +176,12 @@ Upstream tests moo changed, and why:
 
 **Fix:** every collectable object gets a 64-bit **creation sequence number**, taken from a
 per-VM counter at allocation and stored in the object header. Object keys hash by that
-number (with the existing MurmurHash3 finalizer), never by address. Then node placement,
-and with it `next`/`pairs` order, depends only on the program.
+number (with the existing MurmurHash3 finalizer), never by address. A vec3 is the exception:
+it is a value, equal vec3 are one key, and it hashes by its three raw components
+(`moo_vec3_hash`). A quat is the exception too: equal quat are one key, and it hashes by its four
+raw components (`moo_quat_hash`). So is a transform, by its seven raw components
+(`moo_transform_hash`). Then node placement, and with it `next`/`pairs` order, depends only on the
+program.
 
 **Rehash and resize need no change.** `resize` (`VM/src/ltable.cpp:573`) reinserts the old
 nodes in a fixed slot order and collisions take the free slot found by a fixed downward
@@ -232,7 +248,10 @@ the host's memory reporting but no longer drives anything observable.
   address. Either way the result depends on the address.
 
 **Fix:** `tostring` of a reference value prints its creation sequence number, for example
-`table: #1234`. Light userdata prints `userdata: light` with no value. The pointer encoding
+`table: #1234`. Light userdata prints `userdata: light` with no value. A vec3 prints
+`vec3(x, y, z)` through the exact formatter, a quat `quat(x, y, z, s)` and a transform
+`transform(vec3(px, py, pz), quat(qx, qy, qz, qs))`; `lua_topointer` returns `NULL` for all three.
+The pointer encoding
 key and `lua_encodepointer` stay in the C API for upstream compatibility but nothing
 script-visible uses them.
 
@@ -341,7 +360,8 @@ written in Luau, and destructors are how the host frees what its userdata own. O
 depends only on allocation units, which cycle clears which weak entry is a function of the
 program. **Fix:** destructors no longer run inside the sweep. The sweep queues dead
 userdata; at the end of the GC step the queue runs in **creation-sequence order**. The
-determinism suite includes heavy-GC programs with destructors and weak tables.
+determinism suite includes heavy-GC programs with destructors and weak tables. A vec3, a quat or
+a transform, like a string, is a value and is never cleared from a weak table.
 
 ### 14. FMA in native codegen
 
@@ -384,7 +404,9 @@ deterministic function of the table's history, and the determinism suite pins it
 
 **Fixed in layer 3:** the float vector type is removed. The library, the bytecode constant and
 the C API (`lua_pushvector`, `lua_tovector`, `lua_isvector`, `luaL_checkvector`) are removed
-first; `LUA_TVECTOR` stays unused in the tag enum for upstream merges. Layer 3b brings `vec3`,
+first; `LUA_TVECTOR` stays unused in the tag enum for upstream merges; vec3, quat and transform get
+new tags after `LUA_TOBJECT` (`docs/layer3b/moo-v2-l3b-vec3-object.md`): `LUA_TVEC3` 14,
+`LUA_TQUAT` 15 and `LUA_TTRANSFORM` 16, and `TKey::tt` is 5 bits so `LUA_TDEADKEY` 17 fits. Layer 3b brings `vec3`,
 `quat` and `transform` back with full Q48.16 components (DESIGN.md, "vec3, quat and transform").
 
 ### 18. Float bytes in buffers and string.pack
