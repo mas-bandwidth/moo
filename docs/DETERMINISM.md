@@ -456,7 +456,10 @@ So coroutines are deterministic once everything they compute is. The adversarial
 determinism suite are `coroutines` and `coroutines2` (`tests/determinism/coroutines2.luau`),
 and the conformance script and C++ cases in `tests/conformance/moo/l3/moo-l5-coroutine-programs.luau`
 and `tests/moo/moo-l5-coroutine-programs.test.cpp` pin the transitions at the C API boundary. The
-TLA+ model of resume/yield/close/error states (`tla/Coroutine.tla`) is owed.
+TLA+ model of the resume/yield/close/error states is `tla/Coroutines.tla`: one running thread on top of the
+resume chain, the normal threads exactly the rest of it, no thread on it twice, every refusal named as
+`lua_costatus` reports the status, and dead is final; TLC checks it on three coroutines (`tla/CASES.tsv`), and two
+plants (close of a normal coroutine, resume of a normal one) each break their invariant.
 
 ### 22. Host-dependent limits
 

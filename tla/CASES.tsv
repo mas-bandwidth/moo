@@ -4,3 +4,6 @@ MCDestructorQueueBrokenSweepOrder.cfg	DestructorQueue.tla	invariant	BatchInCreat
 MCDestructorQueueBrokenCycleEnd.cfg	DestructorQueue.tla	invariant	QueueEmptyBetweenSteps
 MCNumericFor.cfg	NumericFor.tla	pass	-
 MCNumericForBrokenSaturate.cfg	NumericFor.tla	invariant	NeverTooMany
+MCCoroutines.cfg	Coroutines.tla	pass	-
+MCCoroutinesBrokenCloseNormal.cfg	Coroutines.tla	invariant	NormalIsTheChain
+MCCoroutinesBrokenResumeNormal.cfg	Coroutines.tla	invariant	ChainDistinct
