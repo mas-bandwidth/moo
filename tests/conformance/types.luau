@@ -15,11 +15,9 @@ local ignore =
 	-- exposes the vector library at this base, so ignore it until the VM removal lands.
 	"_G.vector",
 
-	-- moo: the analyzer's vec3 type is a later card (docs/layer3b/moo-v2-l3b-vec3-ops.md "Not done"),
-	-- but the VM exposes the vec3 library now, so ignore it until that type lands.
-	"_G.vec3",
-	"_G.quat", -- moo: likewise for quat (docs/layer3b/moo-v2-l3b-quat.md)
-	"_G.transform", -- moo: likewise for transform (docs/layer3b/moo-v2-l3b-transform.md)
+	-- moo: the VM's quat.slerp only raises "quat.slerp waits for fixed's slerp", so the analyzer does not declare it
+	-- (docs/layer3b/moo-v2-l3b-analyzer-types.md, decision 3).
+	"_G.quat.slerp",
 }
 
 function verify(real, rtti, path)

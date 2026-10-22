@@ -383,6 +383,75 @@ declare vector: {
 
 )BUILTIN_SRC";
 
+// moo: the fixed-point value types of layer 3b and their libraries (docs/DESIGN.md "Analyzer", "vec3, quat and
+// transform (layer 3b)"; docs/layer3b/moo-v2-l3b-analyzer-types.md). Each type is declared the way upstream declares
+// vector, as an extern type, with exactly the components and operators the VM implements (VM/src/lvmutils.cpp,
+// luaV_doarithimpl and luaV_gettable) and each library with the VM's functions and argument counts
+// (VM/src/moo_vec3lib.cpp, moo_quatlib.cpp, moo_transformlib.cpp). quat.slerp is left out: the VM refuses it by name
+// until fixed has a slerp, so the analyzer reports it as missing rather than promising a result.
+static const char* const kBuiltinDefinitionMooValueTypesSrc = R"BUILTIN_SRC(
+
+declare extern type vec3 with
+    read x: number
+    read y: number
+    read z: number
+    read X: number
+    read Y: number
+    read Z: number
+    function __add(self, other: vec3): vec3
+    function __sub(self, other: vec3): vec3
+    function __mul(self, other: vec3): vec3
+    function __mul(self, other: number): vec3
+    function __unm(self): vec3
+end
+
+declare extern type quat with
+    read x: number
+    read y: number
+    read z: number
+    read w: number
+    read X: number
+    read Y: number
+    read Z: number
+    read W: number
+    function __mul(self, other: quat): quat
+    function __mul(self, other: vec3): vec3
+end
+
+declare extern type transform with
+    read p: vec3
+    read q: quat
+    function __mul(self, other: transform): transform
+    function __mul(self, other: vec3): vec3
+end
+
+declare vec3: {
+    new: @checked (x: number?, y: number?, z: number?) -> vec3,
+    create: @checked (x: number?, y: number?, z: number?) -> vec3,
+    dot: @checked (a: vec3, b: vec3) -> number,
+    cross: @checked (a: vec3, b: vec3) -> vec3,
+    length: @checked (a: vec3) -> number,
+    magnitude: @checked (a: vec3) -> number,
+    normalize: @checked (a: vec3) -> vec3,
+}
+
+declare quat: {
+    new: @checked (x: number?, y: number?, z: number?, w: number?) -> quat,
+    conjugate: @checked (q: quat) -> quat,
+    nlerp: @checked (a: quat, b: quat, alpha: number) -> quat,
+}
+
+declare transform: {
+    new: @checked (p: vec3?, q: quat?) -> transform,
+    inverse: @checked (t: transform) -> transform,
+    point: @checked (t: transform, v: vec3) -> vec3,
+    direction: @checked (t: transform, v: vec3) -> vec3,
+    invpoint: @checked (t: transform, v: vec3) -> vec3,
+    invdirection: @checked (t: transform, v: vec3) -> vec3,
+}
+
+)BUILTIN_SRC";
+
 [[maybe_unused]] static const char* const kBuiltinDefinitionIntegerSrc = R"BUILTIN_SRC(
 
 declare integer: {
@@ -461,6 +530,8 @@ std::string getBuiltinDefinitionSource()
     // moo: number is Q48.16 and there is no integer type or library (DESIGN.md "Analyzer"), so the buffer
     // definition never mentions integer, whatever the upstream flags say.
     result += kBuiltinDefinitionBufferSrc_NOINTEGER;
+    // moo: vec3, quat and transform (docs/layer3b/moo-v2-l3b-analyzer-types.md)
+    result += kBuiltinDefinitionMooValueTypesSrc;
 
     if (FFlag::DebugLuauUserDefinedClasses && FFlag::LuauAllowGlobalDeclarationToBeCalledClass)
     {
