@@ -4,7 +4,7 @@ A **generated copy** of [mas-bandwidth/fixed](https://github.com/mas-bandwidth/f
 deterministic fixed-point library that moo's `number` is built on (docs/DESIGN.md,
 "Semantics").
 
-    Pinned at: unreleased-2f1ed91  (2f1ed913374ab047c061c66f5be737715f7d87b5)
+    Pinned at: unreleased-4a70c64  (4a70c64eaedf58cb6363ad7a3a48387d2ff15502)
 
 This is the commit fixed3d vendors, so a moo program and fixed3d's sim compute with the same C,
 bit for bit. moo compiles it with `FIX_SATURATE` (CMake target `Moo.Fixed`).

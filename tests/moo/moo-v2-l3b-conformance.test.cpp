@@ -675,26 +675,30 @@ TEST_CASE("Layer3bOracle")
     // the corpus reaches both regimes of the transform oracle
     CHECK(o.alsoFixed > 0);
     CHECK(o.saturated > 0);
-    // fixDot is the exact rounded dot product except where its 128-bit sum wraps (an upstream question, named in the note)
+    // fixDot is the exact rounded dot product everywhere: since fixed #59 its 128-bit sum saturates under FIX_SATURATE
+    // instead of wrapping, so the wraps the oracle used to count at the top of the range are gone
+    CHECK(o.dotWraps == 0);
     CHECK(o.dotWrapsOther == 0);
 }
 
-// The one difference from exact arithmetic the oracle names, pinned so an upstream fix in fixed shows up here: the
-// dot product of a vector with itself at the top of the range has a sum of squares of about 3 * 2^126, which wraps
-// fixDotRaw's 128 bits, so fixDot (and vec3.dot) returns the most negative number where the exact result saturates
-// to the most positive. vec3.length is unaffected: it reads the same sum as unsigned.
-TEST_CASE("Layer3bFixDotWrapsAtTheRangeEnd")
+// The difference from exact arithmetic the oracle used to name, fixed upstream (fixed #59): the dot product of a
+// vector with itself at the top of the range has a sum of squares of about 3 * 2^126, past fixDotRaw's 128 bits.
+// fixDot (and vec3.dot) returned the most negative number there; under FIX_SATURATE it now saturates to the most
+// positive, as the exact result does. vec3.length was never affected: it reads the same sum as unsigned.
+TEST_CASE("Layer3bFixDotSaturatesAtTheRangeEnd")
 {
     fixVec3 top = {kMax, kMax, kMax};
     bool wrapped = false;
     CHECK(exactDot(top, top, &wrapped) == kMax);
     CHECK(wrapped);
-    CHECK(fixDot(top, top) == kMin);
+    CHECK(fixDot(top, top) == kMax);
+    fixVec3 bottom = {kMin, kMin, kMin};
+    CHECK(fixDot(top, bottom) == kMin);
     CHECK(fixLength(top) == kMax);
 
     lua_State* L = luaL_newstate();
     luaL_openlibs(L);
-    CHECK(mooRun(L, "local v = vec3.new(140737488355327, 140737488355327, 140737488355327) return vec3.dot(v, v) < 0") == "true");
+    CHECK(mooRun(L, "local v = vec3.new(140737488355327, 140737488355327, 140737488355327) return vec3.dot(v, v) > 0") == "true");
     lua_close(L);
 
     // just below the wrap the exact and fixed's results agree

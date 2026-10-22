@@ -647,16 +647,17 @@ fixVec3 mooVec3Payload(const MooVec3* v)
     return FIX_LITERAL(fixVec3){v->x, v->y, v->z};
 }
 
-// moo: + and - are moo's own saturating adds, as for number; fixed's fixVecAdd/fixVecSub are plain int64 adds at
-// this pin (docs/DESIGN.md "vec3, quat and transform (layer 3b)", "Saturation, stated precisely").
+// moo: + and - are fixed's fixVecAdd/fixVecSub, which under FIX_SATURATE (moo's build) saturate per component into
+// [FIX_MIN, FIX_MAX] with fixAddSaturate/fixSubSaturate: the same rule, and the same bits, as moo_numadd/moo_numsub
+// for number (docs/DESIGN.md "vec3, quat and transform (layer 3b)", "Saturation, stated precisely").
 fixVec3 mooVec3Add(fixVec3 a, fixVec3 b)
 {
-    return FIX_LITERAL(fixVec3){moo_numadd(a.x, b.x), moo_numadd(a.y, b.y), moo_numadd(a.z, b.z)};
+    return fixVecAdd(a, b);
 }
 
 fixVec3 mooVec3Sub(fixVec3 a, fixVec3 b)
 {
-    return FIX_LITERAL(fixVec3){moo_numsub(a.x, b.x), moo_numsub(a.y, b.y), moo_numsub(a.z, b.z)};
+    return fixVecSub(a, b);
 }
 
 #if MOO_OVERFLOW_ERRORS

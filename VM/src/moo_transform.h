@@ -62,9 +62,9 @@ LUAI_FUNC unsigned int moo_transform_hash(const MooTransform* t);
 
 // The operations (docs/DESIGN.md "Operations"; docs/layer3b/moo-v2-l3b-transform.md, decision 2). Each is fixed's
 // function of the same name with its final position add or subtract done by moo's saturating add (moo_numadd,
-// moo_numsub), as vec3 + and - are: fixed's fixVecAdd/fixVecSub are plain int64 arithmetic at this pin ("Saturation,
-// stated precisely"). Wherever fixed's add does not overflow, the bits are fixed's; where it would overflow (undefined
-// in C), moo saturates. The rotations are fixed's fixRotateVector, fixInvRotateVector, fixMulQuat and fixConjugate
+// moo_numsub). Since fixed #60 that is also what fixed's fixVecAdd/fixVecSub do under FIX_SATURATE ("Saturation,
+// stated precisely"), so the bits are fixed's everywhere the rotation is; at the earlier pin fixed's add was plain
+// int64 arithmetic and moo saturated where it would overflow (undefined in C). The rotations are fixed's fixRotateVector, fixInvRotateVector, fixMulQuat and fixConjugate
 // verbatim. In moo_transformlib.cpp.
 LUAI_FUNC fixTransform moo_transform_mul(fixTransform a, fixTransform b);       // fixMulTransforms
 LUAI_FUNC fixTransform moo_transform_inverse(fixTransform t);                   // fixInvertTransform

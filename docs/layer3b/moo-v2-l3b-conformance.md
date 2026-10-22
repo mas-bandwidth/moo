@@ -43,8 +43,9 @@ turned the oracle red on the saturation cases (moo `9223372036838767077` where t
 `fixDotRaw` sums three 126-bit products in 128 bits through unsigned arithmetic. A sum of magnitude 2^127 or more
 wraps, so `fixDot` returns the wrong sign: `vec3.dot(v, v)` for `v = vec3.new(2^47 - 1, 2^47 - 1, 2^47 - 1)` is the
 most negative number where the exact result saturates to the most positive. The result is still deterministic
-(unsigned wrap is defined), and `fixLength` is unaffected (it reads the sum as unsigned). `Layer3bFixDotWrapsAtTheRangeEnd`
-pins today's behaviour so an upstream fix shows up here. In the 2^22 run, 131 of 4194304 random dot cases wrapped.
+(unsigned wrap is defined), and `fixLength` is unaffected (it reads the sum as unsigned). In the 2^22 run, 131 of
+4194304 random dot cases wrapped. Fixed upstream in fixed #59: at pin `4a70c64` the test, renamed
+`Layer3bFixDotSaturatesAtTheRangeEnd`, expects saturation, and the oracle requires 0 wraps.
 
 ## (2) Against fixed3d built with BOX3D_FIXED_SATURATE
 

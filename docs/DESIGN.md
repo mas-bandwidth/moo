@@ -94,8 +94,8 @@ The layer's record is the notes in `docs/layer3b/`; each names its files, tests 
   `LUA_TDEADKEY` before the sweep frees its object, because value equality reads the key's object
   (`docs/layer3b/moo-v2-l3b-vec3-object.md`, decision 4).
 - **vec3 operations.** `+`, `-`, `*` and unary `-` follow the number's saturation and checked-build error: `+` and `-`
-  are `moo_numadd`/`moo_numsub` per component, because fixed's `fixVecAdd`/`fixVecSub` are plain int64 adds at this
-  pin; `*` is `fixVecMul` and `fixMulSV`; unary `-` is `fixVecNeg`. `vec3 == vec3` is component equality. `v.x`,
+  are fixed's `fixVecAdd`/`fixVecSub`, which under `FIX_SATURATE` saturate per component (fixed #60) by the same
+  rule, and to the same bits, as `moo_numadd`/`moo_numsub`; `*` is `fixVecMul` and `fixMulSV`; unary `-` is `fixVecNeg`. `vec3 == vec3` is component equality. `v.x`,
   `v.y`, `v.z` (and `X`, `Y`, `Z`) read a component; assigning one is the index error. The `vec3` library (`new`,
   `dot`, `cross`, `length`, `normalize`, aliases `create` and `magnitude`) calls fixed's functions directly and is
   opened by `luaL_openlibs`.
@@ -168,11 +168,11 @@ The layer's record is the notes in `docs/layer3b/`; each names its files, tests 
   through unsigned arithmetic, so a sum of magnitude 2^127 or more wraps and `fixDot` returns the wrong sign:
   `vec3.dot(v, v)` for `v = vec3.new(2^47 - 1, 2^47 - 1, 2^47 - 1)` is the most negative number where the exact result
   saturates to the most positive. The result is still deterministic (unsigned wrap is defined), and `fixLength` is
-  unaffected. `Layer3bFixDotWrapsAtTheRangeEnd` pins today's behaviour so an upstream fix shows up; in the 2^22 run 131
-  of 4194304 random dot cases wrapped.
+  unaffected. In the 2^22 run 131 of 4194304 random dot cases wrapped. Fixed upstream (fixed #59): at pin `4a70c64`
+  `fixDot` saturates with the true sign, the oracle counts 0 wraps, and `Layer3bFixDotSaturatesAtTheRangeEnd` holds it.
 - **Not built.** Expression-temporary reuse in the compiler ("Representations costed"). `quat.slerp` waits for
-  `fixed`. `fixCross`, `fixRotateVector` and `fixMulAdd` sums outside fixed's defined range are owed upstream
-  ("Saturation, stated precisely").
+  `fixed`. (The `fixCross`, `fixRotateVector` and `fixMulAdd` sums that were owed upstream saturate under
+  `FIX_SATURATE` since fixed #60-#62; "Saturation, stated precisely".)
 
 ## Representation
 
@@ -187,7 +187,7 @@ There is one number type. Its value is the raw signed 64-bit Q48.16 integer, `fi
 ## Semantics
 
 Arithmetic is the C library [`fixed`](https://github.com/mas-bandwidth/fixed), pinned at
-commit `2f1ed913374ab047c061c66f5be737715f7d87b5`, the commit fixed3d vendors. moo vendors it
+commit `4a70c64eaedf58cb6363ad7a3a48387d2ff15502`, the commit fixed3d vendors. moo vendors it
 the same way fixed3d does: a generated copy under `extern/fixed`, written by a revendor script,
 with a CI check that fails on drift. A change to the arithmetic is made upstream in `fixed`
 and arrives here by moving the pin.
@@ -447,10 +447,12 @@ an alpha outside [0, 1]. Luau's `vector` library names (`create`, `dot`, `cross`
 **Saturation, stated precisely.** moo's own operators on these types (`+`, `-`, `*`, unary `-`)
 follow `number`'s rules: saturate, never wrap, named error in debug. Compound functions (cross,
 rotate, compose, normalize) are `fixed`'s functions verbatim, and a checked build raises no named
-error for them. Two gaps exist at this `fixed` pin: `fixVecAdd`/`fixVecSub` and the intermediate
-sums inside `fixCross`, `fixRotateVector` and `fixMulTransforms` are plain int64 adds (signed
-overflow, undefined in C), and fixed3d's default build does not define `BOX3D_FIXED_SATURATE`, so
-`fixMul` wraps there. Within range the results are identical. To make them identical everywhere,
+error for them. At pin `4a70c64` (fixed #59-#62) every add, subtract and 128-bit reduction in
+`fixed` saturates under `FIX_SATURATE` with the sign of the exact result: `fixVecAdd`/`fixVecSub`,
+`fixDot`, and the intermediate sums inside `fixCross`, `fixRotateVector`, `fixMulQuat` and
+`fixMulTransforms`. They were plain int64 adds at the earlier pin (signed overflow, undefined in
+C). One gap remains: fixed3d's default build does not define `BOX3D_FIXED_SATURATE`, so `fixMul`
+wraps there. Within range the results are identical. To make them identical everywhere,
 moo proposes saturating adds in `fixed` under `FIX_SATURATE`, and the layer 3b oracle is fixed3d
 built with `BOX3D_FIXED_SATURATE`. Overflow behaviour is tested separately. As built, fixed3d's
 `BOX3D_FIXED_SATURATE` does not reach fixed's inline `fixMul` (it defines `FIX_SATURATE` after
