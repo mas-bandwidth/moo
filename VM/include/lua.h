@@ -108,6 +108,10 @@ enum lua_Type
     // tags keep their values (docs/layer3b/moo-v2-l3b-vec3-object.md, decision 1)
     LUA_TQUAT,
 
+    // moo: transform, an immutable GC object of a fixTransform (a Q48.16 vec3 position and a quat rotation); it
+    // follows quat so upstream tags keep their values (docs/layer3b/moo-v2-l3b-vec3-object.md, decision 1)
+    LUA_TTRANSFORM,
+
     // values below this line are used in GCObject tags but may never show up in TValue type tags
 
     // LUA_TDEADKEY is used in TKey to identify Luau table entries that have the value set to nil,

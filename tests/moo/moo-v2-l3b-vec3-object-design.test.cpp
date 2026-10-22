@@ -37,8 +37,8 @@ TEST_CASE("Vec3ObjectLayout")
 
 // Note, decision 1: LUA_TVEC3 is right after LUA_TOBJECT (and after the LUA_VECTOR_DOUBLE == 1 arm moo does not
 // build), so in moo's build it is 14. It is a TValue tag and collectable (at or above LUA_TSTRING), and its name is
-// "vec3". moo: the quat card follows it at 15, so LUA_TDEADKEY is 16 and LUA_T_COUNT 16 (layer 3b,
-// docs/layer3b/moo-v2-l3b-quat-object.md). An upstream merge that adds a type there makes this case fail, so the
+// "vec3". moo: the quat card follows it at 15 and transform at 16, so LUA_TDEADKEY is 17 and LUA_T_COUNT 17
+// (layer 3b, docs/layer3b/moo-v2-l3b-quat-object.md, docs/layer3b/moo-v2-l3b-transform.md). An upstream merge that adds a type there makes this case fail, so the
 // note is read again.
 TEST_CASE("Vec3TagSlotIsAfterObject")
 {
@@ -47,11 +47,12 @@ TEST_CASE("Vec3TagSlotIsAfterObject")
     CHECK(int(LUA_TVEC3) == 14);
     CHECK(int(LUA_TVEC3) == int(LUA_TOBJECT) + 1);
     CHECK(int(LUA_TQUAT) == int(LUA_TVEC3) + 1);
-    CHECK(int(LUA_TDEADKEY) == int(LUA_TQUAT) + 1);
-    CHECK(int(LUA_T_COUNT) == 16);
+    CHECK(int(LUA_TTRANSFORM) == int(LUA_TQUAT) + 1);
+    CHECK(int(LUA_TDEADKEY) == int(LUA_TTRANSFORM) + 1);
+    CHECK(int(LUA_T_COUNT) == 17);
     CHECK(int(LUA_TVEC3) < int(LUA_T_COUNT));
     CHECK(int(LUA_TVEC3) >= int(LUA_TSTRING));
-    // a table key's tag lives in TKey::tt, now 5 bits: LUA_TDEADKEY is 16 (note, decision 1, item 4; quat widens it)
+    // a table key's tag lives in TKey::tt, now 5 bits: LUA_TDEADKEY is 17 (note, decision 1, item 4; quat widens it)
     CHECK(int(LUA_TDEADKEY) <= 31);
     CHECK(strcmp(luaT_typenames[LUA_TVEC3], "vec3") == 0);
 }

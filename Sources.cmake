@@ -423,6 +423,7 @@ target_sources(Luau.VM PRIVATE
     VM/src/moo_layout.cpp
     VM/src/moo_vec3lib.cpp # moo: the fixed vec3 library (docs/DESIGN.md "vec3, quat and transform (layer 3b)")
     VM/src/moo_quatlib.cpp # moo: the fixed quat library (docs/DESIGN.md "vec3, quat and transform (layer 3b)")
+    VM/src/moo_transformlib.cpp # moo: the fixed transform library (docs/DESIGN.md "vec3, quat and transform (layer 3b)")
     VM/src/lmem.cpp
     VM/src/lnumprint.cpp
     VM/src/lobject.cpp

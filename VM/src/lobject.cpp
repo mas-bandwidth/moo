@@ -12,6 +12,7 @@
 #include "moo_format.h" // moo: moo_numtostr for moo_vec3_tostring (docs/layer3b/moo-v2-l3b-vec3-object.md)
 #include "moo_vec3.h"   // moo: vec3 GC object (docs/layer3b/moo-v2-l3b-vec3-object.md)
 #include "moo_quat.h"   // moo: quat GC object (docs/layer3b/moo-v2-l3b-quat-object.md)
+#include "moo_transform.h" // moo: transform GC object (docs/layer3b/moo-v2-l3b-transform.md)
 
 #include <ctype.h>
 #include <string.h>
@@ -104,6 +105,52 @@ char* moo_quat_tostring(char* buf, const MooQuat* q)
     return p;
 }
 
+// moo: transform allocation, value equality and tostring, the vec3 pattern again (docs/DESIGN.md "vec3, quat and
+// transform (layer 3b)", "Number formatting"; docs/layer3b/moo-v2-l3b-transform.md, decision 1).
+MooTransform* moo_transform_new(lua_State* L, fixTransform t)
+{
+    MooTransform* o = luaM_newgcofixed(L, MooTransform, sizeof(MooTransform), L->activememcat, LUA_TTRANSFORM);
+    luaC_init(L, o, LUA_TTRANSFORM);
+    o->p = t.p;
+    o->q = t.q;
+    return o;
+}
+
+fixTransform moo_transform_payload(const MooTransform* t)
+{
+    return FIX_LITERAL(fixTransform){{t->p.x, t->p.y, t->p.z}, {{t->q.v.x, t->q.v.y, t->q.v.z}, t->q.s}};
+}
+
+int moo_transform_equal(const MooTransform* a, const MooTransform* b)
+{
+    return a->p.x == b->p.x && a->p.y == b->p.y && a->p.z == b->p.z && a->q.v.x == b->q.v.x && a->q.v.y == b->q.v.y &&
+           a->q.v.z == b->q.v.z && a->q.s == b->q.s;
+}
+
+char* moo_transform_tostring(char* buf, const MooTransform* t)
+{
+    const fixed_t c[7] = {t->p.x, t->p.y, t->p.z, t->q.v.x, t->q.v.y, t->q.v.z, t->q.s};
+    memcpy(buf, "transform(vec3(", 15);
+    char* p = buf + 15;
+    for (int i = 0; i < 7; ++i)
+    {
+        if (i == 3)
+        {
+            memcpy(p, "), quat(", 8);
+            p += 8;
+        }
+        else if (i != 0)
+        {
+            *p++ = ',';
+            *p++ = ' ';
+        }
+        p = moo_numtostr(p, c[i]);
+    }
+    *p++ = ')';
+    *p++ = ')';
+    return p;
+}
+
 // moo: raw equality has no vector arm because the public API no longer creates vector values; a vec3 compares
 // its three raw components by value (docs/DESIGN.md "vec3, quat and transform (layer 3b)";
 // docs/layer3b/moo-v2-l3b-vec3-object.md, decision 3).
@@ -128,6 +175,8 @@ int luaO_rawequalObj(const TValue* t1, const TValue* t2)
             return moo_vec3_equal(vec3value(t1), vec3value(t2));
         case LUA_TQUAT:
             return moo_quat_equal(quatvalue(t1), quatvalue(t2));
+        case LUA_TTRANSFORM:
+            return moo_transform_equal(transformvalue(t1), transformvalue(t2));
         default:
             LUAU_ASSERT(iscollectable(t1));
             return gcvalue(t1) == gcvalue(t2);
@@ -155,6 +204,8 @@ int luaO_rawequalKey(const TKey* t1, const TValue* t2)
             return moo_vec3_equal(vec3value(t1), vec3value(t2));
         case LUA_TQUAT:
             return moo_quat_equal(quatvalue(t1), quatvalue(t2));
+        case LUA_TTRANSFORM:
+            return moo_transform_equal(transformvalue(t1), transformvalue(t2));
         default:
             LUAU_ASSERT(iscollectable(t1));
             return gcvalue(t1) == gcvalue(t2);

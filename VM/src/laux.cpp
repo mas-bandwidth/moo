@@ -11,6 +11,7 @@
 #include "lnumutils.h"
 #include "moo_vec3.h" // moo: tostring of a vec3 (docs/layer3b/moo-v2-l3b-vec3-object.md, decision 5)
 #include "moo_quat.h" // moo: tostring of a quat (docs/layer3b/moo-v2-l3b-quat-object.md)
+#include "moo_transform.h" // moo: tostring of a transform (docs/layer3b/moo-v2-l3b-transform.md)
 
 #include <string.h>
 
@@ -652,6 +653,14 @@ const char* luaL_tolstring(lua_State* L, int idx, size_t* len)
         // moo: a quat prints quat(x, y, z, s) the same way (docs/layer3b/moo-v2-l3b-quat-object.md)
         char s[MOO_QUAT_TOSTR_MAX];
         char* e = moo_quat_tostring(s, quatvalue(luaA_toobject(L, idx)));
+        lua_pushlstring(L, s, e - s);
+        break;
+    }
+    case LUA_TTRANSFORM:
+    {
+        // moo: a transform prints transform(vec3(px, py, pz), quat(qx, qy, qz, qs)) (docs/layer3b/moo-v2-l3b-transform.md)
+        char s[MOO_TRANSFORM_TOSTR_MAX];
+        char* e = moo_transform_tostring(s, transformvalue(luaA_toobject(L, idx)));
         lua_pushlstring(L, s, e - s);
         break;
     }

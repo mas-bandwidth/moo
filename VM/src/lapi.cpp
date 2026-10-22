@@ -18,6 +18,7 @@
 #include "lvector.h"
 #include "moo_vec3.h" // moo: the vec3 C API (docs/DESIGN.md "vec3, quat and transform (layer 3b)")
 #include "moo_quat.h" // moo: the quat C API (docs/DESIGN.md "vec3, quat and transform (layer 3b)")
+#include "moo_transform.h" // moo: the transform C API (docs/DESIGN.md "vec3, quat and transform (layer 3b)")
 
 #include <string.h>
 
@@ -611,6 +612,24 @@ int moo_toquat(lua_State* L, int idx, lua_Number out[4])
     return 1;
 }
 
+// moo: the transform C API (docs/DESIGN.md "vec3, quat and transform (layer 3b)"). out is px, py, pz, qx, qy, qz
+// and qs, raw Q48.16.
+int moo_totransform(lua_State* L, int idx, lua_Number out[7])
+{
+    StkId o = index2addr(L, idx);
+    if (!ttistransform(o))
+        return 0;
+    const MooTransform* t = transformvalue(o);
+    out[0] = t->p.x;
+    out[1] = t->p.y;
+    out[2] = t->p.z;
+    out[3] = t->q.v.x;
+    out[4] = t->q.v.y;
+    out[5] = t->q.v.z;
+    out[6] = t->q.s;
+    return 1;
+}
+
 int lua_objlen(lua_State* L, int idx)
 {
     StkId o = index2addr(L, idx);
@@ -710,10 +729,11 @@ const void* lua_topointer(lua_State* L, int idx)
         return uvalue(o)->data;
     case LUA_TLIGHTUSERDATA:
         return pvalue(o);
-    // moo: a vec3 or quat is a value, like a number: two equal ones are one value, so no address is exposed
-    // (docs/layer3b/moo-v2-l3b-vec3-object.md, card gc item 9; docs/DETERMINISM.md, 6)
+    // moo: a vec3, quat or transform is a value, like a number: two equal ones are one value, so no address is
+    // exposed (docs/layer3b/moo-v2-l3b-vec3-object.md, card gc item 9; docs/DETERMINISM.md, 6)
     case LUA_TVEC3:
     case LUA_TQUAT:
+    case LUA_TTRANSFORM:
         return NULL;
     default:
         return iscollectable(o) ? gcvalue(o) : NULL;
@@ -781,6 +801,18 @@ void moo_pushquat(lua_State* L, lua_Number x, lua_Number y, lua_Number z, lua_Nu
     ensure_stack(L, 1);
     MooQuat* q = moo_quat_new(L, x, y, z, s);
     setquatvalue(L, L->top, q);
+    api_incr_top(L);
+}
+
+// moo: one new transform on the stack (docs/DESIGN.md "vec3, quat and transform (layer 3b)").
+void moo_pushtransform(
+    lua_State* L, lua_Number px, lua_Number py, lua_Number pz, lua_Number qx, lua_Number qy, lua_Number qz, lua_Number qs)
+{
+    luaC_checkGC(L);
+    luaC_threadbarrier(L);
+    ensure_stack(L, 1);
+    MooTransform* t = moo_transform_new(L, FIX_LITERAL(fixTransform){{px, py, pz}, {{qx, qy, qz}, qs}});
+    settransformvalue(L, L->top, t);
     api_incr_top(L);
 }
 

@@ -130,6 +130,8 @@ static_assert(offsetof(Buffer, data) == 16, "size mismatch for buffer header");
 static_assert(sizeof(MooVec3) == 40, "size mismatch for vec3 object");
 // moo: quat object size (docs/DESIGN.md "vec3, quat and transform (layer 3b)"; docs/layer3b/moo-v2-l3b-quat-object.md, decision 2)
 static_assert(sizeof(MooQuat) == 48, "size mismatch for quat object");
+// moo: transform object size (docs/DESIGN.md "vec3, quat and transform (layer 3b)"; docs/layer3b/moo-v2-l3b-transform.md)
+static_assert(sizeof(MooTransform) == 72, "size mismatch for transform object");
 
 // The userdata is designed to provide 16 byte alignment for 16 byte and larger userdata sizes
 static_assert(offsetof(Udata, data) == 32, "data must be at precise offset provide proper alignment");
