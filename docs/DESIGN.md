@@ -4,9 +4,10 @@ moo is Luau with two changes: everything in the language is deterministic, and `
 Q48.16 fixed point. Floats and doubles are outlawed inside the VM. Everything else (syntax,
 tools, the C API) stays as close to Luau as possible.
 
-**Status.** Layers 1-5 are built. The conformance record is the program-by-program matrix in
-DETERMINISM.md, "Status". The section "Layer 3 as built" below is the state of `main`.
-Everything else here is design.
+**Status.** Layers 1-5 are built. Layer 3b is built except the expression-temporary reuse in the
+compiler, which is not built, and awaits its lock. The conformance record is the program-by-program
+matrix in DETERMINISM.md, "Status". The sections "Layer 3 as built" and "Layer 3b as built" below
+are the state of `main`. Everything else here is design.
 
 The determinism guarantee, and every source of non-determinism found in Luau 0.741 with its
 file and line, is in [DETERMINISM.md](DETERMINISM.md). This document says what replaces them.
@@ -81,6 +82,97 @@ file and line, is in [DETERMINISM.md](DETERMINISM.md). This document says what r
 - **The merge checklist is built.** `docs/PATCHES.md` lists every upstream file layer 3 modifies or deletes with the
   DESIGN.md or DETERMINISM.md section it implements, and `tools/moo-check-patches.sh` refuses a change that is not in
   it.
+
+## Layer 3b as built
+
+The layer's record is the notes in `docs/layer3b/`; each names its files, tests and re-pins.
+
+- **vec3 is a GC object.** `LUA_TVEC3` (14) follows `LUA_TOBJECT`; a vec3 is `MooVec3` (`VM/src/moo_vec3.h`), the
+  16-byte header and three `fixed_t`, 40 bytes, immutable. `==`, `rawequal` and table keys compare and hash the three
+  raw components; `tostring` prints `vec3(x, y, z)` with the exact formatter; the GC treats it as a leaf and never
+  clears it from a weak table. `LUA_TVECTOR` stays unused. `cleartable` turns the key of an emptied entry into
+  `LUA_TDEADKEY` before the sweep frees its object, because value equality reads the key's object
+  (`docs/layer3b/moo-v2-l3b-vec3-object.md`, decision 4).
+- **vec3 operations.** `+`, `-`, `*` and unary `-` follow the number's saturation and checked-build error: `+` and `-`
+  are `moo_numadd`/`moo_numsub` per component, because fixed's `fixVecAdd`/`fixVecSub` are plain int64 adds at this
+  pin; `*` is `fixVecMul` and `fixMulSV`; unary `-` is `fixVecNeg`. `vec3 == vec3` is component equality. `v.x`,
+  `v.y`, `v.z` (and `X`, `Y`, `Z`) read a component; assigning one is the index error. The `vec3` library (`new`,
+  `dot`, `cross`, `length`, `normalize`, aliases `create` and `magnitude`) calls fixed's functions directly and is
+  opened by `luaL_openlibs`.
+- **quat is a GC object.** `LUA_TQUAT` (15) follows `LUA_TVEC3`; a quat is `MooQuat` (`VM/src/moo_quat.h`), the
+  16-byte header and a `fixQuat` (a vec3 and a scalar), 48 bytes, immutable. `==`, `rawequal` and table keys compare
+  and hash the four raw components; `tostring` prints `quat(x, y, z, s)` with the exact formatter; the GC treats it as
+  a leaf and never clears it from a weak table. `TKey::tt` is 5 bits and `TKey::next` 27 signed bits, so
+  `LUA_TDEADKEY` fits; `sizeof(TKey)` does not change.
+- **quat operations.** `quat * quat` is `fixMulQuat` and `quat * vec3` is `fixRotateVector`, fixed's compound
+  functions verbatim, so a checked build raises no named error for them; every other operator on a quat is the
+  ordinary arithmetic error. `==` is component equality. `q.x`, `q.y`, `q.z`, `q.w` (and upper case) read the
+  components, `w` being fixed's `s`. The `quat` library is `new` (omitted components are the identity's, no
+  normalization), `conjugate` (`fixConjugate`) and `nlerp` (`fixNLerp`; an alpha outside [0, 1] is the named error
+  `alpha must be in [0, 1]`); `quat.slerp` is the named error `quat.slerp waits for fixed's slerp` until fixed has one.
+- **transform is a GC object.** `LUA_TTRANSFORM` (16) follows `LUA_TQUAT`, so `LUA_TDEADKEY` and `LUA_T_COUNT` are 17;
+  a transform is `MooTransform` (`VM/src/moo_transform.h`), the 16-byte header and a `fixTransform` (position `p`,
+  rotation `q`), 72 bytes, immutable. `==`, `rawequal` and table keys compare and hash the seven raw components;
+  `tostring` prints `transform(vec3(px, py, pz), quat(qx, qy, qz, qs))`; the GC treats it as a leaf and never clears it
+  from a weak table.
+- **transform operations.** `transform * transform` composes (`fixMulTransforms`) and `transform * vec3` transforms a
+  point (`fixTransformPoint`); `==` is component equality; `t.p` and `t.q` read the parts as a new vec3 and a new quat.
+  The `transform` library (`new`, `inverse`, `point`, `direction`, `invpoint`, `invdirection`) is fixed's functions
+  with the one position add saturating (`VM/src/moo_transformlib.cpp`; "Saturation, stated precisely").
+  `transform.new` takes omitted parts from the identity. `fixInvMulTransforms` is not a library function: a script
+  writes `transform.inverse(a) * b`, which is not bit-identical to it.
+- **Every operation allocates one new object.** The representation table's cost of one allocation per operation is
+  now the implementation; one `vec3 + vec3` adds exactly 40 bytes to `totalbytes`.
+- **The result is stored before the GC check.** A GC step in the propagate phase can shrink the running thread's
+  stack (`lgc.cpp`, `shrinkstack`), so a register pointer taken before `luaC_checkGC` is stale after it. Every vec3,
+  quat and transform operator stores its new object first and then checks, as upstream's `LOP_NEWTABLE` does (commit
+  `8d94c4b1` "vec3, quat: store an operator's result before the GC check", and `e896313c` for transform).
+  `tests/moo/moo-v2-l3b-gc-stack.test.cpp` grows the stack, returns, keeps the collector due and runs the operators
+  under an allocator that moves every reallocation; it was red on the old order.
+- **The C API.** `moo_pushvec3`/`moo_tovec3`, `moo_pushquat`/`moo_toquat` and `moo_pushtransform`/`moo_totransform`
+  (`VM/include/lualib.h`) carry raw Q48.16 components across the C API, in fixed's order (x, y, z, s for a quat;
+  px, py, pz, qx, qy, qz, qs for a transform). Each push allocates one object; each `moo_to*` returns 0 when the value
+  is not of its type. `lua_isvec3` tests the tag. `lua_topointer` returns `NULL` for a vec3, a quat or a transform:
+  two equal values are one value, so no address is exposed.
+- **The analyzer** declares `vec3`, `quat` and `transform` as builtin extern types (`declare extern type ... with`,
+  `Analysis/src/EmbeddedBuiltinDefinitions.cpp`, `kBuiltinDefinitionMooValueTypesSrc`), with read-only components and
+  exactly the operators `luaV_doarithimpl` implements as metamethods, and the three libraries with the VM's
+  signatures. `quat.slerp` is not declared while the VM refuses it. `tests/MooAnalyzer.test.cpp` (suite
+  `MooAnalyzerValueTypes`) accepts everything the VM implements and reports 15 refused operations as type errors.
+- **The 3b oracle.** `tests/moo/moo-v2-l3b-conformance.test.cpp` (suite `moo-v2-l3b-conformance`, case
+  `Layer3bOracle`) runs all 22 operations of the three types in moo, through script functions called through the C API
+  so nothing folds, and in C on the same operands: the layer 3 oracle's definitions (`tests/moo/moo_oracle_fixed.c`)
+  for moo's own operators, fixed's functions for the compound ones, and both regimes of the transform position add.
+  2^14 cases per operation; `MOO_ORACLE_3B_N` sets the count, and the nightly (`.github/workflows/nightly.yml`, Linux,
+  macOS and Windows jobs) runs it at 2^22. On the studio (AppleClang arm64, RelWithDebInfo):
+
+      moo-3b-oracle ops=22 cases=360448 per-op=16384 mismatches=0 transform-also-fixed=48170 transform-saturated=982 fixdot-wraps=0
+      MOO_ORACLE_3B_N=4194304:
+      moo-3b-oracle ops=22 cases=92274688 per-op=4194304 mismatches=0 transform-also-fixed=12326368 transform-saturated=256544 fixdot-wraps=131
+
+- **Against fixed3d.** fixed3d (`mas-bandwidth/fixed3d` at `29d5544`) vendors the same `fixed`, and its `b3*`
+  vector, quaternion and transform functions forward to fixed's. Compared with moo on 2^16 cases per operation, built
+  with `BOX3D_FIXED_SATURATE` (the comparison binary is kept outside the repository and is not in CI), 136654 of
+  1441792 cases differ, from two causes only. Rebuilt with `-DFIX_SATURATE` as well, the only differences left are
+  moo's saturating `+` and `-` against fixed's plain int64 adds: `vec3 + vec3` (13472), `vec3 - vec3` (13858), and
+  `transform * transform`, `transform.point` (13472 each) and `transform.invpoint` (13858) with an identity rotation
+  and full-range positions. Each is a case where fixed's add overflows int64. The other 17 operations differ on 0
+  cases, and inside the range moo and fixed3d agree bit for bit (`docs/layer3b/moo-v2-l3b-conformance.md`).
+- **Upstream finding: fixed3d's `BOX3D_FIXED_SATURATE` does not reach fixed's inline `fixMul`.** `fixed_compat.h`
+  includes `fixed/fixed.h` and only then defines `FIX_SATURATE` from `BOX3D_FIXED_SATURATE`, so `fixMul`'s
+  `#if defined( FIX_SATURATE )` is already compiled out. A fixed3d build "with `BOX3D_FIXED_SATURATE`" wraps `fixMul`,
+  `fixMulSV`, `fixCross` and `fixVecMul` as the default build does (`vec3 * number` differs on 32788 of 65536
+  full-range cases, `vec3.cross` on 35734). The fix belongs in fixed3d: define `FIX_SATURATE` before the include, or
+  in the build.
+- **Upstream finding: `fixDot` wraps at the top of the range.** `fixDotRaw` sums three 126-bit products in 128 bits
+  through unsigned arithmetic, so a sum of magnitude 2^127 or more wraps and `fixDot` returns the wrong sign:
+  `vec3.dot(v, v)` for `v = vec3.new(2^47 - 1, 2^47 - 1, 2^47 - 1)` is the most negative number where the exact result
+  saturates to the most positive. The result is still deterministic (unsigned wrap is defined), and `fixLength` is
+  unaffected. `Layer3bFixDotWrapsAtTheRangeEnd` pins today's behaviour so an upstream fix shows up; in the 2^22 run 131
+  of 4194304 random dot cases wrapped.
+- **Not built.** Expression-temporary reuse in the compiler ("Representations costed"). `quat.slerp` waits for
+  `fixed`. `fixCross`, `fixRotateVector` and `fixMulAdd` sums outside fixed's defined range are owed upstream
+  ("Saturation, stated precisely").
 
 ## Representation
 
@@ -300,7 +392,8 @@ A later layer reinstates it, rebuilt on the fixed type (no FMA, integer lowering
 representation. What changes is outside the type lattice: the builtin definitions have dropped
 `os`, `vector` and the integer library, and the VM opens neither, so the analyzer and the runtime
 agree; `moo-analyze` gains the literal-below-resolution warning. Layer 3b adds `vec3`, `quat` and
-`transform` as builtin types, defined the way Luau already defines `vector`.
+`transform` as builtin extern types, defined the way Luau already defines `vector`, with their operators
+as metamethods; `quat.slerp` is not declared while the VM refuses it.
 
 ## vec3, quat and transform (layer 3b)
 
@@ -347,18 +440,34 @@ function fixed3d calls (fixed3d's `b3*` vector functions are thin wrappers over 
 
 `quat.slerp` is added **upstream to `fixed`** first (built from `fixAtan2`, `fixSqrt` and
 `fixComputeCosSin`), so fixed3d and moo share one implementation. Until then moo exposes `nlerp`
-only. Luau's `vector` library names (`create`, `dot`, `cross`, `magnitude`, `normalize`) are kept
-as aliases on `vec3`, so Luau vector code carries over.
+only, and `quat.slerp` is the named error `quat.slerp waits for fixed's slerp`. `quat.nlerp` refuses
+an alpha outside [0, 1]. Luau's `vector` library names (`create`, `dot`, `cross`, `magnitude`,
+`normalize`) are kept as aliases on `vec3`, so Luau vector code carries over.
 
 **Saturation, stated precisely.** moo's own operators on these types (`+`, `-`, `*`, unary `-`)
 follow `number`'s rules: saturate, never wrap, named error in debug. Compound functions (cross,
-rotate, compose, normalize) are `fixed`'s functions verbatim. Two gaps exist at this `fixed` pin:
-`fixVecAdd`/`fixVecSub` and the intermediate sums inside `fixCross`, `fixRotateVector` and
-`fixMulTransforms` are plain int64 adds (signed overflow, undefined in C), and fixed3d's default
-build does not define `BOX3D_FIXED_SATURATE`, so `fixMul` wraps there. Within range the results
-are identical. To make them identical everywhere, moo proposes saturating adds in `fixed` under
-`FIX_SATURATE`, and the layer 3b oracle is fixed3d built with `BOX3D_FIXED_SATURATE`. Overflow
-behaviour is tested separately.
+rotate, compose, normalize) are `fixed`'s functions verbatim, and a checked build raises no named
+error for them. Two gaps exist at this `fixed` pin: `fixVecAdd`/`fixVecSub` and the intermediate
+sums inside `fixCross`, `fixRotateVector` and `fixMulTransforms` are plain int64 adds (signed
+overflow, undefined in C), and fixed3d's default build does not define `BOX3D_FIXED_SATURATE`, so
+`fixMul` wraps there. Within range the results are identical. To make them identical everywhere,
+moo proposes saturating adds in `fixed` under `FIX_SATURATE`, and the layer 3b oracle is fixed3d
+built with `BOX3D_FIXED_SATURATE`. Overflow behaviour is tested separately. As built, fixed3d's
+`BOX3D_FIXED_SATURATE` does not reach fixed's inline `fixMul` (it defines `FIX_SATURATE` after
+including `fixed/fixed.h`), so the comparison also defines `FIX_SATURATE`; and `fixDot` wraps at
+the top of the range, deterministically ("Layer 3b as built").
+
+transform's compose, point and invpoint make their one position add with moo's saturating add
+(`moo_numadd`/`moo_numsub`, in `moo_transform_mul`, `moo_transform_point` and
+`moo_transform_invpoint`) instead of fixed's plain `fixVecAdd`/`fixVecSub`, so they equal
+`fixMulTransforms`, `fixTransformPoint` and `fixInvTransformPoint` wherever those are defined, and
+saturate where fixed's add would overflow; a checked build raises no named error for it. What this
+buys is narrow: the add itself is defined everywhere, so a script can no longer reach behaviour
+that differs between compilers through it. With a non-identity rotation, a position near the
+range ends also reaches `fixRotateVector` or `fixInvRotateVector` (compose's input, invpoint's
+subtract result), whose sums can still overflow, so outside fixed's defined range the result is
+determined only for the identity rotation. `inverse` has no add (negation is exact on the
+domain), so it is `fixInvertTransform` verbatim.
 
 ### Representations costed
 
@@ -390,8 +499,9 @@ trend from 16 to 40 bytes says it would cost more again.
 - **(a) Immutable GC objects.** No cost to code that does not use the types: the general suite
   is unchanged within noise, and numbers stay 16 bytes everywhere. Each operation that produces
   a value allocates: about 3.4 ns extra per op, a 1.9x to 4.3x slowdown on vector-bound programs,
-  and 48 bytes per stored vec3 (16-byte slot plus a 32-byte object). Sizes are 32 bytes for
-  vec3, 40 for quat and 64 for transform with the GC header. Luau's allocator already pops
+  and 56 bytes per stored vec3 (16-byte slot plus a 40-byte object). Sizes are 40 bytes for
+  vec3, 48 for quat and 72 for transform with moo's 16-byte GC header (the creation number,
+  DETERMINISM.md 1). Luau's allocator already pops
   fixed-size classes off per-page free lists, so the measured 3.4 ns already includes a
   small-object free list; a dedicated per-type list would gain little. What remains is GC work,
   and the lever for it is the compiler. A value an arithmetic op produces into an
@@ -440,7 +550,9 @@ Bit-exact against fixed3d's own vec, quat and transform functions over dense inp
 operands across the full range, unit and near-unit quaternions, axis-aligned and degenerate
 vectors (zero, single component, the saturation edges), and every operation in the table above.
 Each case runs in moo and in C against the same `fixed` pin, and the bits must match. Overflow
-and saturation cases are compared against fixed3d built with `BOX3D_FIXED_SATURATE`.
+and saturation cases are compared against fixed3d built with `BOX3D_FIXED_SATURATE`. Built: the 3b
+oracle in `Moo.Test` and the fixed3d comparison, with their results and two upstream findings, are
+in "Layer 3b as built".
 
 ## integer
 
@@ -455,7 +567,8 @@ An integer literal (`1i`, `0x10i`) is the parse error `moo has no integer type`,
 Each is detailed, with file and line, in [DETERMINISM.md](DETERMINISM.md):
 
 - **Object keys** hash by a per-VM creation sequence number stored in the object header, never
-  by address. Strings hash with Luau's existing fixed function and no random seed. Rehash and
+  by address. A vec3, a quat and a transform are values: each hashes by its raw components (three,
+  four and seven). Strings hash with Luau's existing fixed function and no random seed. Rehash and
   resize order need no change.
 - **Iteration:** `next`/`pairs` order is a documented function of insertion and resize history.
 - **GC:** no clock anywhere. Pacing depends only on allocation units, computed by a
@@ -465,7 +578,8 @@ Each is detailed, with file and line, in [DETERMINISM.md](DETERMINISM.md):
 - **Removed:** the `os` library, every clock and time read, and environment seeding of
   `math.random`. Luau has no `io`. The random seed is a host input.
 - **Output:** `tostring` of a table, function, userdata, thread or buffer prints its creation
-  number, never an address.
+  number, never an address. A vec3, a quat and a transform print their components:
+  `vec3(x, y, z)`, `quat(x, y, z, s)` and `transform(vec3(px, py, pz), quat(qx, qy, qz, qs))`.
 - **`collectgarbage`** accepts only `"collect"` and `"count"` (in allocation units); `gcinfo`
   reports allocation units.
 - **Errors and tracebacks** are deterministic strings. The layer 5 audit found no numeric
@@ -532,7 +646,11 @@ with Glenn.
 3b. **vec3, quat and transform.** Full Q48.16 components as immutable GC objects, the operations
    above on `fixed`'s functions, slerp upstreamed to `fixed`, and expression-temporary reuse in
    the compiler. Checked by: bit-exact agreement with fixed3d's vec, quat and transform over
-   dense inputs, and the representation benchmarks rerun against the numbers above.
+   dense inputs, and the representation benchmarks rerun against the numbers above. *Built: the
+   three objects, their operations, library, C API and analyzer types, the 3b oracle and the
+   fixed3d comparison ("Layer 3b as built"). Not built: expression-temporary reuse; `quat.slerp`
+   waits for `fixed`; no layer 3b note records the representation benchmarks rerun. Awaiting its
+   lock.*
 4. **math and formatting.** The math library on `fixed`; `pow`/`^`; `tostring`, `tonumber`
    and `string.format`; float bytes in buffers and `string.pack`. Checked by: the CORE-MATH
    error table, round-trip of every formatted value, and bit-exact agreement with `fixed`.
