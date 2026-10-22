@@ -534,6 +534,7 @@ if(TARGET Luau.UnitTest)
         tests/ExternTypeFixture.h
         tests/Compiler.test.cpp
         tests/MooCompiler.test.cpp
+        tests/MooAnalyzer.test.cpp # moo: vec3, quat and transform as analyzer builtin types (docs/layer3b/moo-v2-l3b-analyzer-types.md)
         tests/Config.test.cpp
         tests/ConstraintSolver.test.cpp
         tests/ControlFlowGraph.test.cpp

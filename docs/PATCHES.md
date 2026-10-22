@@ -75,7 +75,7 @@ edits them, except where a row above records the seam.
 | file | why |
 |---|---|
 | `Analysis/src/BuiltinDefinitions.cpp` | the analyzer declares no `os`, `vector` or `integer` global or metatable (DESIGN.md "Analyzer"). |
-| `Analysis/src/EmbeddedBuiltinDefinitions.cpp` | the embedded definitions drop `os`, `vector` and the integer type, including the buffer and integer variants (DESIGN.md "Analyzer", "integer"). |
+| `Analysis/src/EmbeddedBuiltinDefinitions.cpp` | the embedded definitions drop `os`, `vector` and the integer type, including the buffer and integer variants (DESIGN.md "Analyzer", "integer"); layer 3b declares `vec3`, `quat` and `transform` and their libraries (docs/layer3b/moo-v2-l3b-analyzer-types.md). |
 | `Analysis/src/GlobalTypes.cpp` | the global type table has no `integer` type (DESIGN.md "Analyzer", "integer"). |
 | `Analysis/src/Linter.cpp` | a source literal that is nonzero but rounds to zero is the below-resolution warning; out of range is left to the parser (DESIGN.md "Literals"). |
 | `Analysis/src/TypeFunctionRuntime.cpp` | the runtime pushes a zero integer instead of a zero double across the number boundary (DESIGN.md "Boundary"). |
@@ -114,7 +114,7 @@ edits them, except where a row above records the seam.
 |---|---|
 | `CMakeLists.txt` | native codegen and the JIT inliner are off, FMA contraction is off, the vendored fixed library is built saturating, Moo.Test globs each layer's own test files, and the Windows test binaries get a 2 MB stack in every optimized configuration (DESIGN.md "Native codegen", "Upstream merges", "Overflow"). |
 | `Makefile` | the same codegen/inliner exclusion, `-ffp-contract=off`, the fixed library include and the vector source leaving the build (DESIGN.md "Native codegen", "vec3, quat and transform"). |
-| `Sources.cmake` | the vector library, codegen and the JIT inliner leave the source lists, and the fixed sources are added (DESIGN.md "Native codegen", "vec3, quat and transform"); the vec3 library source is added (docs/layer3b/moo-v2-l3b-vec3-ops.md); and the quat library source (docs/layer3b/moo-v2-l3b-quat.md), and the transform library source (docs/layer3b/moo-v2-l3b-transform.md). |
+| `Sources.cmake` | the vector library, codegen and the JIT inliner leave the source lists, and the fixed sources are added (DESIGN.md "Native codegen", "vec3, quat and transform"); the vec3 library source is added (docs/layer3b/moo-v2-l3b-vec3-ops.md); and the quat library source (docs/layer3b/moo-v2-l3b-quat.md), and the transform library source (docs/layer3b/moo-v2-l3b-transform.md); `tests/MooAnalyzer.test.cpp` joins the unit tests (docs/layer3b/moo-v2-l3b-analyzer-types.md). |
 
 ### fuzz
 
@@ -147,7 +147,7 @@ edits them, except where a row above records the seam.
 | `tests/TypeInfer.tables.test.cpp` | the `os` builtin cases are skipped because the analyzer drops it (DESIGN.md "Analyzer"). |
 | `tests/conformance/datetime.luau` | deleted: the case tested `os.date` and `os.time`, which are removed; the moo datetime script replaces it (DETERMINISM.md, 9). |
 | `tests/conformance/sort.luau` | the timing print uses `os.clock`, so the script no longer measures time (DETERMINISM.md, 9). |
-| `tests/conformance/types.luau` | the analyzer and VM no longer define `os` and `vector`, so those globals are ignored rather than required (DESIGN.md "Analyzer", "vec3, quat and transform"); `vec3` is ignored until the analyzer defines it (docs/layer3b/moo-v2-l3b-vec3-ops.md); and `quat` (docs/layer3b/moo-v2-l3b-quat.md), and `transform` (docs/layer3b/moo-v2-l3b-transform.md). |
+| `tests/conformance/types.luau` | the analyzer and VM no longer define `os` and `vector`, so those globals are ignored rather than required (DESIGN.md "Analyzer", "vec3, quat and transform"); `vec3`, `quat` and `transform` are now checked against the analyzer, and only `quat.slerp`, which the VM refuses by name, is ignored (docs/layer3b/moo-v2-l3b-analyzer-types.md). |
 | `tests/require/without_config/types/vector.luau` | the fixture returns a plain table because the vector library is out (DESIGN.md "vec3, quat and transform"). |
 
 ### workflows
@@ -179,7 +179,7 @@ own code, tests, notes or vendored `fixed` sources.
 - `docs/` (`DESIGN.md`, `DETERMINISM.md`, `layer3/`, `layer3b/`, `layer4/`, `layer5/`, `PATCHES.md`)
 - `extern/fixed/` (the vendored `fixed` library at its pinned commit)
 - `fuzz/` (`moo_arith.cpp`)
-- `tests/` (`Moo.test.cpp`, `MooCompiler.test.cpp`, `MooNumber.test.cpp`, `Determinism.test.cpp`, `MooHost.h`, `MooWide.h`, `moo_main.cpp`)
+- `tests/` (`Moo.test.cpp`, `MooCompiler.test.cpp`, `MooAnalyzer.test.cpp`, `MooNumber.test.cpp`, `Determinism.test.cpp`, `MooHost.h`, `MooWide.h`, `moo_main.cpp`)
 - `tests/conformance/moo/` (the expected-behaviour scripts, including `l3/`)
 - `tests/determinism/` (the determinism programs and `expected.txt`)
 - `tests/moo/` (one test file per card, the oracle C file and `vectors/`)

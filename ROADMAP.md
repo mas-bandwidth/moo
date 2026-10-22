@@ -88,9 +88,9 @@ Layer 3b: vec3, quat and transform as first-class fixed-point value types in the
 | quat object and operations (nlerp) | ✅ |
 | transform object and operations | ✅ |
 | Expression-temporary reuse for vec3, quat and transform | ❌ |
-| vec3, quat and transform as analyzer builtin types | ❌ |
+| vec3, quat and transform as analyzer builtin types | ✅ |
 | Bit-exact against fixed and fixed3d; layer 3b closing gate | ❌ |
-| complete | 57% |
+| complete | 71% |
 
 [Source data](docs/roadmap.sexp)
 
