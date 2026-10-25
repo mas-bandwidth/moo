@@ -1,19 +1,7 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
-  <title>moo</title>
-  <!-- horns -->
-  <path d="M74 74 L54 40 C70 42 84 52 92 64 Z" fill="#F4DDA0"/>
-  <path d="M182 74 L202 40 C186 42 172 52 164 64 Z" fill="#F4DDA0"/>
-  <!-- ears -->
-  <rect x="56" y="88" width="24" height="52" rx="10" fill="#A3B1BE"/>
-  <rect x="176" y="88" width="24" height="52" rx="10" fill="#A3B1BE"/>
-  <!-- head -->
-  <rect x="70" y="58" width="116" height="110" rx="36" fill="#CBD4DC"/>
-  <!-- eyes -->
-  <ellipse cx="108" cy="102" rx="8" ry="12" fill="#25272B"/>
-  <ellipse cx="148" cy="102" rx="8" ry="12" fill="#25272B"/>
-  <!-- muzzle -->
-  <rect x="58" y="124" width="140" height="92" rx="44" fill="#DDA3A0"/>
-  <!-- nostrils -->
-  <ellipse cx="92" cy="168" rx="7" ry="13" fill="#B97564"/>
-  <ellipse cx="164" cy="168" rx="7" ry="13" fill="#B97564"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="45 55 710 635" width="710" height="635"><title>moo</title>
+<g transform="translate(400 235) scale(1.15)"><g stroke="#22223b" stroke-width="12" stroke-linejoin="round" stroke-linecap="round"><defs><clipPath id="moo-hc"><rect x="-110" y="-100" width="220" height="205" rx="88"/></clipPath></defs><path d="M-72 -78 C-88 -110 -74 -134 -52 -128 C-44 -112 -42 -98 -40 -88 Z" fill="#f6efe4"/><path d="M72 -78 C88 -110 74 -134 52 -128 C44 -112 42 -98 40 -88 Z" fill="#f6efe4"/><path d="M-98 -30 C-140 -18 -172 -34 -180 -52 C-156 -74 -118 -72 -96 -62 Z" fill="#fff"/><path d="M98 -30 C140 -18 172 -34 180 -52 C156 -74 118 -72 96 -62 Z" fill="#34344e"/><rect x="-110" y="-100" width="220" height="205" rx="88" fill="#fff"/><g clip-path="url(#moo-hc)" stroke="none" fill="#34344e"><ellipse cx="105" cy="-100" rx="52" ry="42"/><ellipse cx="-112" cy="10" rx="34" ry="44"/></g><rect x="-110" y="-100" width="220" height="205" rx="88" fill="none"/><path d="M-34 -96 C-34 -126 -10 -128 -4 -108 C4 -134 30 -130 32 -98" fill="#34344e"/><g stroke="none" fill="#ffb3c1"><ellipse cx="-78" cy="4" rx="16" ry="10"/><ellipse cx="78" cy="4" rx="16" ry="10"/></g><rect x="-120" y="22" width="240" height="108" rx="54" fill="#ff9e8f"/><g stroke="none" fill="#d9534f"><ellipse cx="-42" cy="54" rx="9" ry="15"/><ellipse cx="42" cy="54" rx="9" ry="15"/></g><path d="M-26 84 Q0 108 26 84" fill="none" stroke-width="9"/><g stroke="none"><circle cx="-42" cy="-20" r="15" fill="#22223b"/><circle cx="42" cy="-20" r="15" fill="#22223b"/><circle cx="-37" cy="-25" r="5" fill="#fff"/><circle cx="47" cy="-25" r="5" fill="#fff"/></g></g></g>
+<rect x="60" y="395" width="680" height="280" rx="28" fill="#1e1b2e" stroke="#22223b" stroke-width="14"/><path d="M67 451 H733" stroke="#22223b" stroke-width="10"/><path d="M67 423 Q67 402 88 402 H712 Q733 402 733 423 V447 H67 Z" fill="#2a2640"/><g stroke="#22223b" stroke-width="6"><circle cx="106" cy="425" r="12" fill="#ff6b6b"/><circle cx="144" cy="425" r="12" fill="#ffd166"/><circle cx="182" cy="425" r="12" fill="#06d6a0"/></g>
+<g stroke="#22223b" stroke-width="12" stroke-linejoin="round" stroke-linecap="round"><rect x="226" y="372" width="72" height="56" rx="26" fill="#fff"/><path d="M262 406 V426" fill="none" stroke-width="8"/></g><g stroke="#22223b" stroke-width="12" stroke-linejoin="round" stroke-linecap="round"><rect x="502" y="372" width="72" height="56" rx="26" fill="#fff"/><path d="M538 406 V426" fill="none" stroke-width="8"/></g>
+<g transform="translate(113 479) rotate(0) scale(1.3)" fill="none" stroke-linecap="round" stroke-linejoin="round"><g stroke="#7cf2a8" stroke-width="24"><path transform="translate(0 0)" d="M0 30 L40 65 L0 100"/><path transform="translate(74 0)" d="M0 30 V100 M0 60 Q0 30 27 30 Q50 30 50 60 V100 M50 60 Q50 30 77 30 Q100 30 100 60 V100"/><path transform="translate(208 0)" d="M35 30 A35 35 0 1 1 34.9 30 Z"/><path transform="translate(312 0)" d="M35 30 A35 35 0 1 1 34.9 30 Z"/></g></g>
+<rect x="635" y="518" width="52" height="91" rx="4" fill="#7cf2a8"/>
 </svg>
