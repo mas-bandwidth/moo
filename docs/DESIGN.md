@@ -150,10 +150,23 @@ The layer's record is the notes in `docs/layer3b/`; each names its files, tests 
       MOO_ORACLE_3B_N=4194304:
       moo-3b-oracle ops=22 cases=92274688 per-op=4194304 mismatches=0 transform-also-fixed=12326368 transform-saturated=256544 fixdot-wraps=131
 
-- **Against fixed3d.** fixed3d (`mas-bandwidth/fixed3d` at `29d5544`) vendors the same `fixed`, and its `b3*`
-  vector, quaternion and transform functions forward to fixed's. Compared with moo on 2^16 cases per operation, built
-  with `BOX3D_FIXED_SATURATE` (the comparison binary is kept outside the repository and is not in CI), 136654 of
-  1441792 cases differ, from two causes only. Rebuilt with `-DFIX_SATURATE` as well, the only differences left are
+- **The 3b oracle's reversed witness.** `Layer3bOracleGoesRedOnAPlantedWrongOp` (same suite) plants a wrong operation
+  in the oracle's script functions and requires the gate to go red on that operation and on no other: `vec3 + vec3`
+  and `vec3.dot` one raw unit off, `quat.nlerp` with its endpoints swapped, `transform.direction` as `invdirection`,
+  and `transform.point` without its translation. Unplanted, the same 256-case run has no mismatch. A wrong operation
+  planted in the VM itself (`vec3.cross` as `fixCross(b, a)` in `VM/src/moo_vec3lib.cpp`, run by hand and reverted)
+  turned `Layer3bOracle` red, as `transform.point` with a plain add did before it
+  (`docs/layer3b/moo-v2-l3b-conformance.md`).
+- **Against fixed3d.** fixed3d vendors the same `fixed`, and its `b3*` vector, quaternion and transform functions
+  forward to fixed's. `tools/moo-fixed3d-compare.sh` clones fixed3d at its pin (`071a3f6`, which vendors fixed
+  `4a70c64` like moo), refuses unless fixed3d's `fixed` headers are identical to `extern/fixed`, builds
+  `tools/moo-fixed3d-compare/compare.cpp` with `BOX3D_FIXED_SATURATE` against moo's libraries and runs 2^16 cases per
+  operation; any difference exits 1. The `full` job of `ci.yml` runs it on every pull request:
+
+      fixed3d-compare BOX3D_FIXED_SATURATE ops=22 cases=1441792 differ=0
+
+  The first comparison, at fixed3d `29d5544` and moo before fixed #59-#62 were vendored (#40), had 136654 of 1441792
+  cases differ, from two causes only. Rebuilt with `-DFIX_SATURATE` as well, the only differences left are
   moo's saturating `+` and `-` against fixed's plain int64 adds: `vec3 + vec3` (13472), `vec3 - vec3` (13858), and
   `transform * transform`, `transform.point` (13472 each) and `transform.invpoint` (13858) with an identity rotation
   and full-range positions. Each is a case where fixed's add overflows int64. The other 17 operations differ on 0
@@ -162,8 +175,9 @@ The layer's record is the notes in `docs/layer3b/`; each names its files, tests 
   includes `fixed/fixed.h` and only then defines `FIX_SATURATE` from `BOX3D_FIXED_SATURATE`, so `fixMul`'s
   `#if defined( FIX_SATURATE )` is already compiled out. A fixed3d build "with `BOX3D_FIXED_SATURATE`" wraps `fixMul`,
   `fixMulSV`, `fixCross` and `fixVecMul` as the default build does (`vec3 * number` differs on 32788 of 65536
-  full-range cases, `vec3.cross` on 35734). The fix belongs in fixed3d: define `FIX_SATURATE` before the include, or
-  in the build.
+  full-range cases, `vec3.cross` on 35734). Fixed upstream: at fixed3d `071a3f6` `fixed_compat.h` defines
+  `FIX_SATURATE` from `BOX3D_FIXED_SATURATE` before it includes `fixed/fixed.h`, and refuses to build when
+  `fixed/fixed.h` was included earlier without it.
 - **Upstream finding: `fixDot` wraps at the top of the range.** `fixDotRaw` sums three 126-bit products in 128 bits
   through unsigned arithmetic, so a sum of magnitude 2^127 or more wraps and `fixDot` returns the wrong sign:
   `vec3.dot(v, v)` for `v = vec3.new(2^47 - 1, 2^47 - 1, 2^47 - 1)` is the most negative number where the exact result
@@ -553,8 +567,8 @@ operands across the full range, unit and near-unit quaternions, axis-aligned and
 vectors (zero, single component, the saturation edges), and every operation in the table above.
 Each case runs in moo and in C against the same `fixed` pin, and the bits must match. Overflow
 and saturation cases are compared against fixed3d built with `BOX3D_FIXED_SATURATE`. Built: the 3b
-oracle in `Moo.Test` and the fixed3d comparison, with their results and two upstream findings, are
-in "Layer 3b as built".
+oracle in `Moo.Test` with its reversed witness, and the fixed3d comparison (`tools/moo-fixed3d-compare.sh`, in the
+`full` CI job, 0 differences), with their results and two upstream findings, are in "Layer 3b as built".
 
 ## integer
 
@@ -649,8 +663,8 @@ with Glenn.
    above on `fixed`'s functions, slerp upstreamed to `fixed`, and expression-temporary reuse in
    the compiler. Checked by: bit-exact agreement with fixed3d's vec, quat and transform over
    dense inputs, and the representation benchmarks rerun against the numbers above. *Built: the
-   three objects, their operations, library, C API and analyzer types, the 3b oracle and the
-   fixed3d comparison ("Layer 3b as built"). Not built: expression-temporary reuse; `quat.slerp`
+   three objects, their operations, library, C API and analyzer types, the 3b oracle with its reversed
+   witness and the fixed3d comparison, 0 differences ("Layer 3b as built"). Not built: expression-temporary reuse; `quat.slerp`
    waits for `fixed`; no layer 3b note records the representation benchmarks rerun. Awaiting its
    lock.*
 4. **math and formatting.** The math library on `fixed`; `pow`/`^`; `tostring`, `tonumber`

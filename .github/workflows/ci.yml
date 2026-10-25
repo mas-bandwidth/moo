@@ -89,6 +89,9 @@ jobs:
       - name: cli tests
         run: build/Luau.CLI.Test
 
+      - name: layer 3b against fixed3d (BOX3D_FIXED_SATURATE)
+        run: tools/moo-fixed3d-compare.sh build clang++
+
       - name: moo binaries
         run: |
           build/moo tests/conformance/assert.luau
