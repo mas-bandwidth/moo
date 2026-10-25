@@ -1,5 +1,16 @@
 # moo changelog
 
+## v1.0.0 — 2026-10-25
+
+Cut from 93bf57c8fee1e213df6c28ac2df29a9985178119. 0 pull requests since this repository's first commit.
+
+Dogfood gate waived: moo is a language runtime, not a nova tool: it has no nova CLI reference or dogfood receipts, and no sprint spend store or provider spend
+
+Spend gate waived: moo is a language runtime, not a nova tool: it has no nova CLI reference or dogfood receipts, and no sprint spend store or provider spend (window 2026-10-17T00:00:00Z..2026-10-25T16:05:17Z)
+- unread: --spend-store <addr> names no sprint store, so the recorded spend cannot be read
+
+- no pull request merged since the previous tag
+
 ## v1.0.0
 
 The first release of moo: Luau 0.741 made deterministic, with `number` as Q48.16 fixed point.
