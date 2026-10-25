@@ -42,6 +42,9 @@ jobs:
           script_pin="$(grep -oE '^FIXED_PIN="[0-9a-f]{40}"' tools/revendor-fixed.sh | grep -oE '[0-9a-f]{40}')"
           grep -q "$script_pin" extern/fixed/NOTES.md
 
+      - name: CHANGELOG.md has a section for MOO_VERSION
+        run: tools/moo-release-notes.sh --check-version "v$(sed -n 's/^#define MOO_VERSION "\(.*\)"$/\1/p' VM/include/moo.h)" > /dev/null
+
       - name: configure
         run: >
           cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DLUAU_WERROR=ON
@@ -91,6 +94,7 @@ jobs:
 
       - name: moo binaries
         run: |
+          build/moo --version | grep -E '^moo [0-9]+\.[0-9]+\.[0-9]+ \(Luau [0-9.]+\)$'
           build/moo tests/conformance/assert.luau
           build/moo-analyze tests/conformance/assert.luau
           build/moo-compile tests/conformance/assert.luau > /dev/null

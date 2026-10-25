@@ -5,6 +5,7 @@
 #include "Luau/Common.h"
 #include "lua.h"
 #include "lualib.h"
+#include "moo.h" // moo: MOO_VERSION for --version
 
 #include "Luau/CodeGen.h"
 #include "Luau/Compiler.h"
@@ -678,6 +679,7 @@ static void displayHelp(const char* argv0)
     printf("  --coverage: collect code coverage while running the code and output results to coverage.out\n");
     printf("  --counters: collect native counters data while running the code and output results to callgrind.out\n");
     printf("  -h, --help: Display this usage message.\n");
+    printf("  -v, --version: Display moo's version and the Luau release it is forked from.\n"); // moo
     printf("  -i, --interactive: Run an interactive REPL after executing the last script specified.\n");
     printf("  -O<n>: compile with optimization level n (default 1, n should be between 0 and 2).\n");
     printf("  -g<n>: compile with debug level n (default 1, n should be between 0 and 2).\n");
@@ -714,6 +716,12 @@ int replMain(int argc, char** argv)
         if (strcmp(argv[i], "-h") == 0 || strcmp(argv[i], "--help") == 0)
         {
             displayHelp(argv[0]);
+            return 0;
+        }
+        else if (strcmp(argv[i], "-v") == 0 || strcmp(argv[i], "--version") == 0)
+        {
+            // moo: the release version (VM/include/moo.h)
+            printf("moo %s (Luau %s)\n", MOO_VERSION, MOO_LUAU_VERSION);
             return 0;
         }
         else if (strcmp(argv[i], "-i") == 0 || strcmp(argv[i], "--interactive") == 0)

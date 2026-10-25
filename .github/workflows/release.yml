@@ -1,0 +1,66 @@
+# moo releases: a tag becomes a GitHub release.
+#
+# The tag is cut by the workshop's release tool (`nova-update release cut`), never by hand: it
+# checks ci.yml on the commit and writes the annotated tag with its record. This workflow only
+# publishes what the tag already says. It refuses unless MOO_VERSION in VM/include/moo.h is the
+# tag's version, CHANGELOG.md at the tagged commit has a section for it, and ci.yml's required
+# push-gate succeeded on the tagged commit. The release body is that CHANGELOG.md section with the
+# tag's annotation (the cut's record) under it.
+name: release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: an existing tag to publish, such as v1.0.0
+        required: true
+
+permissions:
+  contents: write
+  checks: read
+
+concurrency:
+  group: release-${{ inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      TAG: ${{ inputs.tag || github.ref_name }}
+      GH_TOKEN: ${{ github.token }}
+      REPO: ${{ github.repository }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: refs/tags/${{ inputs.tag || github.ref_name }}
+
+      - name: the version, the changelog section and the tag agree
+        run: tools/moo-release-notes.sh --check-version "$TAG" > notes.md
+
+      - name: push-gate is green on the tagged commit
+        run: |
+          sha="$(git rev-parse HEAD)"
+          conclusions="$(gh api "repos/$REPO/commits/$sha/check-runs?check_name=push-gate" --jq '.check_runs[].conclusion')"
+          echo "push-gate on $sha: ${conclusions:-none}"
+          echo "$conclusions" | grep -qx success
+
+      - name: the tag's record
+        run: |
+          object="$(gh api "repos/$REPO/git/ref/tags/$TAG" --jq '.object.type + " " + .object.sha')"
+          if [ "${object%% *}" = "tag" ]; then
+            {
+              echo
+              echo "### Release record"
+              echo
+              echo '```'
+              gh api "repos/$REPO/git/tags/${object#* }" --jq .message
+              echo '```'
+            } >> notes.md
+          fi
+
+      - name: publish
+        run: gh release create "$TAG" --repo "$REPO" --verify-tag --title "moo $TAG" --notes-file notes.md

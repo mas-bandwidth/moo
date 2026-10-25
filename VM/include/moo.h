@@ -6,6 +6,14 @@
 // moo's additions to the C API. Each one exists because a Luau behaviour that depended on
 // the machine (an address, a clock) became a host input; see docs/DETERMINISM.md.
 
+// moo's release version (CHANGELOG.md). Luau's _VERSION global stays "Luau"; this is the version of moo itself,
+// which `moo --version` prints with the Luau release it is forked from.
+#define MOO_VERSION_MAJOR 1
+#define MOO_VERSION_MINOR 0
+#define MOO_VERSION_PATCH 0
+#define MOO_VERSION "1.0.0"
+#define MOO_LUAU_VERSION "0.741"
+
 // The seed math.random starts from when no seed is given (docs/DETERMINISM.md, 10).
 #define MOO_DEFAULT_RANDOM_SEED 0
 
