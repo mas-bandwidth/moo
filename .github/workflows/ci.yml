@@ -92,6 +92,9 @@ jobs:
       - name: cli tests
         run: build/Luau.CLI.Test
 
+      - name: layer 3b against fixed3d (BOX3D_FIXED_SATURATE)
+        run: tools/moo-fixed3d-compare.sh build clang++
+
       - name: moo binaries
         run: |
           build/moo --version | grep -E '^moo [0-9]+\.[0-9]+\.[0-9]+ \(Luau [0-9.]+\)$'

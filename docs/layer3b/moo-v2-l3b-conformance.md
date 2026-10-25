@@ -101,8 +101,41 @@ oracle's 2^24 would make 22 object operations take hours.
   `FIX_SATURATE` (DESIGN.md "Saturation, stated precisely"), and a `fixDotRaw` that does not wrap at the top of the
   range.
 
-## Not done
+## Not done (when this card landed)
 
 - Item (3) and (5), the fold of the layer 3b notes into DESIGN.md and DETERMINISM.md and the lock-review input, are
-  the sibling card's.
-- The comparison is not committed (by the card's rule); it is not in CI.
+  the sibling card's. (Done in PR #38.)
+- The comparison is not committed (by the card's rule); it is not in CI. (Done 2026-10-25, below.)
+
+## Closing the gate (2026-10-25)
+
+**The reversed witness, committed.** `Layer3bOracleGoesRedOnAPlantedWrongOp` (suite `moo-v2-l3b-conformance`) runs the
+whole oracle at 256 cases per operation once unplanted (0 mismatches over 22 operations), then once per planted wrong
+operation, replacing one of the oracle's script functions:
+
+| planted | must be red on |
+|---|---|
+| `add(a, b)` returns `a + b + vec3.new(0, 0, 1 / 65536)` (one raw unit) | `vec3 + vec3` |
+| `dot(a, b)` returns `vec3.dot(a, b) + 1 / 65536` (one raw unit) | `vec3.dot` |
+| `nlerp(a, b, t)` returns `quat.nlerp(b, a, t)` | `quat.nlerp` |
+| `direction(t, v)` returns `transform.invdirection(t, v)` | `transform.direction` |
+| `point(t, v)` returns `transform.direction(t, v)` | `transform.point` |
+
+Each must have mismatches, and all of them on the planted operation. The witness of the witness: with the first plant
+made harmless (`a + b`), the case failed on `CHECK( o.mismatches > 0 )`. A plant in the VM, run by hand on the studio
+and reverted: `vec3.cross` as `fixCross(b, a)` in `VM/src/moo_vec3lib.cpp` turned `Layer3bOracle` red
+(`vec3.cross: moo (9223372036854775807, -9223372036854775807, 0) fixed (-9223372036854775807, 9223372036854775807, 0)`).
+
+**The fixed3d comparison, committed and in CI.** The comparison program is `tools/moo-fixed3d-compare/compare.cpp`,
+run by `tools/moo-fixed3d-compare.sh <build dir> [c++]`, which clones fixed3d at `071a3f6` (main after fixed3d #110,
+which vendors fixed `4a70c64`, moo's pin, and makes `BOX3D_FIXED_SATURATE` reach fixed's inline functions), refuses
+unless fixed3d's `extern/fixed/include` is identical to moo's, builds with `BOX3D_FIXED_SATURATE` and exits 1 on any
+difference. The `full` job of `.github/workflows/ci.yml` runs it. On the studio (AppleClang arm64), against moo main
+`35b4a40e`:
+
+    moo-fixed3d-compare: fixed3d 071a3f6de64d771ebe05ffccde3564fdb52fcdcd vendors the same fixed headers as moo
+    fixed3d-compare BOX3D_FIXED_SATURATE ops=22 cases=1441792 differ=0
+
+Both causes of the first comparison's differences are gone upstream: fixed #59-#62 (vendored in moo #40) saturate
+`fixVecAdd`/`fixVecSub` and the sums inside the compound functions under `FIX_SATURATE`, and fixed3d #110 defines
+`FIX_SATURATE` before `fixed/fixed.h` is included.

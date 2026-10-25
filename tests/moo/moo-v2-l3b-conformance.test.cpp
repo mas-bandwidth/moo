@@ -37,6 +37,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#include <map>
 #include <string>
 
 extern "C"
@@ -358,9 +359,12 @@ struct Oracle
     uint64_t saturated = 0;    // transform cases where the position add saturated
     uint64_t dotWraps = 0;     // inputs where fixDot's 128-bit sum wraps and the exact dot differs
     uint64_t dotWrapsOther = 0; // inputs where fixDot differs from the exact dot without a wrap (must be 0)
+    bool quiet = false;         // count mismatches without failing: the reversed witness expects them
+    std::map<std::string, uint64_t> mismatchesByOp;
 
-    Oracle()
-        : n(caseCount())
+    explicit Oracle(uint64_t count, bool quietRun = false)
+        : n(count)
+        , quiet(quietRun)
     {
         L = luaL_newstate();
         REQUIRE(L != nullptr);
@@ -392,6 +396,14 @@ struct Oracle
         lua_close(L);
     }
 
+    // replaces script functions by name, so the reversed witness can plant a wrong operation
+    void plant(const char* source)
+    {
+        std::string bytecode = Luau::compile(source);
+        REQUIRE(luau_load(L, "=moo-3b-plant", bytecode.data(), bytecode.size(), 0) == 0);
+        REQUIRE(lua_pcall(L, 0, 0, 0) == 0);
+    }
+
     template<typename R, typename... A>
     bool run(const char* fn, R& out, A... args)
     {
@@ -414,7 +426,8 @@ struct Oracle
         ++cases;
         if (!ok || !same(got, want))
         {
-            if (mismatches++ < 8)
+            ++mismatchesByOp[name];
+            if (mismatches++ < 8 && !quiet)
             {
                 std::string message = std::string(name) + ": moo " + (ok ? show(got) : std::string("raised")) + " fixed " + show(want);
                 ((message += " " + show(args)), ...);
@@ -434,10 +447,9 @@ struct Oracle
 
 } // namespace
 
-TEST_CASE("Layer3bOracle")
+// every operation of the three types, n cases each
+static void runAll(Oracle& o)
 {
-    Oracle o;
-
     // vec3 + - * and unary -, moo's own operators, component by component, over the full range
     {
         Rng r{0x3b0001};
@@ -665,6 +677,13 @@ TEST_CASE("Layer3bOracle")
         });
     }
 
+}
+
+TEST_CASE("Layer3bOracle")
+{
+    Oracle o(caseCount());
+    runAll(o);
+
     printf("moo-3b-oracle ops=%d cases=%llu per-op=%llu mismatches=%llu transform-also-fixed=%llu transform-saturated=%llu "
            "fixdot-wraps=%llu\n",
         o.ops, (unsigned long long)o.cases, (unsigned long long)o.n, (unsigned long long)o.mismatches,
@@ -679,6 +698,42 @@ TEST_CASE("Layer3bOracle")
     // instead of wrapping, so the wraps the oracle used to count at the top of the range are gone
     CHECK(o.dotWraps == 0);
     CHECK(o.dotWrapsOther == 0);
+}
+
+// The reversed witness: the gate must go red when an operation is wrong, and name that operation and no other. Each
+// plant replaces one script function with a wrong one; the subtle ones are one raw unit off or differ only off the
+// identity rotation. Unplanted, the same small run has no mismatch, so the red comes from the plant.
+TEST_CASE("Layer3bOracleGoesRedOnAPlantedWrongOp")
+{
+    const uint64_t n = 256;
+    {
+        Oracle o(n, /* quiet= */ true);
+        runAll(o);
+        CHECK(o.ops == 22);
+        CHECK(o.mismatches == 0);
+    }
+
+    struct Plant
+    {
+        const char* op;
+        const char* source;
+    };
+    const Plant plants[] = {
+        {"vec3 + vec3", "function add(a, b) return a + b + vec3.new(0, 0, 1 / 65536) end"},
+        {"vec3.dot", "function dot(a, b) return vec3.dot(a, b) + 1 / 65536 end"},
+        {"quat.nlerp", "function nlerp(a, b, t) return quat.nlerp(b, a, t) end"},
+        {"transform.direction", "function direction(t, v) return transform.invdirection(t, v) end"},
+        {"transform.point", "function point(t, v) return transform.direction(t, v) end"},
+    };
+    for (const Plant& plant : plants)
+    {
+        Oracle o(n, /* quiet= */ true);
+        o.plant(plant.source);
+        runAll(o);
+        INFO("planted: " << std::string(plant.source));
+        CHECK(o.mismatches > 0);
+        CHECK(o.mismatchesByOp[plant.op] == o.mismatches);
+    }
 }
 
 // The difference from exact arithmetic the oracle used to name, fixed upstream (fixed #59): the dot product of a
