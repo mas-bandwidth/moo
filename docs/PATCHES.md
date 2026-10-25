@@ -99,7 +99,7 @@ edits them, except where a row above records the seam.
 | file | why |
 |---|---|
 | `CLI/src/FileUtils.cpp` | the CLI file lookup also accepts the `.moo` source extension (DESIGN.md "Layers", item 1). |
-| `CLI/src/Repl.cpp` | the REPL reads and prints fixed numbers and refuses native codegen by name (DESIGN.md "Layer 3 as built", "Native codegen"). |
+| `CLI/src/Repl.cpp` | the REPL reads and prints fixed numbers and refuses native codegen by name (DESIGN.md "Layer 3 as built", "Native codegen"); `--version` prints moo's version (`MOO_VERSION`, `VM/include/moo.h`). |
 | `CLI/src/VfsNavigator.cpp` | module lookup tries `.moo` and `init.moo` before `.luau` and `.lua` (DESIGN.md "Layers", item 1). |
 
 ### Config
@@ -157,7 +157,7 @@ edits them, except where a row above records the seam.
 | `.github/workflows/benchmark.yml` | deleted: the upstream benchmarking pipeline builds Luau's binaries, which moo renames and excludes; moo's gates are `ci.yml` and `nightly.yml` (DESIGN.md "Layers", item 1). |
 | `.github/workflows/build.yml` | deleted: replaced by moo's `ci.yml`, whose push gate is the one-minute Moo.Test build (DESIGN.md "Layers", item 1). |
 | `.github/workflows/new-release.yml` | deleted: moo does not publish Luau releases; the fork's gates are `ci.yml` and `nightly.yml` (DESIGN.md "Layers", item 1). |
-| `.github/workflows/release.yml` | deleted: the upstream release pipeline names Luau's binaries and artifacts, which moo renames (DESIGN.md "Layers", item 1). |
+| `.github/workflows/release.yml` | replaced: the upstream release pipeline names Luau's binaries and artifacts, which moo renames (DESIGN.md "Layers", item 1); moo's own `release.yml` publishes a GitHub release from a tag cut by the release tool, with its `CHANGELOG.md` section. |
 
 ### README
 

@@ -26,8 +26,9 @@ file and line, is in [DETERMINISM.md](DETERMINISM.md). This document says what r
   struct, so every implicit use of a number is a compile error: that is how each site was found.
 - **The compiler** folds number arithmetic with the same `moo_number.h` operations (a constant is the raw Q48.16
   value, and a folded constant is the exact value the same expression computes at run time, at every magnitude); it
-  does not fold division by zero, `^`, or any builtin call or `math` constant, or, in a checked build, an operation
-  that saturates. The bytecode-graph constant propagation (`Bytecode/include/Luau/Sccp.h`
+  does not fold division by zero, a `^` with a fractional exponent, or any builtin call or `math` constant, or, in a
+  checked build, an operation that saturates; `^` with an integer exponent folds through `moo_pow_int`, the function
+  the VM runs (layer 4). The bytecode-graph constant propagation (`Bytecode/include/Luau/Sccp.h`
   `evaluateNumberBinaryOp`) folds the same way on the raw value. The compiler does not recognise `vector.*` or
   `CompileOptions::vectorLib` / `vectorCtor` as builtins and never folds or emits a vector constant
   (`Compiler/src/Builtins.cpp`, `Compiler/src/ConstantFolding.cpp`, `Compiler/src/Compiler.cpp`).

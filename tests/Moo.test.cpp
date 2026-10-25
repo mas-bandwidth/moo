@@ -13,6 +13,7 @@
 #include "doctest.h"
 #include "MooHost.h" // moo: mooRun, mooRunFile and the moo_test helpers are shared with tests/moo
 
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -518,6 +519,21 @@ TEST_CASE("ForTripsFormula")
     CHECK(moo_numfortrips(5, 4, 1) == 0);
     CHECK(moo_numfortrips(4, 5, -1) == 0);
     CHECK(moo_numfortrips(7, 7, -INT64_MAX) == 1);
+}
+
+// The release version (VM/include/moo.h, CHANGELOG.md): the string and its parts agree, and _VERSION stays Luau's.
+TEST_CASE("MooVersion")
+{
+    char parts[32];
+    snprintf(parts, sizeof(parts), "%d.%d.%d", MOO_VERSION_MAJOR, MOO_VERSION_MINOR, MOO_VERSION_PATCH);
+    CHECK(std::string(MOO_VERSION) == parts);
+    CHECK(std::string(MOO_VERSION) == "1.0.0");
+    CHECK(std::string(MOO_LUAU_VERSION) == "0.741");
+
+    lua_State* L = luaL_newstate();
+    luaL_openlibs(L);
+    CHECK(mooRun(L, "return _VERSION") == "Luau");
+    lua_close(L);
 }
 
 TEST_SUITE_END();
