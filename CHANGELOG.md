@@ -10,7 +10,7 @@ for this first tag it lists none; the pull requests are named below.
 ### Determinism without numbers (layers 1 and 2)
 
 - Objects hash by a per-VM creation number, not their address; `tostring` of a table, function,
-  userdata or thread prints `table: #123` (#2).
+  userdata or thread prints its type and that number, such as `table: #123` (#2).
 - The GC is paced by allocated bytes and reads no clock; `tools/moo-check-no-clock.sh` refuses a
   clock, `getenv` or the C random generator in the VM archive (#3).
 - Userdata destructors run in creation order at the end of the GC step that found them dead,
@@ -34,20 +34,23 @@ for this first tag it lists none; the pull requests are named below.
   exact and use no libc (#14).
 - Integer arguments must be integer-valued; floats exist only at the C API boundary and in
   `buffer` and `string.pack` float formats, converted by one exact rule (#8, #31).
-- Luau's float `vector` type and experimental `integer` type are removed (#31).
+- Luau's float `vector` type is removed (#31). The experimental `integer` library is not
+  opened and the analyzer has no `integer`; the type tag and its C API functions stay in
+  `lua.h` to keep upstream merges small.
 - The layer 3 oracle checks every number operator bit for bit against fixed's C (#17).
 
 ### The math library on fixed point (layer 4)
 
-- Every `math` function and `^` are computed in fixed point with no libm, and the compiler folds
-  with the same functions (#23, #25, #31).
+- Every `math` function and `^` are computed in fixed point with no libm (#23, #25, #31). The
+  compiler never folds a `math` call; `^` with an integer exponent folds through the same
+  `moo_pow_int` the VM runs.
 - The CORE-MATH oracle measures each function's error against the correctly rounded result
   (#24, #31).
 
 ### Conformance (layer 5)
 
-- Luau's own suites (`Luau.Conformance`, `Luau.UnitTest`, `Luau.CLI.Test`) run with every moved
-  or skipped case giving its reason; the determinism suite's hashes match on Linux gcc and clang,
+- Luau's own suites (`Luau.Conformance`, `Luau.UnitTest`, `Luau.CLI.Test`) run with every case
+  moo skips or moves giving its `moo:` reason (`tools/moo-check-skips.sh`); the determinism suite's hashes match on Linux gcc and clang,
   macOS arm64 and Windows MSVC and clang-cl in the nightly (#10, #31).
 - Error messages and tracebacks are pinned byte for byte; adversarial coroutine programs, and the
   coroutine TLA+ model `tla/Coroutines.tla` (#31, #39).
@@ -67,8 +70,8 @@ for this first tag it lists none; the pull requests are named below.
 ### Known limitations / next
 
 - **Every `vec3`, `quat` and `transform` operation allocates a new object.** Expression-temporary
-  reuse in the compiler is designed but not built (roadmap row "Expression-temporary reuse for
-  vec3, quat and transform").
+  reuse in the compiler is proposed in `docs/DESIGN.md` ("Representations costed") but its design
+  and build are open (roadmap row "Expression-temporary reuse for vec3, quat and transform").
 - **`quat.slerp`** raises `quat.slerp waits for fixed's slerp` until `fixed` has one.
 - The representation benchmarks in `docs/DESIGN.md` have not been rerun on the built value types.
 - Layers 3 and 3b are built and tested and await their lock review; layer 6 (an existing Luau

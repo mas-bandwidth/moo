@@ -97,17 +97,19 @@ their `Luau.*` names, the C++ namespace stays `Luau`, and the configuration file
 `MOO_VERSION` in `VM/include/moo.h`. Releases are listed in [CHANGELOG.md](CHANGELOG.md).
 
 Supported for moo: Linux (gcc and clang), macOS arm64 and Windows (MSVC and clang-cl),
-64-bit only; Windows is nightly-only. moo compiles
-everything with `-ffp-contract=off`, so the C++ compiler never fuses a multiply and an add
-into one FMA (which rounds differently). The upstream `Makefile` is kept and builds the same
+64-bit only; Windows is nightly-only. With gcc and clang moo compiles everything with
+`-ffp-contract=off`, so the compiler never fuses a multiply and an add into one FMA (which
+rounds differently); on Windows only the vendored `fixed` gets the flag under clang-cl. The
+VM computes no floating point either way: the number is integer arithmetic. The upstream `Makefile` is kept and builds the same
 `moo*` binaries with the same flag.
 
 ## Tests and CI
 
-Luau's own suites run unmodified:
+Luau's own suites run, with every case moo skips or moves marked with its `moo:` reason
+(`tools/moo-check-skips.sh` lists them):
 
 - `Luau.Conformance` (the `tests/conformance` scripts),
-- `Luau.UnitTest` (the compiler, analyzer and codegen unit tests),
+- `Luau.UnitTest` (the compiler and analyzer unit tests; the codegen tests are not built),
 - `Luau.CLI.Test` (the REPL and `require` tests; run it from the repository root).
 
 moo's own tests are `Moo.Test`: the determinism suite (`tests/Determinism.test.cpp`, whose
@@ -118,19 +120,20 @@ and `vec3`/`quat`/`transform` bit for bit against `fixed`'s C.
 
 CI (`.github/workflows/`):
 
-- **`ci.yml` `push-gate`, required on every push and pull request:** Linux clang. It builds
+- **`ci.yml` `push-gate`, on every push to `main` and every pull request into it (and required
+  by `release.yml` on a tagged commit):** Linux clang. It builds
   only `Moo.Test` and `Luau.VM`, runs `Moo.Test`, checks `extern/fixed` against its pin, and
-  checks that the VM archive reads no clock. With the compiler cache a warm run is under a
-  minute; a change that touches a VM header rebuilds the VM and nothing else.
+  checks that the VM archive reads no clock. With the compiler cache a run takes about one to
+  one and a half minutes; a change that touches a VM header rebuilds the VM and nothing else.
 - **`ci.yml` `full`, on pull requests, not required:** Linux clang. It builds and runs
   `Luau.Conformance`, `Luau.UnitTest` and `Luau.CLI.Test`, smoke-runs `moo`, `moo-analyze`
   and `moo-compile`, checks that native codegen is refused, and compares `vec3`, `quat` and
   `transform` with fixed3d's own functions (`tools/moo-fixed3d-compare.sh`).
 - **`nightly.yml`, nightly and on demand:** the matrix on Linux gcc, Linux clang and macOS
   arm64 runs `Moo.Test`, `Luau.Conformance` (also at `-O2`), `Luau.UnitTest` and
-  `Luau.CLI.Test`, the no-clock check and the smoke runs; Windows MSVC, nightly-only, runs
+  `Luau.CLI.Test`, the no-clock check and the smoke runs; Windows MSVC and clang-cl, nightly-only, run
   `Moo.Test`, `Luau.Conformance` and `Luau.UnitTest`; a separate job model-checks the `tla`
-  cases with TLC 1.8.0.
+  cases with TLC 1.8.0, and another rebuilds and compares the CORE-MATH math oracle.
 
 - **`release.yml`, on a `v*` tag:** publishes the GitHub release from the tag the release
   tool cut, after checking that `MOO_VERSION` is the tag's version, `CHANGELOG.md` has its
