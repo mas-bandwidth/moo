@@ -1,5 +1,18 @@
 # moo changelog
 
+## v1.0.2 — 2026-10-27
+
+Cut from c562d2e574fe4de1a647a8e4a719ab319f969749. 3 pull requests since v1.0.1.
+
+Dogfood gate waived: moo is a language runtime, not a nova tool: it has no nova CLI reference or dogfood receipts, and no sprint spend store or provider spend
+
+Spend gate waived: moo is a language runtime, not a nova tool: it has no nova CLI reference or dogfood receipts, and no sprint spend store or provider spend (window 2026-10-27T00:00:00Z..2026-10-27T18:58:28Z)
+- unread: --spend-store <addr> names no sprint store, so the recorded spend cannot be read
+
+- #51 changelog: the v1.0.1 cut record
+- #52 conformance asserts the overflow edge per build; CI on macOS and Windows
+- #53 release readiness for v1.0.2: version and CHANGELOG
+
 ## v1.0.2
 
 A point release: the conformance suite asserts the overflow edge in both builds again, and pull
