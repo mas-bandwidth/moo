@@ -326,6 +326,18 @@ bool subInRange(fixVec3 a, fixVec3 b)
            fitsInt64(fixInt128Sub(fixInt128FromI64(a.z), fixInt128FromI64(b.z)));
 }
 
+// true when a component product saturates, so a checked build raises "number overflow in '*'" (docs/DESIGN.md
+// "Overflow"); moo_nummulsaturates is checked against an exact 128-bit reference in tests/moo/number.test.cpp
+bool mulSaturates(fixVec3 a, fixVec3 b)
+{
+    return moo_nummulsaturates(a.x, b.x) || moo_nummulsaturates(a.y, b.y) || moo_nummulsaturates(a.z, b.z);
+}
+
+bool scaleSaturates(fixed_t s, fixVec3 a)
+{
+    return moo_nummulsaturates(s, a.x) || moo_nummulsaturates(s, a.y) || moo_nummulsaturates(s, a.z);
+}
+
 // The exact dot product, rounded once half up and saturated into the domain, written without fixDot: the three
 // 126-bit products are summed in 128 bits with the overflow of the last add detected by sign, which only a sum
 // whose magnitude reaches 2^127 can do, and which then saturates.
@@ -358,6 +370,7 @@ struct Oracle
     uint64_t dotWraps = 0;     // inputs where fixDot's 128-bit sum wraps and the exact dot differs
     uint64_t dotWrapsOther = 0; // inputs where fixDot differs from the exact dot without a wrap (must be 0)
     bool quiet = false;         // count mismatches without failing: the reversed witness expects them
+    std::string error;          // the last error a script function raised
     std::map<std::string, uint64_t> mismatchesByOp;
 
     explicit Oracle(uint64_t count, bool quietRun = false)
@@ -409,6 +422,7 @@ struct Oracle
         (push(L, args), ...);
         if (lua_pcall(L, int(sizeof...(A)), 1, 0) != 0)
         {
+            error = lua_isstring(L, -1) ? lua_tostring(L, -1) : "?";
             lua_pop(L, 1);
             return false;
         }
@@ -419,15 +433,32 @@ struct Oracle
     template<typename R, typename... A>
     void check(const char* name, const char* fn, R want, A... args)
     {
+        compare(name, fn, want, false, args...);
+    }
+
+    // a case that release saturates: want in release, and in a checked build the named error instead
+    // (docs/DESIGN.md "Overflow")
+    template<typename R, typename... A>
+    void checkSaturating(const char* name, const char* fn, R want, bool saturates, A... args)
+    {
+        compare(name, fn, want, MOO_OVERFLOW_ERRORS && saturates, args...);
+    }
+
+    template<typename R, typename... A>
+    void compare(const char* name, const char* fn, R want, bool raises, A... args)
+    {
         R got{};
+        error.clear();
         bool ok = run(fn, got, args...);
         ++cases;
-        if (!ok || !same(got, want))
+        bool good = raises ? !ok && error.find("number overflow in '") != std::string::npos : ok && same(got, want);
+        if (!good)
         {
             ++mismatchesByOp[name];
             if (mismatches++ < 8 && !quiet)
             {
-                std::string message = std::string(name) + ": moo " + (ok ? show(got) : std::string("raised")) + " fixed " + show(want);
+                std::string message = std::string(name) + ": moo " + (ok ? show(got) : "raised " + error) + " want " +
+                                      (raises ? std::string("number overflow") : show(want));
                 ((message += " " + show(args)), ...);
                 FAIL_CHECK(message);
             }
@@ -453,14 +484,14 @@ static void runAll(Oracle& o)
         Rng r{0x3b0001};
         o.op([&](uint64_t) {
             fixVec3 a = r.fullVec(), b = r.fullVec();
-            o.check("vec3 + vec3", "add", oracleAdd(a, b), a, b);
+            o.checkSaturating("vec3 + vec3", "add", oracleAdd(a, b), !addInRange(a, b), a, b);
         });
     }
     {
         Rng r{0x3b0002};
         o.op([&](uint64_t) {
             fixVec3 a = r.fullVec(), b = r.fullVec();
-            o.check("vec3 - vec3", "sub", oracleSub(a, b), a, b);
+            o.checkSaturating("vec3 - vec3", "sub", oracleSub(a, b), !subInRange(a, b), a, b);
         });
     }
     {
@@ -468,7 +499,7 @@ static void runAll(Oracle& o)
         o.op([&](uint64_t) {
             fixVec3 a = r.fullVec(), b = r.fullVec();
             fixVec3 want = {moo_oracle_mul(a.x, b.x), moo_oracle_mul(a.y, b.y), moo_oracle_mul(a.z, b.z)};
-            o.check("vec3 * vec3", "mul", want, a, b);
+            o.checkSaturating("vec3 * vec3", "mul", want, mulSaturates(a, b), a, b);
         });
     }
     {
@@ -478,9 +509,9 @@ static void runAll(Oracle& o)
             fixed_t s = r.full();
             fixVec3 want = {moo_oracle_mul(s, a.x), moo_oracle_mul(s, a.y), moo_oracle_mul(s, a.z)};
             if (i & 1)
-                o.check("vec3 * number", "mul", want, a, s);
+                o.checkSaturating("vec3 * number", "mul", want, scaleSaturates(s, a), a, s);
             else
-                o.check("number * vec3", "mul", want, s, a);
+                o.checkSaturating("number * vec3", "mul", want, scaleSaturates(s, a), s, a);
         });
     }
     {

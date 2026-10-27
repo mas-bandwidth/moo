@@ -30,8 +30,8 @@ jobs:
             os: ubuntu-latest
             cc: gcc
             cxx: g++
-            # gcc 13 raises -Wnonnull false positives in upstream CodeGen, so no -Werror here
-            werror: "OFF"
+            # CodeGen is not built; CMakeLists.txt quiets gcc's two false positives in upstream files
+            werror: "ON"
           - name: linux-clang
             os: ubuntu-latest
             cc: clang

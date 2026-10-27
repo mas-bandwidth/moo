@@ -112,7 +112,7 @@ edits them, except where a row above records the seam.
 
 | file | why |
 |---|---|
-| `CMakeLists.txt` | native codegen and the JIT inliner are off, FMA contraction is off, the vendored fixed library is built saturating, Moo.Test globs the per-subject test files in tests/moo, and the Windows test binaries get a 2 MB stack in every optimized configuration (DESIGN.md "Native codegen", "Upstream merges", "Overflow", "Tests"). |
+| `CMakeLists.txt` | native codegen and the JIT inliner are off, FMA contraction is off, the vendored fixed library is built saturating, Moo.Test globs the per-subject test files in tests/moo, and the Windows test binaries get a 2 MB stack in every optimized configuration (DESIGN.md "Native codegen", "Upstream merges", "Overflow", "Tests"); gcc builds `Ast/src/Confusables.cpp` with `-Wno-bidi-chars`, since its bidi characters are confusable data, and `Analysis/src/BuiltinTypeFunctions.cpp` with `-Wno-free-nonheap-object`, a gcc 13 false positive, so `-DLUAU_WERROR=ON` builds with gcc (DESIGN.md "Tests"). |
 | `Makefile` | the same codegen/inliner exclusion, `-ffp-contract=off`, the fixed library include and the vector source leaving the build (DESIGN.md "Native codegen", "vec3, quat and transform"). |
 | `Sources.cmake` | the vector library, codegen and the JIT inliner leave the source lists, and the fixed sources are added (DESIGN.md "Native codegen", "vec3, quat and transform"); the vec3 library source is added (DESIGN.md "Layer 3b as built"); and the quat library source (DESIGN.md "Layer 3b as built"), and the transform library source (DESIGN.md "Layer 3b as built"); `tests/MooAnalyzer.test.cpp` joins the unit tests (DESIGN.md "Layer 3b as built"). |
 
@@ -133,19 +133,26 @@ edits them, except where a row above records the seam.
 | `tests/Compiler.test.cpp` | constant expectations are Q48.16 values and the vector-folding case is skipped (DESIGN.md "Literals", "vec3, quat and transform"). |
 | `tests/Conformance.test.cpp` | the vector C API and vector-freeze tests are removed and host floats enter through `MooHost.h` (DESIGN.md "Boundary", "vec3, quat and transform"). |
 | `tests/DirectFieldAccess.test.cpp` | the host pushes numbers through `MooHost.h`'s boundary helper (DESIGN.md "Boundary"). |
-| `tests/Frontend.test.cpp` | the case that lints literals beyond 2^64 is skipped because those are a parse error in moo (DESIGN.md "Literals"). |
+| `tests/Frontend.test.cpp` | the case that lints literals beyond 2^64 is skipped because those are a parse error in moo (DESIGN.md "Literals"); an upstream `#if 0` case says, with `moo:`, that upstream disables it (DESIGN.md "Tests"). |
 | `tests/Linter.test.cpp` | the precision-lint cases on literals beyond 2^53 are skipped because those literals are out of range in moo (DESIGN.md "Literals"). |
+| `tests/NonStrictTypeChecker.test.cpp` | an upstream `#if 0` case says, with `moo:`, that upstream disables it, so tools/moo-check-skips.sh accounts for it (DESIGN.md "Tests"). |
+| `tests/Normalize.test.cpp` | three upstream `#if 0` cases say, with `moo:`, that upstream disables them, so tools/moo-check-skips.sh accounts for them (DESIGN.md "Tests"). |
 | `tests/Parser.test.cpp` | the double-literal and hex/binary-beyond-range cases are skipped because moo parses exactly to Q48.16 (DESIGN.md "Literals"). |
 | `tests/PrettyPrinter.test.cpp` | the cases that print literals beyond the range are skipped because those are parse errors in moo (DESIGN.md "Literals"). |
 | `tests/Sccp.test.cpp` | folded constants are raw Q48.16 values and the NaN cases are skipped because moo has no NaN (DESIGN.md "Literals", "Representation"). |
+| `tests/StringUtils.test.cpp` | an upstream `#if 0` benchmark says, with `moo:`, that upstream disables it, so tools/moo-check-skips.sh accounts for it (DESIGN.md "Tests"). |
+| `tests/TypeFunction.test.cpp` | an upstream `#if 0` case says, with `moo:`, that upstream disables it, so tools/moo-check-skips.sh accounts for it (DESIGN.md "Tests"). |
 | `tests/TypeFunction.user.test.cpp` | the `integer` builtin cases are skipped because moo has no integer type (DESIGN.md "Analyzer", "integer"). |
 | `tests/TypeInfer.builtins.test.cpp` | the `os` and `vector` builtin cases are skipped because the analyzer drops both (DESIGN.md "Analyzer"). |
-| `tests/TypeInfer.functions.test.cpp` | the `vector` builtin cases are skipped because the analyzer drops it (DESIGN.md "Analyzer"). |
+| `tests/TypeInfer.functions.test.cpp` | the `vector` builtin cases are skipped because the analyzer drops it (DESIGN.md "Analyzer"); an upstream `#if 0` case says, with `moo:`, that upstream disables it (DESIGN.md "Tests"). |
 | `tests/TypeInfer.operators.test.cpp` | the `vector` cases are skipped and integer literals are refused (DESIGN.md "Analyzer", "integer"). |
 | `tests/TypeInfer.primitives.test.cpp` | the `vector` builtin case is skipped because the analyzer drops it (DESIGN.md "Analyzer"). |
 | `tests/TypeInfer.refinements.test.cpp` | the `vector` builtin cases are skipped because the analyzer drops it (DESIGN.md "Analyzer"). |
 | `tests/TypeInfer.tables.test.cpp` | the `os` builtin cases are skipped because the analyzer drops it (DESIGN.md "Analyzer"). |
+| `tests/TypeInfer.test.cpp` | an upstream `#if 0` case says, with `moo:`, that upstream disables it, so tools/moo-check-skips.sh accounts for it (DESIGN.md "Tests"). |
+| `tests/TypeInfer.typestates.test.cpp` | two upstream `#if 0` cases say, with `moo:`, that upstream disables them, so tools/moo-check-skips.sh accounts for them (DESIGN.md "Tests"). |
 | `tests/conformance/datetime.luau` | deleted: the case tested `os.date` and `os.time`, which are removed; the moo datetime script replaces it (DETERMINISM.md, 9). |
+| `tests/conformance/pcall.luau` | the deep-recursion sums are taken modulo 1000: at depth 2000 they pass the range, which saturates in release and raises in a checked build (DESIGN.md "Overflow"). |
 | `tests/conformance/sort.luau` | the timing print uses `os.clock`, so the script no longer measures time (DETERMINISM.md, 9). |
 | `tests/conformance/types.luau` | the analyzer and VM no longer define `os` and `vector`, so those globals are ignored rather than required (DESIGN.md "Analyzer", "vec3, quat and transform"); `vec3`, `quat` and `transform` are now checked against the analyzer, and only `quat.slerp`, which the VM refuses by name, is ignored (DESIGN.md "Layer 3b as built"). |
 | `tests/require/without_config/types/vector.luau` | the fixture returns a plain table because the vector library is out (DESIGN.md "vec3, quat and transform"). |

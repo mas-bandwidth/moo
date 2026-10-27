@@ -1002,6 +1002,19 @@ struct MooOracleState
         return callInt(0);
     }
 
+    // compile and run source: its first result's raw value as a decimal, or "error: " and the message
+    std::string runText(const std::string& source)
+    {
+        load(source);
+        std::string result;
+        if (lua_pcall(L, 0, 1, 0) != 0)
+            result = std::string("error: ") + (lua_isstring(L, -1) ? lua_tostring(L, -1) : "?");
+        else
+            result = std::to_string(static_cast<long long>(lua_tonumber(L, -1)));
+        lua_pop(L, 1);
+        return result;
+    }
+
     int64_t callInt(int nargs)
     {
         REQUIRE_MESSAGE(lua_pcall(L, nargs, 1, 0) == 0, "moo-oracle-conformance: pcall failed");
@@ -1177,7 +1190,8 @@ uint64_t refToDoubleBits(int64_t raw)
 // folded constant is the exact raw value, so operands up to 2^53 raw (carried exactly by the temporary bridge) fold
 // and run to the oracle's bits even when the result crosses 2^37 (2^53 raw, the folded constant beyond the double's
 // exactness line; moo-l3-compiler-raw-constants). The literal-exact boundary is 2^53 raw (2^37 number; DESIGN.md
-// "Layer 3 as built", "until the bytecode version PR ... exact below 2^37").
+// "Layer 3 as built", "until the bytecode version PR ... exact below 2^37"). A pair that saturates gives the oracle's
+// saturated bits in release and the named error in a checked build, on both paths (DESIGN.md "Overflow").
 TEST_CASE("OracleLiteralsBeyondTwoPowThirtySeven")
 {
     struct Op
@@ -1185,14 +1199,22 @@ TEST_CASE("OracleLiteralsBeyondTwoPowThirtySeven")
         const char* sym;
         int64_t (*oracle)(int64_t, int64_t);
         bool divKind;
+        bool (*saturates)(int64_t, int64_t);
     };
     const Op ops[] = {
-        {"+", moo_oracle_add, false},
-        {"-", moo_oracle_sub, false},
-        {"*", moo_oracle_mul, false},
-        {"/", moo_oracle_div, true},
-        {"//", moo_oracle_idiv, true},
-        {"%", moo_oracle_mod, true},
+        {"+", moo_oracle_add, false, moo_numaddsaturates},
+        {"-", moo_oracle_sub, false, moo_numsubsaturates},
+        {"*", moo_oracle_mul, false, moo_nummulsaturates},
+        {"/", moo_oracle_div, true, moo_numdivsaturates},
+        {"//", moo_oracle_idiv, true, moo_numidivsaturates},
+        {"%", moo_oracle_mod, true, nullptr},
+    };
+
+    // the oracle's raw result as a decimal, or the error a checked build raises where release saturates
+    auto expected = [](const Op& op, int64_t a, int64_t b) {
+        if (MOO_OVERFLOW_ERRORS && op.saturates && op.saturates(a, b))
+            return std::string("error: moo-oracle-conformance:1: number overflow in '") + op.sym + "'";
+        return std::to_string(static_cast<long long>(op.oracle(a, b)));
     };
 
     // the literal and fold paths compile source, so the compiled count is capped independent of MOO_ORACLE_N
@@ -1214,13 +1236,11 @@ TEST_CASE("OracleLiteralsBeyondTwoPowThirtySeven")
         {
             if (op.divKind && b == 0)
                 continue;
-            int64_t want = op.oracle(a, b);
+            std::string want = expected(op, a, b);
             INFO("op=" << op.sym << " a=" << a << " b=" << b);
             std::string la = lit(a), lb = lit(b);
-            int64_t fold = s.run("return " + la + " " + op.sym + " " + lb);
-            int64_t rt = s.run(std::string("local f=function(x,y)return x ") + op.sym + " y end return f(" + la + "," + lb + ")");
-            CHECK(fold == want);
-            CHECK(rt == want);
+            CHECK(s.runText("return " + la + " " + op.sym + " " + lb) == want);
+            CHECK(s.runText(std::string("local f=function(x,y)return x ") + op.sym + " y end return f(" + la + "," + lb + ")") == want);
         }
     }
 
@@ -1237,10 +1257,10 @@ TEST_CASE("OracleLiteralsBeyondTwoPowThirtySeven")
         {
             if (op.divKind && p[1] == 0)
                 continue;
-            int64_t want = op.oracle(p[0], p[1]);
+            std::string want = expected(op, p[0], p[1]);
             std::string la = lit(p[0]), lb = lit(p[1]);
-            CHECK(s.run("return " + la + " " + op.sym + " " + lb) == want);
-            CHECK(s.run(std::string("local f=function(x,y)return x ") + op.sym + " y end return f(" + la + "," + lb + ")") == want);
+            CHECK(s.runText("return " + la + " " + op.sym + " " + lb) == want);
+            CHECK(s.runText(std::string("local f=function(x,y)return x ") + op.sym + " y end return f(" + la + "," + lb + ")") == want);
         }
     }
 

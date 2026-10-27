@@ -958,6 +958,7 @@ TEST_CASE_FIXTURE(BuiltinsFixture, "index_should_not_crash_on_cyclic_stuff2")
     CHECK(toString(requireTypeAlias("Keys")) == "number");
 }
 
+// moo: upstream disables this case (CLI-148701); not a moo skip
 #if 0
 // CLI-148701
 TEST_CASE_FIXTURE(BuiltinsFixture, "index_should_not_crash_on_cyclic_stuff3")

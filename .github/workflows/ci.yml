@@ -5,6 +5,8 @@
 # GitHub Actions cache, so a commit that changes a VM header rebuilds the VM and nothing else.
 # Luau's unmodified suites (Conformance, UnitTest, CLI) run in the full job on pull requests, in
 # parallel and not required, and every night on Linux gcc and clang and macOS arm64 (nightly.yml).
+# Pull requests also run Moo.Test and Conformance in a checked build (MOO_OVERFLOW_ERRORS=ON) and
+# with gcc and warnings as errors.
 name: ci
 
 on:
@@ -106,3 +108,55 @@ jobs:
         run: |
           ! build/moo --codegen tests/conformance/assert.luau
           ! build/moo --jit-inliner tests/conformance/assert.luau
+
+  # a checked build raises "number overflow in '<op>'" where release saturates (docs/DESIGN.md "Overflow")
+  checked:
+    if: github.event_name != 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: sccache
+        uses: mozilla-actions/sccache-action@v0.0.9
+
+      - name: configure
+        run: >
+          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DLUAU_WERROR=ON -DMOO_OVERFLOW_ERRORS=ON
+          -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++
+          -DCMAKE_C_COMPILER_LAUNCHER=sccache -DCMAKE_CXX_COMPILER_LAUNCHER=sccache
+
+      - name: build
+        run: cmake --build build --target Moo.Test Luau.Conformance
+
+      - name: moo tests and the determinism suite
+        run: build/Moo.Test
+
+      - name: conformance
+        run: build/Luau.Conformance
+
+  # gcc with warnings as errors
+  gcc:
+    if: github.event_name != 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: sccache
+        uses: mozilla-actions/sccache-action@v0.0.9
+
+      - name: configure
+        run: >
+          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DLUAU_WERROR=ON
+          -DCMAKE_C_COMPILER=gcc -DCMAKE_CXX_COMPILER=g++
+          -DCMAKE_C_COMPILER_LAUNCHER=sccache -DCMAKE_CXX_COMPILER_LAUNCHER=sccache
+
+      - name: build
+        run: cmake --build build --target Moo.Test Luau.Conformance
+
+      - name: moo tests and the determinism suite
+        run: build/Moo.Test
+
+      - name: conformance
+        run: build/Luau.Conformance

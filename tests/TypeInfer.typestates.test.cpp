@@ -96,6 +96,7 @@ TEST_CASE_FIXTURE(TypeStateFixture, "parameter_x_was_constrained_by_two_types")
     }
 }
 
+// moo: upstream disables this case; not a moo skip
 #if 0
 TEST_CASE_FIXTURE(TypeStateFixture, "local_that_will_be_assigned_later")
 {
@@ -319,6 +320,7 @@ TEST_CASE_FIXTURE(TypeStateFixture, "invalidate_type_refinements_upon_assignment
     LUAU_REQUIRE_NO_ERRORS(result);
 }
 
+// moo: upstream disables this case; not a moo skip
 #if 0
 TEST_CASE_FIXTURE(TypeStateFixture, "local_t_is_assigned_a_fresh_table_with_x_assigned_a_union_and_then_assert_restricts_actual_outflow_of_types")
 {

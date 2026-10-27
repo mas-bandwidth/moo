@@ -2787,6 +2787,7 @@ TEST_CASE_FIXTURE(BuiltinsFixture, "tf_suggest_return_type")
 
 // TODO CLI-205657: It seems like we have a genuine constraint
 // cycle here.
+// moo: upstream disables this case (CLI-205657); not a moo skip
 #if 0
 TEST_CASE_FIXTURE(BuiltinsFixture, "tf_suggest_arg_type")
 {

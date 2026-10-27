@@ -35,6 +35,7 @@ void compareLevenshtein(LevenshteinMatrix distances, std::string_view a, std::st
 
 TEST_SUITE_BEGIN("StringUtilsTest");
 
+// moo: upstream disables this benchmark; not a moo skip
 #if 0
 // This unit test is only used to measure how performant the current levenshtein distance algorithm is.
 // It is entirely ok to submit this, but keep #if 0.

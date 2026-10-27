@@ -28,6 +28,11 @@
   `math.pow` and its fastcall share one definition (`moo_numpow`) and one error helper
   (`moo_numpowerror`), so a fractional power that saturates now raises in a checked
   `math.pow` too.
+- Every build configuration is green: a checked build (`MOO_OVERFLOW_ERRORS=ON`) passes Moo.Test
+  and the conformance suite, whose tests now assert the release value in release and the named
+  overflow error in a checked build; gcc builds with `-DLUAU_WERROR=ON`; and
+  `tools/moo-check-skips.sh` passes, every upstream `#if 0` case naming its reason. Pull requests
+  run a checked job and a gcc `-Werror` job, and the nightly gcc build uses `-Werror`.
 
 ## v1.0.0 — 2026-10-25
 

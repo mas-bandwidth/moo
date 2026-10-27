@@ -320,18 +320,20 @@ end
 
 -- protected and regular calls without C stack limit
 do
+	-- moo: the sums are taken modulo 1000: at this depth they pass the range, which saturates in release and raises in a
+	-- checked build (docs/DESIGN.md "Overflow")
 	local function regularadd(depth: number, a: number, b: number): number
 		if depth == 0 then return 1 end
 
-		return a + regularadd(depth - 1, b, a + b)
+		return (a + regularadd(depth - 1, b, (a + b) % 1000)) % 1000
 	end
 
 	local function protectedadd(depth: number, a: number, b: number): number
 		if depth == 0 then return 1 end
 
-		local result, s = pcall(protectedadd, depth - 1, b, a + b)
+		local result, s = pcall(protectedadd, depth - 1, b, (a + b) % 1000)
 		assert(result)
-		return a + s
+		return (a + s) % 1000
 	end
 
 	assert(regularadd(2000, 0, 1) == protectedadd(2000, 0, 1))

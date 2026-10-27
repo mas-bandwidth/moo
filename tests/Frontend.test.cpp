@@ -632,6 +632,7 @@ TEST_CASE_FIXTURE(FrontendFixture, "mark_non_immediate_reverse_deps_as_dirty")
     CHECK(std::find(markedDirty.begin(), markedDirty.end(), "game/Gui/Modules/C") != markedDirty.end());
 }
 
+// moo: upstream disables this case (it does not work yet); not a moo skip
 #if 0
 // Does not work yet. :(
 TEST_CASE_FIXTURE(FrontendFixture, "recheck_if_dependent_script_has_a_parse_error")
