@@ -758,7 +758,7 @@ int replMain(int argc, char** argv)
         }
         else if (strncmp(argv[i], "--codegen", 9) == 0 || strcmp(argv[i], "--jit-inliner") == 0)
         {
-            // moo: native codegen is off until it is rebuilt on fixed point (docs/DETERMINISM.md, 14)
+            // moo: native codegen computes on doubles, so it is off (docs/DETERMINISM.md, 14)
             fprintf(stderr, "Error: %s: native code generation is off in moo (interpreter only)\n", argv[i]);
             return 1;
         }

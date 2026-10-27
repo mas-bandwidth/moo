@@ -31,12 +31,23 @@ file and line, is in [DETERMINISM.md](DETERMINISM.md). This document says what r
   the VM runs (layer 4). The bytecode-graph constant propagation (`Bytecode/include/Luau/Sccp.h`
   `evaluateNumberBinaryOp`) folds the same way on the raw value. The compiler does not recognise `vector.*` or
   `CompileOptions::vectorLib` / `vectorCtor` as builtins and never folds or emits a vector constant
-  (`Compiler/src/Builtins.cpp`, `Compiler/src/ConstantFolding.cpp`, `Compiler/src/Compiler.cpp`).
+  (`Compiler/src/Builtins.cpp`, `Compiler/src/ConstantFolding.cpp`, `Compiler/src/Compiler.cpp`). An arithmetic or
+  ordering operator on a non-number constant (`"a" + 1`, `true < 2`) is left unfolded for the VM's error. A `^` that
+  saturates is never folded, in either build. A host constant set through `setCompileConstantNumber` (a `double`)
+  converts once by the boundary rule: NaN becomes 0, and infinity or out of range saturates.
+  `setCompileConstantVector` and `setCompileConstantVectord` set nothing.
 - **The moo bytecode version** (`Common/include/Luau/Bytecode.h`, "moo bytecode versions"): a moo blob starts with
   `0x80 | moo version` (1), then the Luau version its format follows. A number constant is the raw Q48.16 value, 8
   bytes little-endian. The VM refuses Luau bytecode (`this is Luau bytecode (version N), not moo bytecode`), an
   unknown moo version, an integer constant (`moo bytecode has no integer constant`) and `INT64_MIN`, each by name.
-  The bytecode dump prints numbers through `moo_format.h`.
+  The bytecode dump prints numbers through `moo_format.h`. A first byte of 1 to 127 is Luau bytecode; byte 0 stays the
+  compile-error blob. An unknown moo version is `moo bytecode version mismatch (expected [1..1], got N)`, a blob that
+  ends after the moo byte is `moo bytecode is truncated`, and a moo blob whose second byte is not a supported Luau
+  format keeps Luau's `bytecode version mismatch`. `INT64_MIN` is `moo bytecode number constant out of range`; the
+  bytecode-graph reader (`fromFunctionBytecode`) refuses it too. `LBC_CONSTANT_VECTOR` (7) and `LBC_CONSTANT_VECTORD`
+  (11) are `moo bytecode has no vector constant`, refused before the payload is read, and the builder never writes them.
+  `math.noise` has the builtin id `LBF_MATH_NOISE`, appended after upstream's last, so every upstream id keeps its
+  value. A moo format change bumps `LBC_MOO_VERSION_*`, never `LBC_VERSION_*`.
 - **Native code generation** is excluded (below).
 - **The suite says what it skips.** Every skipped doctest case and every moved conformance
   script states its reason with `moo:`; `tools/moo-check-skips.sh` lists them and fails when a
@@ -72,28 +83,45 @@ file and line, is in [DETERMINISM.md](DETERMINISM.md). This document says what r
 - **Functions that need an integer** (`lua_tointegerx`, `lua_tounsignedx`, `luaL_checkinteger`, `luaL_optinteger`,
   `luaL_checkunsigned`, and every integer-taking bytecode fastcall in `VM/src/lbuiltins.cpp` via `luai_numisint`)
   accept only integer-valued numbers. A fraction raises `number has no integer representation`, as in Lua 5.3,
-  identically at `-O0`, `-O1` and `-O2`.
-- **Checked against `fixed`'s C** (`tests/moo/moo-l3-oracle-harness.test.cpp`, doctest suite `moo-oracle`, oracle
+  identically at `-O0`, `-O1` and `-O2`. `lua_tointegerx` and `lua_tounsignedx` report `*isnum = 0` for a number with
+  fraction bits; `luaL_checkinteger` raises `invalid argument #n to 'f' (number has no integer representation)`, and a
+  non-number is still the type error. The rule also covers `string.format`'s `%c %d %i %o %u %x %X` and the bit
+  offset of `buffer.readbits`/`writebits`. A fastcall that meets a fraction returns -1 and the library call raises.
+  The deleted vector fastcalls' table slots answer `luauF_missing`.
+- **Checked against `fixed`'s C** (`tests/moo/oracle.test.cpp`, doctest suite `oracle`, oracle
   `tests/moo/moo_oracle_fixed.c`): every operator, bit for bit, on `moo_number.h`, the VM, the compiler's folding and
   the K-operand opcodes, over the edge set crossed with itself and 2^16 seeded random pairs (`MOO_ORACLE_N` raises it
   for the nightly).
 - **The float `vector` is out.** The library, the type, the bytecode constant and the C API are refused by name
-  (`moo-l3-libs-out`, `moo-l3-vector-compiler-out`, `moo-l3-vector-constant-refused`, `moo-l3-vector-api-out`,
-  `moo-l3-vector-vm-out`); `LUA_TVECTOR` stays unused in the tag enum so upstream merges stay mechanical.
+  (`tests/moo/removed.test.cpp`); `LUA_TVECTOR` stays unused in the tag enum so upstream merges stay mechanical.
+  `vector` is nil after `luaL_openlibs` and `luaL_sandbox`. `lua_pushvector`, `lua_tovector`, `lua_isvector`,
+  `luaL_checkvector` and `luaL_optvector` are deleted, so a host calling them does not compile. The vector type-name
+  slots stay in `ltm.cpp`.
 - **The merge checklist is built.** `docs/PATCHES.md` lists every upstream file layer 3 modifies or deletes with the
   DESIGN.md or DETERMINISM.md section it implements, and `tools/moo-check-patches.sh` refuses a change that is not in
   it.
 
 ## Layer 3b as built
 
-The layer's record is the notes in `docs/layer3b/`; each names its files, tests and re-pins.
+This section is the current statement of the layer. The per-card notes it was built from are history, in
+`docs/history/layer3b/`.
 
 - **vec3 is a GC object.** `LUA_TVEC3` (14) follows `LUA_TOBJECT`; a vec3 is `MooVec3` (`VM/src/moo_vec3.h`), the
   16-byte header and three `fixed_t`, 40 bytes, immutable. `==`, `rawequal` and table keys compare and hash the three
   raw components; `tostring` prints `vec3(x, y, z)` with the exact formatter; the GC treats it as a leaf and never
   clears it from a weak table. `LUA_TVECTOR` stays unused. `cleartable` turns the key of an emptied entry into
   `LUA_TDEADKEY` before the sweep frees its object, because value equality reads the key's object
-  (`docs/layer3b/moo-v2-l3b-vec3-object.md`, decision 4).
+  (`VM/src/lgc.cpp`, `cleartable`).
+- **Values, not references.** A vec3, quat or transform has no metatable; `==` never calls `__eq`; every vec3 is a
+  valid table key (no NaN refusal); `type` returns `"vec3"`, `"quat"` or `"transform"`. Ordering, `#`, `..`, calls,
+  iteration, `/`, and a component name the type does not have are the ordinary errors.
+- **Removed keys.** A removed entry's key becomes `LUA_TDEADKEY` before its object is freed. A dead key is then matched
+  only by identity, so after `t[k] = nil` and a collection, `next(t, k)` works with the same object and raises
+  `invalid key to 'next'` with an equal, different one.
+- **Key hash.** Each raw component goes through `hashint`'s MurmurHash64B finalizer (halves taken arithmetically). For
+  a vec3 the results are combined as `f(x)*73856093 ^ f(y)*19349663 ^ f(z)*83492791` in 32-bit unsigned arithmetic; a
+  quat adds `^ f(s)*39916801`; a transform is `hp ^ hq*2654435761`, where `hp` is the vec3 hash of `p` and `hq` the quat
+  hash of `q` (`VM/src/ltable.cpp`). These formulas fix `next` order, so they are part of the determinism guarantee.
 - **vec3 operations.** `+`, `-`, `*` and unary `-` follow the number's saturation and checked-build error: `+` and `-`
   are fixed's `fixVecAdd`/`fixVecSub`, which under `FIX_SATURATE` saturate per component (fixed #60) by the same
   rule, and to the same bits, as `moo_numadd`/`moo_numsub`; `*` is `fixVecMul` and `fixMulSV`; unary `-` is `fixVecNeg`. `vec3 == vec3` is component equality. `v.x`,
@@ -128,7 +156,7 @@ The layer's record is the notes in `docs/layer3b/`; each names its files, tests 
   stack (`lgc.cpp`, `shrinkstack`), so a register pointer taken before `luaC_checkGC` is stale after it. Every vec3,
   quat and transform operator stores its new object first and then checks, as upstream's `LOP_NEWTABLE` does (commit
   `8d94c4b1` "vec3, quat: store an operator's result before the GC check", and `e896313c` for transform).
-  `tests/moo/moo-v2-l3b-gc-stack.test.cpp` grows the stack, returns, keeps the collector due and runs the operators
+  `tests/moo/gc.test.cpp` grows the stack, returns, keeps the collector due and runs the operators
   under an allocator that moves every reallocation; it was red on the old order.
 - **The C API.** `moo_pushvec3`/`moo_tovec3`, `moo_pushquat`/`moo_toquat` and `moo_pushtransform`/`moo_totransform`
   (`VM/include/lualib.h`) carry raw Q48.16 components across the C API, in fixed's order (x, y, z, s for a quat;
@@ -140,8 +168,8 @@ The layer's record is the notes in `docs/layer3b/`; each names its files, tests 
   exactly the operators `luaV_doarithimpl` implements as metamethods, and the three libraries with the VM's
   signatures. `quat.slerp` is not declared while the VM refuses it. `tests/MooAnalyzer.test.cpp` (suite
   `MooAnalyzerValueTypes`) accepts everything the VM implements and reports 15 refused operations as type errors.
-- **The 3b oracle.** `tests/moo/moo-v2-l3b-conformance.test.cpp` (suite `moo-v2-l3b-conformance`, case
-  `Layer3bOracle`) runs all 22 operations of the three types in moo, through script functions called through the C API
+- **The 3b oracle.** `tests/moo/geometry_oracle.test.cpp` (suite `geometry_oracle`, case
+  `GeometryOracle`) runs all 22 operations of the three types in moo, through script functions called through the C API
   so nothing folds, and in C on the same operands: the layer 3 oracle's definitions (`tests/moo/moo_oracle_fixed.c`)
   for moo's own operators, fixed's functions for the compound ones, and both regimes of the transform position add.
   2^14 cases per operation; `MOO_ORACLE_3B_N` sets the count, and the nightly (`.github/workflows/nightly.yml`, Linux,
@@ -151,13 +179,12 @@ The layer's record is the notes in `docs/layer3b/`; each names its files, tests 
       MOO_ORACLE_3B_N=4194304:
       moo-3b-oracle ops=22 cases=92274688 per-op=4194304 mismatches=0 transform-also-fixed=12326368 transform-saturated=256544 fixdot-wraps=131
 
-- **The 3b oracle's reversed witness.** `Layer3bOracleGoesRedOnAPlantedWrongOp` (same suite) plants a wrong operation
+- **The 3b oracle's reversed witness.** `GeometryOracleGoesRedOnAPlantedWrongOp` (same suite) plants a wrong operation
   in the oracle's script functions and requires the gate to go red on that operation and on no other: `vec3 + vec3`
   and `vec3.dot` one raw unit off, `quat.nlerp` with its endpoints swapped, `transform.direction` as `invdirection`,
   and `transform.point` without its translation. Unplanted, the same 256-case run has no mismatch. A wrong operation
   planted in the VM itself (`vec3.cross` as `fixCross(b, a)` in `VM/src/moo_vec3lib.cpp`, run by hand and reverted)
-  turned `Layer3bOracle` red, as `transform.point` with a plain add did before it
-  (`docs/layer3b/moo-v2-l3b-conformance.md`).
+  turned `GeometryOracle` red, as `transform.point` with a plain add did before it.
 - **Against fixed3d.** fixed3d vendors the same `fixed`, and its `b3*` vector, quaternion and transform functions
   forward to fixed's. `tools/moo-fixed3d-compare.sh` clones fixed3d at its pin (`071a3f6`, which vendors fixed
   `4a70c64` like moo), refuses unless fixed3d's `fixed` headers are identical to `extern/fixed`, builds
@@ -171,7 +198,7 @@ The layer's record is the notes in `docs/layer3b/`; each names its files, tests 
   moo's saturating `+` and `-` against fixed's plain int64 adds: `vec3 + vec3` (13472), `vec3 - vec3` (13858), and
   `transform * transform`, `transform.point` (13472 each) and `transform.invpoint` (13858) with an identity rotation
   and full-range positions. Each is a case where fixed's add overflows int64. The other 17 operations differ on 0
-  cases, and inside the range moo and fixed3d agree bit for bit (`docs/layer3b/moo-v2-l3b-conformance.md`).
+  cases, and inside the range moo and fixed3d agree bit for bit.
 - **Upstream finding: fixed3d's `BOX3D_FIXED_SATURATE` does not reach fixed's inline `fixMul`.** `fixed_compat.h`
   includes `fixed/fixed.h` and only then defines `FIX_SATURATE` from `BOX3D_FIXED_SATURATE`, so `fixMul`'s
   `#if defined( FIX_SATURATE )` is already compiled out. A fixed3d build "with `BOX3D_FIXED_SATURATE`" wraps `fixMul`,
@@ -184,7 +211,7 @@ The layer's record is the notes in `docs/layer3b/`; each names its files, tests 
   `vec3.dot(v, v)` for `v = vec3.new(2^47 - 1, 2^47 - 1, 2^47 - 1)` is the most negative number where the exact result
   saturates to the most positive. The result is still deterministic (unsigned wrap is defined), and `fixLength` is
   unaffected. In the 2^22 run 131 of 4194304 random dot cases wrapped. Fixed upstream (fixed #59): at pin `4a70c64`
-  `fixDot` saturates with the true sign, the oracle counts 0 wraps, and `Layer3bFixDotSaturatesAtTheRangeEnd` holds it.
+  `fixDot` saturates with the true sign, the oracle counts 0 wraps, and `GeometryFixDotSaturatesAtTheRangeEnd` holds it.
 - **Not built.** Expression-temporary reuse in the compiler ("Representations costed"). `quat.slerp` waits for
   `fixed`. (The `fixCross`, `fixRotateVector` and `fixMulAdd` sums that were owed upstream saturate under
   `FIX_SATURATE` since fixed #60-#62; "Saturation, stated precisely".)
@@ -232,13 +259,19 @@ int64 add, so moo builds `fixed` with `FIX_SATURATE` and wraps `+`, `-` and unar
 saturating versions.
 
 Checked builds raise the named error `number overflow in '<op>'` at the operation, for `+`, `-`,
-`*`, `/` and `//` (`^` joins them when it is rebuilt on fixed). A build is checked when
+`*`, `/` and `//` (not `^`; see "pow and ^"). A build is checked when
 assertions are on (no `NDEBUG`, or `LUAU_ENABLE_ASSERT`), or when it sets `MOO_OVERFLOW_ERRORS=ON`
 (CMake) or `overflow=on` (make). Unary `-` and `%` are exact on the domain and never saturate. An
 exact result at the edge (`MAX * 1`) is not overflow. The compiler does not fold an operation
 that saturates in a checked build. Saturation is the release behaviour, so the same program never
 gives different *values* in checked and release builds; it either gives the same value or stops
 with the named error in a checked build.
+
+`MOO_OVERFLOW_ERRORS=AUTO` (the default) is decided per translation unit from `NDEBUG` and
+`LUAU_ENABLE_ASSERT`, so an embedder that builds the compiler and the VM with different `NDEBUG`
+settings sets the option explicitly. Upstream has no `LUAU_ENABLE_ASSERT` CMake option; only the C
+macro counts. `make overflow=on|off` uses its own build directory. Release code is unchanged by the
+switch: `luai_numnosat` is `(true)` and evaluates nothing.
 
 ## Literals
 
@@ -250,12 +283,18 @@ with the named error in a checked build.
   exact rational just as a plain decimal does, so it rounds by the same single rule. Hex float
   literals do not exist in Luau and are not added.
 - A literal whose magnitude rounds above the range is a **compile error**
-  (`number literal out of range`). A literal that is not zero but rounds to zero is a
-  `moo-analyze` warning (`number literal below resolution`), not an error.
+  (`Number literal out of range`). A literal that is not zero but rounds to zero is a
+  `moo-analyze` warning (`Number literal is below the resolution 2^-16 and rounds to zero`),
+  not an error.
 - `tonumber` and string-to-number coercion use the same parser and the same rounding, and
   return `nil` on out of range.
 - The compiler stores number constants as the raw int64 in a moo bytecode version (built:
   `Bytecode.h`, "moo bytecode versions"); the VM refuses Luau bytecode by version, by name.
+- **The AST.** `AstExprConstantNumber` carries `rawValue`, the exact Q48.16 value, and `value`,
+  the nearest double, for tools; the compiler reads only `rawValue`. The parser's constructor
+  sets both from `moo_numparse`. The two-argument constructor, for a tool that builds a node from
+  a double, keeps the tool's `value` and sets `rawValue` by the boundary rule (saturating, NaN
+  to 0).
 
 ## Division by zero
 
@@ -263,6 +302,10 @@ with the named error in a checked build.
 saturate; moo checks first.) NaN and infinity do not exist, so `math.huge` is the largest
 value and `math.isnan` always returns false. `math.isinf` returns false; `math.isfinite`
 returns true.
+
+`math.fmod(a, 0)`, `math.map` with `inmax == inmin`, `math.tan` at a zero cosine,
+`math.log(x, 1)`, and `math.pow(0, n)` for an integer `n < 0` raise `division by zero`.
+`math.nan` is 0.
 
 ## Exact integers
 
@@ -309,13 +352,48 @@ Rebuilt on `fixed`. No libm.
 | `random` | PCG32 output mapped to fixed (see DETERMINISM.md, 10) |
 | `pi`, `huge` | nearest Q48.16 to pi; the largest value |
 
+How each is built, exactly:
+
+| function | definition |
+|---|---|
+| `deg`, `rad` | one `fixMul` by the nearest Q48.16 of 180/pi (3754936 raw) and pi/180 (1144 raw) |
+| `fmod` | truncated remainder `a % b` on the raw value; `b == 0` is `division by zero` |
+| `modf` | integer and fraction bits of the magnitude, each with `a`'s sign; `ip + fp == a` bit for bit |
+| `frexp`, `ldexp` | `frexp`: exponent in [-15, 47], mantissa in [0.5, 1) shifted toward zero; `frexp(0)` is `(0, 0)`. `ldexp`: shifts the raw magnitude, saturating up and truncating toward zero down |
+| `exp` | `fixExp2(fixMul(x, 94548))` (94548 is log2(e)) |
+| `sinh`, `cosh` | `exp(±x) / 2` by exponent decrement, then a saturating sum |
+| `tanh` | `sign(x) * (1 - e) / (1 + e)` with `e = exp(-2|x|)` |
+| `log` | `fixLog2(x) / 94548` (`fixDiv`) |
+| `log10` | `fixMul(fixLog2(x), 19728)` (19728 is 1/log2(10)) |
+| `log(x, base)` | `fixLog2(x) / fixLog2(base)`; bases 2 and 10 take the direct paths |
+| `map` | `outmin + (x - inmin) * (outmax - outmin) / (inmax - inmin)` on moo's operators; `inmax == inmin` is `division by zero` |
+| `noise` | Luau's Perlin noise in fixed: the same permutation, gradients and operation order; period 256, output in [-1, 1], 0 at every integer lattice point |
+| constants | `pi` 205887, `e` 178145, `phi` 106039, `sqrt2` 92682, `tau` 411775 raw (each the nearest Q48.16); `huge` is `INT64_MAX` raw; `nan` is 0; `isnan` and `isinf` are false and `isfinite` is true on every path |
+
+The named errors are `math.sqrt of a negative number`, `math.asin domain`, `math.acos domain`,
+`math.log of a non-positive number` (for `x <= 0` or a base `<= 0`; base 1 is `division by zero`),
+and `pow of a negative number to a fractional power` (from `math.pow`). Library functions and
+fastcalls share one helper per function, so they give the same bits; a fastcall that meets an error
+returns -1 and the library raises.
+
+The scaling constants are rounded to Q48.16, so `math.exp(1)` is 178144 raw, one below `math.e`, and
+`math.log10(10)` and `math.log(10, 10)` are 65535/65536. `fixSqrt` truncates, so `math.sqrt(2)` is
+92681 raw, one below `math.sqrt2`.
+
 **Accuracy oracle:** [CORE-MATH](https://core-math.gitlabpages.inria.fr/) gives the correctly
 rounded double result of each real function; converting that exactly to Q48.16 gives the ideal
-answer. Layer 4 measures every function's maximum error in raw units (2^-16) against it,
-exhaustively where the domain allows and by dense sampling elsewhere, and publishes the table.
-Known today from `fixed`'s own documentation: `sqrt` is exact (error below one raw unit,
-toward zero); `atan2` is within about 0.0023 degrees (about 2.6 raw units). The other bounds
-are not yet measured and are not claimed.
+answer. The oracle is `tests/moo/vectors/math-oracle.bin`, generated offline by
+`tools/moo-math-oracle` from CORE-MATH `dae5dd8c` and frozen; the nightly `math-oracle` job
+regenerates it and compares (`tools/moo-math-oracle/check.sh`). It holds asin and acos
+exhaustively over [-1, 1], and 65536 seeded draws plus edges for every other function.
+`MathOracleBoundPerFunction` (`tests/moo/math_oracle.test.cpp`) asserts each measured maximum, in
+raw units, as the bound: sin 131066, cos 131068, tan 16661531715, asin 4, acos 4, atan 2, atan2 2,
+exp 1503472452145152, log 11, log10 15, log2 0, sinh 1498395532686336, cosh 1174843021516800,
+tanh 2, sqrt 1 (toward zero), pow (base > 0) 258932934890496. Within |x| <= 64, sin and cos are
+within 108 raw (`fixComputeCosSin`'s Bhaskara form); for large arguments they can be wrong by the
+whole range, because `fixUnwindAngle` reduces by 2π rounded to 411775 raw. exp, sinh, cosh and pow
+have relative errors, large in raw units near 2^47. Above 2^37 the oracle's own double is coarser
+than a raw unit (up to 512 raw).
 
 `fixSqrt` seeds its integer square root with the IEEE double square root and then repairs the
 result to the exact integer answer. IEEE `sqrt` is correctly rounded on every supported
@@ -325,14 +403,26 @@ double inside the VM. Layer 4 either keeps it with that argument written down, o
 
 **`pow` and `^`:**
 
-- **Integer-valued exponent:** exact binary exponentiation (repeated squaring) in a wide
-  intermediate, rounded **once** at the end, ties to even, saturating. `0 ^ negative` is
-  `division by zero`. The target bound is under one raw unit for every result in range; layer
-  4 proves it by exhaustive test on small bases and the CORE-MATH comparison elsewhere.
-- **Non-integer exponent:** `fixPow`, which is `fixExp2(exponent * fixLog2(base))`. A negative
-  base is a named error. Its error is relative and grows with the exponent: an absolute error e
-  in `log2` becomes a relative error of about ln(2) · |exponent| · e in the result. Layer 4
-  measures the bound and reports it before the math library is locked.
+- **Integer-valued exponent:** `moo_pow_int` (`Common/include/moo_pow.h`), rounded **once**,
+  ties to even, saturating. For |n| <= 13 the power is an exact 256-bit integer. Above that it
+  is bracketed by two 128-bit-mantissa values rounded down and up at every product, and a
+  negative exponent takes the reciprocal of the bracket. Every in-range result is correctly
+  rounded (at most half a raw unit); the proof (`PowIntCertainEverywhere`, `MOO_POW_PROOF=1`)
+  visits every input whose result is neither saturated nor 0: 76,620,463 calls, 0 uncertain.
+  `x ^ 0` is 1, including `0 ^ 0`. `x ^ -1` rounds where `1 / x` truncates (`6 ^ -1` is 10923
+  raw, `1 / 6` is 10922). `x ^ 2` differs from `x * x` only at a tie (`fixMul` rounds half up).
+  `math.pow(0, n)` for `n < 0` is `division by zero`.
+- **Non-integer exponent:** `fixPow`, which is `fixExp2(exponent * fixLog2(base))`, called by
+  `luai_numpow`, `math.pow` and its fastcall. It returns 0 for a base <= 0, so `0 ^ positive
+  fraction` is 0; `math.pow` with a negative base is the named error. Its error is relative and
+  grows with the exponent: an absolute error e in `log2` becomes a relative error of about
+  ln(2) · |exponent| · e in the result. The measured worst relative error is about 7.7e-05 for
+  base in (0, 16] and |exponent| in (0, 16].
+- **As built, the `^` operator raises none of these errors.** `LOP_POW`, `LOP_POWK` and
+  `luaV_doarithimpl` call `luai_numpow`, which returns the release value: `0 ^ negative` is 0,
+  `negative ^ fraction` is 0, and a saturating `^` saturates in a checked build too
+  (`PowIntVmZeroToNegative`, `OverflowPowSaturatesInBothBuilds`). Only `math.pow` and its
+  fastcall raise. Whether the operator should raise as `math.pow` does is open.
 
 ## Number formatting
 
@@ -354,7 +444,7 @@ expansion; it is one switch.
 `%f`, `%e`, `%g` (and `%E`, `%G`) are **implemented deterministically**, not refused: the exact
 decimal expansion of the value is rounded to the requested precision, ties to even on the exact
 value, by moo's integer formatter. Width, flags and precision follow C's rules. `%d`, `%i`,
-`%x`, `%X`, `%c` require an integer-valued number (see "Exact integers"). `%a` is not supported
+`%o`, `%u`, `%x`, `%X`, `%c` require an integer-valued number (see "Exact integers"). `%a` is not supported
 by Luau's `string.format` and stays unsupported. `%q` of a number uses `tostring`.
 
 ## Boundary
@@ -377,6 +467,14 @@ by Luau's `string.format` and stays unsupported. `%q` of a number uses `tostring
   the same value passed through the C API give the same bits. `buffer.readf32`/`readf64`,
   `string.unpack("f"/"d")` decode by the same rule; `writef32`/`writef64` and `string.pack`
   encode to the nearest float bit pattern, ties to even.
+- `string.pack`/`unpack` format `n` is the raw Q48.16 `int64_t`, an exact round trip with no
+  float arithmetic.
+- A float that does not decode is a named error, never a silent value: `buffer.readf32`/`readf64`
+  raise `buffer float is NaN`, `buffer float is infinite` and `buffer float out of number range`;
+  `string.unpack` `f`/`d` raise `string.unpack float is NaN`, `string.unpack float is infinite`
+  and `string.unpack float out of number range`. A binary32 is widened to binary64 exactly before
+  decoding, so `f` and `d` share one rule. The buffer fastcalls give the library's bits and fall
+  back to it to raise.
 
 ## Native codegen
 
@@ -474,13 +572,13 @@ built with `BOX3D_FIXED_SATURATE`. Overflow behaviour is tested separately. As b
 including `fixed/fixed.h`), so the comparison also defines `FIX_SATURATE`; and `fixDot` wraps at
 the top of the range, deterministically ("Layer 3b as built").
 
-transform's compose, point and invpoint make their one position add with moo's saturating add
-(`moo_numadd`/`moo_numsub`, in `moo_transform_mul`, `moo_transform_point` and
-`moo_transform_invpoint`) instead of fixed's plain `fixVecAdd`/`fixVecSub`, so they equal
-`fixMulTransforms`, `fixTransformPoint` and `fixInvTransformPoint` wherever those are defined, and
-saturate where fixed's add would overflow; a checked build raises no named error for it. What this
-buys is narrow: the add itself is defined everywhere, so a script can no longer reach behaviour
-that differs between compilers through it. With a non-identity rotation, a position near the
+transform's compose, point and invpoint call fixed's `fixMulTransforms`, `fixTransformPoint` and
+`fixInvTransformPoint` directly (`VM/src/lvmutils.cpp` for `*`, `VM/src/moo_transformlib.cpp` for the
+library). Their one position add is fixed's `fixVecAdd`/`fixVecSub`, which under `FIX_SATURATE`
+saturates per component to the same bits as `moo_numadd`/`moo_numsub`; a checked build raises no
+named error for it. What this buys is narrow:
+the add itself is defined everywhere, so a script cannot reach behaviour that differs between
+compilers through it. With a non-identity rotation, a position near the
 range ends also reaches `fixRotateVector` or `fixInvRotateVector` (compose's input, invpoint's
 subtract result), whose sums can still overflow, so outside fixed's defined range the result is
 determined only for the identity rotation. `inverse` has no add (negation is exact on the
@@ -605,9 +703,41 @@ Each is detailed, with file and line, in [DETERMINISM.md](DETERMINISM.md):
   traceback byte for byte in the determinism suite.
 - **Coroutines** are cooperative and already deterministic. Layer 5 tests them adversarially:
   `tests/determinism/coroutines2.luau` in the determinism suite, the conformance script
-  `tests/conformance/moo/l3/moo-l5-coroutine-programs.luau`, and the C++ cases in
-  `tests/moo/moo-l5-coroutine-programs.test.cpp`. The TLA+ model of their resume/yield/close/error
+  `tests/conformance/moo/spec/coroutines.luau`, and the C++ cases in
+  `tests/moo/coroutines.test.cpp`. The TLA+ model of their resume/yield/close/error
   states is `tla/Coroutines.tla`.
+
+## Tests
+
+moo's own tests are organised by subject, never by the work that added them. Each subject has
+its C++ cases in `tests/moo/<subject>.test.cpp` (doctest suite `<subject>`) and, where a script
+can say it, its expected-behaviour script in `tests/conformance/moo/spec/<subject>.luau`, which
+`MooSpecScripts` (`tests/Moo.test.cpp`) runs in a fresh VM with the `moo_test` helpers and which
+returns `"OK"`. The subjects: `number`, `literals`, `boundary`, `buffer`, `bytecode`,
+`compiler`, `removed`, `format`, `math`, `math_oracle`, `pow`, `oracle`, `differential`,
+`vec3`, `quat`, `transform`, `gc`, `geometry_oracle`, `coroutines`, `errors`, `upstream`, and
+the script `analyzer.luau` (the VM side of `tests/MooAnalyzer.test.cpp`). The other scripts in
+`tests/conformance/moo/` replace upstream conformance scripts and say so.
+
+All of these run in `Moo.Test`; environment variables widen them:
+
+- `MOO_ORACLE_N` sets the number oracle's random pairs (default 2^16; nightly 2^24). A value that
+  is not a positive decimal fails the test. The oracle stops after 10 mismatches and prints each
+  one with the operands in raw hex and decimal.
+- `MOO_ORACLE_3B_N` sets the geometry oracle's cases per operation (default 2^14; nightly 2^22).
+- `MOO_FORMAT_N` widens `FormatRoundtrip` (default 2^18), and `MOO_POW_PROOF=1` runs the whole
+  `moo_pow_int` proof (`build/Moo.Test -ts=pow -tc=PowIntCertainEverywhere`). Neither is set in
+  the nightly; a change to `moo_pow.h` reruns the proof by hand.
+- `MOO_DETERMINISM_PRINT=1` prints the determinism table; `MOO_CONFORMANCE_SCAN=1` lists every
+  failing line of a conformance script.
+
+The libFuzzer targets `Moo.Fuzz.Arith`, `Moo.Fuzz.Number` and `Moo.Fuzz.Format`
+(`fuzz/CMakeLists.txt`, clang) are not run by CI; the suite `differential` runs the same checks
+on fixed inputs, with a negative control. `tools/moo-fixed3d-compare.sh <build> [c++]` runs in the
+`full` CI job and `tools/moo-math-oracle/check.sh` in the nightly. `tools/moo-check-skips.sh`
+reads a skipped case's reason from `moo:` on its line or the line above (in a moved script, from
+its comments); a `tests/...` path and an optional CamelCase case name in the reason must resolve,
+and lines saying `upstream` or `Replaces` are not resolved.
 
 ## State machines and TLA+
 

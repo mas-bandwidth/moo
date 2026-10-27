@@ -78,7 +78,7 @@ public:
     int32_t addConstantNil();
     int32_t addConstantBoolean(bool value);
     int32_t addConstantNumber(double value);
-    // moo: a number constant given as its raw Q48.16 value (docs/DESIGN.md "Literals"; docs/layer3/moo-l3-bytecode-version.md)
+    // moo: a number constant given as its raw Q48.16 value (docs/DESIGN.md "Literals"; docs/history/layer3/moo-l3-bytecode-version.md)
     int32_t addConstantNumberRaw(int64_t value);
     int32_t addConstantInteger(int64_t value);
     int32_t addConstantVectorf(float x, float y, float z, float w);

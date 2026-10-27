@@ -17,7 +17,7 @@ if(NOT CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
     return()
 endif()
 
-# moo: the layer 5 differential fuzz targets (docs/DESIGN.md "Layers", layer 5; docs/layer5/moo-l5-fuzz-differential.md).
+# moo: the layer 5 differential fuzz targets (docs/DESIGN.md "Layers", layer 5; docs/history/layer5/moo-l5-fuzz-differential.md).
 # They are moo's own and use no protobuf, so they build on every clang host, not only x86_64 macOS.
 set(MOO_FUZZ_OPTIONS -fsanitize=fuzzer,address,undefined -fno-omit-frame-pointer -g2)
 set(MOO_FUZZ_INCLUDES ${CMAKE_CURRENT_SOURCE_DIR}/../Common/include ${CMAKE_CURRENT_SOURCE_DIR}/../extern ${CMAKE_CURRENT_SOURCE_DIR}/../extern/fixed/include)

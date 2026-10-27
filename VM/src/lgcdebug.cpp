@@ -205,7 +205,7 @@ static void validateobj(global_State* g, GCObject* o)
     case LUA_TVECTOR:
         break;
 
-    // moo: vec3, quat and transform are leaves (docs/layer3b/moo-v2-l3b-vec3-object.md, decision 6)
+    // moo: vec3, quat and transform are leaves (docs/history/layer3b/moo-v2-l3b-vec3-object.md, decision 6)
     case LUA_TVEC3:
     case LUA_TQUAT:
     case LUA_TTRANSFORM:
@@ -681,7 +681,7 @@ static void dumpobj(FILE* f, GCObject* o)
     case LUA_TVECTOR:
         return; // vector data is outlined, but is a constant cost of a vector
 
-    // moo: vec3, quat and transform are fixed-size leaves (docs/layer3b/moo-v2-l3b-vec3-object.md, decision 6)
+    // moo: vec3, quat and transform are fixed-size leaves (docs/history/layer3b/moo-v2-l3b-vec3-object.md, decision 6)
     case LUA_TVEC3:
     case LUA_TQUAT:
     case LUA_TTRANSFORM:
@@ -1115,7 +1115,7 @@ static void enumobj(EnumContext* ctx, GCObject* o)
     case LUA_TVECTOR:
         return enumnode(ctx, o, sizeof(LuauVector), NULL);
 
-    // moo: vec3, quat and transform are fixed-size leaves (docs/layer3b/moo-v2-l3b-vec3-object.md, decision 6)
+    // moo: vec3, quat and transform are fixed-size leaves (docs/history/layer3b/moo-v2-l3b-vec3-object.md, decision 6)
     case LUA_TVEC3:
         return enumnode(ctx, o, sizeof(MooVec3), NULL);
     case LUA_TQUAT:

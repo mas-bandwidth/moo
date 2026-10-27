@@ -129,7 +129,7 @@ inline int load(lua_State* L)
 
 } // namespace moo_test_detail
 
-// Opens the moo_test helpers in a fresh VM, before a tests/conformance/moo/l3 script runs
+// Opens the moo_test helpers in a fresh VM, before a tests/conformance/moo/spec script runs
 // (DESIGN.md "Layer 3 as built": the helpers report the raw value across the C API boundary).
 inline void mooOpenTestHelpers(lua_State* L)
 {

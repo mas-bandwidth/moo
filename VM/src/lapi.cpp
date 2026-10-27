@@ -728,7 +728,7 @@ const void* lua_topointer(lua_State* L, int idx)
     case LUA_TLIGHTUSERDATA:
         return pvalue(o);
     // moo: a vec3, quat or transform is a value, like a number, so it has no address to expose
-    // (docs/layer3b/moo-v2-l3b-vec3-object.md; docs/DETERMINISM.md, 6)
+    // (docs/history/layer3b/moo-v2-l3b-vec3-object.md; docs/DETERMINISM.md, 6)
     case LUA_TVEC3:
     case LUA_TQUAT:
     case LUA_TTRANSFORM:

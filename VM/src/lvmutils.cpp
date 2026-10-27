@@ -232,7 +232,7 @@ static bool moo_value_index(const TValue* t, const TValue* key, StkId val)
     }
 }
 
-// moo: t.p and t.q read a transform's position and rotation as new objects (docs/layer3b/moo-v2-l3b-transform.md,
+// moo: t.p and t.q read a transform's position and rotation as new objects (docs/history/layer3b/moo-v2-l3b-transform.md,
 // decision 3). No GC step here: the debt is paid at the next check, as for any allocation in an instruction.
 static bool moo_transform_index(lua_State* L, const MooTransform* t, const TValue* key, StkId val)
 {
@@ -679,7 +679,7 @@ void luaV_doarithimpl(lua_State* L, StkId ra, const TValue* rb, const TValue* rc
     // moo: vec3, quat and transform operators are fixed's functions (docs/DESIGN.md "Operations"): vec3 + - * and
     // unary -, vec3 * number, quat * quat (fixMulQuat), quat * vec3 (fixRotateVector), transform * transform
     // (fixMulTransforms) and transform * vec3 (fixTransformPoint). Any other operand falls through to the ordinary
-    // arithmetic error. Every result is a new object (docs/layer3b/moo-v2-l3b-transform.md, decision 2).
+    // arithmetic error. Every result is a new object (docs/history/layer3b/moo-v2-l3b-transform.md, decision 2).
     if (op == TM_MUL && ttistransform(rb) && (ttistransform(rc) || ttisvec3(rc)))
     {
         fixTransform a = moo_transform_payload(transformvalue(rb));

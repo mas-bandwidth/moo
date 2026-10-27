@@ -1,5 +1,24 @@
 # moo changelog
 
+## Unreleased
+
+### Tests and design records by subject
+
+- moo's own tests are organised by subject instead of by the work card that added them:
+  `tests/moo/<subject>.test.cpp` (doctest suite `<subject>`) and
+  `tests/conformance/moo/spec/<subject>.luau`, for `number`, `literals`, `boundary`, `buffer`,
+  `bytecode`, `compiler`, `removed`, `format`, `math`, `math_oracle`, `pow`, `oracle`,
+  `differential`, `vec3`, `quat`, `transform`, `gc`, `geometry_oracle`, `coroutines`, `errors`
+  and `upstream`. 50 test files become 21 and 42 scripts become 20; test case names say the
+  behaviour (`PowIntCertainEverywhere`, `BytecodeRefusesLuauByName`), never the card. Every check
+  still runs; three cases that repeated another case are gone (docs/DESIGN.md "Tests" lists the subjects and how to
+  run the wider checks).
+- The per-card design notes of layers 3 to 5 move to `docs/history/`. `docs/DESIGN.md` now
+  states the current behaviour they specified: the bytecode refusals, the compiler's folding
+  limits, the exact-integer and boundary error texts, the math library's definitions, constants
+  and asserted error bounds, `moo_pow_int`'s proof, the vec3/quat/transform key hash, and how the
+  `^` operator behaves today.
+
 ## v1.0.0 — 2026-10-25
 
 Cut from 93bf57c8fee1e213df6c28ac2df29a9985178119. 0 pull requests since this repository's first commit.

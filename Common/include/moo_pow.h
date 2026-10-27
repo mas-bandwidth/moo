@@ -4,7 +4,7 @@
 // even, saturating, with a status for saturation and 0 ^ negative (docs/DESIGN.md "pow and ^"). Integer arithmetic
 // only. Every pow path computes with it: the ^ operator (luai_numpow, LOP_POW/LOP_POWK, luaV_doarithimpl) discards
 // the status; the compiler's constant folding folds only MOO_POW_OK; and math.pow and its fastcall raise on it
-// (docs/layer4/moo-l4-pow-integer.md has the design and each caller's steps).
+// (docs/history/layer4/moo-l4-pow-integer.md has the design and each caller's steps).
 //
 // For raw base b with a = |b| and exponent n the value is V = 2^16 * (a / 2^16)^|n|, or 2^16 / (a / 2^16)^|n| for
 // n < 0, negative when b < 0 and n is odd, rounded half to even. Two paths:

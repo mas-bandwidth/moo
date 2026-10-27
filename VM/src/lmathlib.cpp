@@ -338,7 +338,7 @@ static int math_modf(lua_State* L)
     return 2;
 }
 
-// moo: fixed's fixSqrt, exact, rounded toward zero; negative is a named error (docs/layer4/moo-l4-math-sqrt.md)
+// moo: fixed's fixSqrt, exact, rounded toward zero; negative is a named error (docs/history/layer4/moo-l4-math-sqrt.md)
 static int math_sqrt(lua_State* L)
 {
     lua_Number a = luaL_checknumber(L, 1);

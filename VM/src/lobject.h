@@ -547,7 +547,7 @@ typedef struct TKey
     ::Value value;
     int extra[LUA_EXTRA_SIZE];
     // moo: moo's tags push LUA_TDEADKEY to 17, so tt needs 5 bits; next still holds +/- (MAXSIZE - 1) in 27 bits
-    // (docs/layer3b/moo-v2-l3b-vec3-object.md, decision 1)
+    // (docs/history/layer3b/moo-v2-l3b-vec3-object.md, decision 1)
     unsigned tt : 5;
     int next : 27; // for chaining
 } TKey;

@@ -384,7 +384,7 @@ declare vector: {
 )BUILTIN_SRC";
 
 // moo: the fixed-point value types of layer 3b and their libraries (docs/DESIGN.md "Analyzer", "vec3, quat and
-// transform (layer 3b)"; docs/layer3b/moo-v2-l3b-analyzer-types.md). Each type is declared the way upstream declares
+// transform (layer 3b)"; docs/history/layer3b/moo-v2-l3b-analyzer-types.md). Each type is declared the way upstream declares
 // vector, as an extern type, with exactly the components and operators the VM implements (VM/src/lvmutils.cpp,
 // luaV_doarithimpl and luaV_gettable) and each library with the VM's functions and argument counts
 // (VM/src/moo_vec3lib.cpp, moo_quatlib.cpp, moo_transformlib.cpp). quat.slerp is left out: the VM refuses it by name
@@ -530,7 +530,7 @@ std::string getBuiltinDefinitionSource()
     // moo: number is Q48.16 and there is no integer type or library (DESIGN.md "Analyzer"), so the buffer
     // definition never mentions integer, whatever the upstream flags say.
     result += kBuiltinDefinitionBufferSrc_NOINTEGER;
-    // moo: vec3, quat and transform (docs/layer3b/moo-v2-l3b-analyzer-types.md)
+    // moo: vec3, quat and transform (docs/history/layer3b/moo-v2-l3b-analyzer-types.md)
     result += kBuiltinDefinitionMooValueTypesSrc;
 
     if (FFlag::DebugLuauUserDefinedClasses && FFlag::LuauAllowGlobalDeclarationToBeCalledClass)

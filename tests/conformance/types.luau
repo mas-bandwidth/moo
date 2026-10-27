@@ -16,7 +16,7 @@ local ignore =
 	"_G.vector",
 
 	-- moo: the VM's quat.slerp only raises "quat.slerp waits for fixed's slerp", so the analyzer does not declare it
-	-- (docs/layer3b/moo-v2-l3b-analyzer-types.md, decision 3).
+	-- (docs/history/layer3b/moo-v2-l3b-analyzer-types.md, decision 3).
 	"_G.quat.slerp",
 }
 

@@ -164,7 +164,7 @@ static LuaNode* hashint(const LuaTable* t, int64_t n)
 
 // moo: one raw component through hashint's finalizer, ALT_HASH_FUNCTION included, giving the 32 bits hashint
 // gives before hashpow2. The halves are taken arithmetically, so it is byte-order independent
-// (docs/layer3b/moo-v2-l3b-vec3-object.md, decision 4).
+// (docs/history/layer3b/moo-v2-l3b-vec3-object.md, decision 4).
 static uint32_t moo_vec3_comp_hash(int64_t n)
 {
     uint32_t h1 = uint32_t(n);

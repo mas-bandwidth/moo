@@ -2,7 +2,7 @@
 //
 // moo: the transform object, built as the vec3 object is (moo_vec3.h). One immutable GC leaf, tag LUA_TTRANSFORM:
 // the common header and fixed's fixTransform, a position fixVec3 and a rotation fixQuat
-// (docs/layer3b/moo-v2-l3b-transform.md).
+// (docs/history/layer3b/moo-v2-l3b-transform.md).
 #pragma once
 
 #include "lobject.h"

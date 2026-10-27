@@ -642,7 +642,7 @@ const char* luaL_tolstring(lua_State* L, int idx, size_t* len)
     case LUA_TVEC3:
     {
         // moo: a vec3 is a value and prints its components, never a creation number
-        // (docs/layer3b/moo-v2-l3b-vec3-object.md, decision 5)
+        // (docs/history/layer3b/moo-v2-l3b-vec3-object.md, decision 5)
         char s[MOO_VEC3_TOSTR_MAX];
         char* e = moo_vec3_tostring(s, vec3value(luaA_toobject(L, idx)));
         lua_pushlstring(L, s, e - s);

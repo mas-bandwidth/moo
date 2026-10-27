@@ -3,7 +3,7 @@
 The offline generator of `tests/moo/vectors/math-oracle.bin`, layer 4's accuracy oracle (docs/DESIGN.md, "math
 library", "Accuracy oracle"). For each math function it writes sampled inputs and the **ideal** Q48.16 answer:
 [CORE-MATH](https://core-math.gitlabpages.inria.fr/)'s correctly rounded double result, converted to the nearest
-Q48.16 by moo's boundary rule, ties to even. `tests/moo/moo-l4-math-oracle.test.cpp` reads the file and prints each
+Q48.16 by moo's boundary rule, ties to even. `tests/moo/math_oracle.test.cpp` reads the file and prints each
 function's error table.
 
 ## Why the file is frozen

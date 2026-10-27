@@ -43,9 +43,9 @@ const char* const luaT_typenames[] = {
     "vector",
 #endif
 
-    "vec3", // moo: LUA_TVEC3's name (docs/layer3b/moo-v2-l3b-vec3-object.md, decision 1)
-    "quat", // moo: LUA_TQUAT's name (docs/layer3b/moo-v2-l3b-quat-object.md, decision 1)
-    "transform", // moo: LUA_TTRANSFORM's name (docs/layer3b/moo-v2-l3b-transform.md)
+    "vec3", // moo: LUA_TVEC3's name (docs/history/layer3b/moo-v2-l3b-vec3-object.md, decision 1)
+    "quat", // moo: LUA_TQUAT's name (docs/history/layer3b/moo-v2-l3b-quat-object.md, decision 1)
+    "transform", // moo: LUA_TTRANSFORM's name (docs/history/layer3b/moo-v2-l3b-transform.md)
 };
 
 const char* const luaT_eventname[] = {
