@@ -15,8 +15,9 @@
 
 ### CI
 
-- The per-PR Windows job builds with `-DLUAU_WERROR=ON` (MSVC `/WX`), and so do the nightly's
-  `windows-msvc` and `windows-clang-cl` jobs.
+- The per-PR Windows job builds with `-DLUAU_WERROR=ON` (MSVC `/WX`), and so does the nightly's
+  `windows-msvc` job. `windows-clang-cl` stays off: clang-cl reports `ltable.cpp`'s unused
+  `hashvec`, since `LUAU_MAYBE_UNUSED` is empty under `_MSC_VER`.
 - The compile-determinism pins hash a failing compile's error text (`error-<hash>`, not `error`),
   and the corpus has a script the compiler, not the parser, refuses. `moo-check-compile.py` fails on
   a pin file with no pins. DESIGN.md and DETERMINISM.md say bytecode is identical within one build
