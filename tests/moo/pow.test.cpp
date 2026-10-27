@@ -59,6 +59,14 @@ std::string powExpected(int status, fixed_t value)
     return std::to_string(static_cast<long long>(value));
 }
 
+// powExpected for base ^ exponent, from powReference
+std::string powExpectedOf(fixed_t base, fixed_t exponent)
+{
+    fixed_t value = 0;
+    int status = powReference(base, exponent, &value);
+    return powExpected(status, value);
+}
+
 } // namespace
 
 // moo_pow_int (Common/include/moo_pow.h; docs/DESIGN.md, "pow and ^"; docs/history/layer4/moo-l4-pow-integer.md):
@@ -872,8 +880,7 @@ TEST_CASE("PowLibraryFractionalUsesFixed")
         for (int64_t exponent : exponents)
         {
             REQUIRE(!moo_numisinteger(exponent));
-            fixed_t ref = 0;
-            std::string want = powExpected(powReference(base, exponent, &ref), ref);
+            std::string want = powExpectedOf(base, exponent);
             if (base < 0)
                 CHECK(want == "error: moo:1: pow of a negative number to a fractional power");
 
@@ -978,8 +985,7 @@ TEST_CASE("PowIntVmMatchesMooPowInt")
         int64_t n = int64_t(mix(seed) % 4001) - 2000;
         fixed_t b = fixed_t(n) * MOO_NUMBER_ONE;
 
-        fixed_t ref = 0;
-        std::string want = powExpected(moo_pow_int(a, n, &ref), ref);
+        std::string want = powExpectedOf(a, b);
         std::string got = runPow(L, a, b);
         CAPTURE(a);
         CAPTURE(n);
@@ -1007,8 +1013,7 @@ TEST_CASE("PowIntVmFractionalUsesFixed")
     for (fixed_t a : bases)
         for (fixed_t b : exponents)
         {
-            fixed_t ref = 0;
-            std::string want = powExpected(powReference(a, b, &ref), ref);
+            std::string want = powExpectedOf(a, b);
             std::string got = runPow(L, a, b);
             CAPTURE(a);
             CAPTURE(b);
@@ -1108,8 +1113,7 @@ TEST_CASE("PowFractionalVmMatchesFixPow")
         if (a <= 0)
             a = -a + 1;
 
-        fixed_t ref = 0;
-        std::string want = powExpected(powReference(a, b, &ref), ref);
+        std::string want = powExpectedOf(a, b);
         std::string got = runPow(L, a, b);
         CAPTURE(a);
         CAPTURE(b);
