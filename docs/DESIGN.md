@@ -259,7 +259,7 @@ int64 add, so moo builds `fixed` with `FIX_SATURATE` and wraps `+`, `-` and unar
 saturating versions.
 
 Checked builds raise the named error `number overflow in '<op>'` at the operation, for `+`, `-`,
-`*`, `/` and `//` (not `^`; see "pow and ^"). A build is checked when
+`*`, `/`, `//` and `^` (see "pow and ^"). A build is checked when
 assertions are on (no `NDEBUG`, or `LUAU_ENABLE_ASSERT`), or when it sets `MOO_OVERFLOW_ERRORS=ON`
 (CMake) or `overflow=on` (make). Unary `-` and `%` are exact on the domain and never saturate. An
 exact result at the edge (`MAX * 1`) is not overflow. The compiler does not fold an operation
@@ -304,7 +304,7 @@ value and `math.isnan` always returns false. `math.isinf` returns false; `math.i
 returns true.
 
 `math.fmod(a, 0)`, `math.map` with `inmax == inmin`, `math.tan` at a zero cosine,
-`math.log(x, 1)`, and `math.pow(0, n)` for an integer `n < 0` raise `division by zero`.
+`math.log(x, 1)`, and `0 ^ n` and `math.pow(0, n)` for an integer `n < 0` raise `division by zero`.
 `math.nan` is 0.
 
 ## Exact integers
@@ -372,7 +372,7 @@ How each is built, exactly:
 
 The named errors are `math.sqrt of a negative number`, `math.asin domain`, `math.acos domain`,
 `math.log of a non-positive number` (for `x <= 0` or a base `<= 0`; base 1 is `division by zero`),
-and `pow of a negative number to a fractional power` (from `math.pow`). Library functions and
+and `pow of a negative number to a fractional power` (from `math.pow` and `^`). Library functions and
 fastcalls share one helper per function, so they give the same bits; a fastcall that meets an error
 returns -1 and the library raises.
 
@@ -413,16 +413,21 @@ double inside the VM. Layer 4 either keeps it with that argument written down, o
   raw, `1 / 6` is 10922). `x ^ 2` differs from `x * x` only at a tie (`fixMul` rounds half up).
   `math.pow(0, n)` for `n < 0` is `division by zero`.
 - **Non-integer exponent:** `fixPow`, which is `fixExp2(exponent * fixLog2(base))`, called by
-  `luai_numpow`, `math.pow` and its fastcall. It returns 0 for a base <= 0, so `0 ^ positive
-  fraction` is 0; `math.pow` with a negative base is the named error. Its error is relative and
+  `moo_numpow`, for `^`, `math.pow` and its fastcall. It returns 0 for a base <= 0, so `0 ^
+  positive fraction` is 0; a negative base is the named error. Its error is relative and
   grows with the exponent: an absolute error e in `log2` becomes a relative error of about
   ln(2) · |exponent| · e in the result. The measured worst relative error is about 7.7e-05 for
   base in (0, 16] and |exponent| in (0, 16].
-- **As built, the `^` operator raises none of these errors.** `LOP_POW`, `LOP_POWK` and
-  `luaV_doarithimpl` call `luai_numpow`, which returns the release value: `0 ^ negative` is 0,
-  `negative ^ fraction` is 0, and a saturating `^` saturates in a checked build too
-  (`PowIntVmZeroToNegative`, `OverflowPowSaturatesInBothBuilds`). Only `math.pow` and its
-  fastcall raise. Whether the operator should raise as `math.pow` does is open.
+- **The `^` operator is `math.pow`.** `LOP_POW`, `LOP_POWK`, `luaV_doarithimpl`, `math.pow` and
+  its fastcall all call `moo_numpow` (`VM/src/lnumutils.h`), and `moo_numpowerror` turns its
+  status into the one error each raises, so every build gives one result and one set of errors
+  for every path: `0 ^ n` for an integer `n < 0` is `division by zero`; a negative base with a
+  fractional exponent is `pow of a negative number to a fractional power`; and a power that
+  saturates is `MOO_NUMBER_MAX` or `MOO_NUMBER_MIN` in release and `number overflow in '^'` in a
+  checked build, as for `+ - * /`. A fractional power saturates when `fixPow` returns
+  `MOO_NUMBER_MAX`, which it does only past the range. `0 ^ negative fraction` is `fixPow`'s 0
+  on every path. The compiler folds only `MOO_POW_OK` with an integer exponent and never a
+  fractional one, so a folded constant and the run time never differ (`PowOperatorMatchesMathPow`).
 
 ## Number formatting
 

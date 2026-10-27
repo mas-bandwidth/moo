@@ -6,7 +6,7 @@
 #include "lstate.h"
 #include "moo.h"
 
-#include "moo_pow.h"
+#include "lnumutils.h"
 
 #include "fixed/fixed_math.h"
 
@@ -353,27 +353,11 @@ static int math_pow(lua_State* L)
     fixed_t base = luaL_checknumber(L, 1);
     fixed_t exponent = luaL_checknumber(L, 2);
 
-    // moo: an integer exponent is moo_pow_int, exact, rounded once; this raises its errors
-    if (moo_numisinteger(exponent))
-    {
-        fixed_t out;
-        int status = moo_pow_int(base, exponent >> MOO_NUMBER_FRACTION_BITS, &out);
-
-        if (status == MOO_POW_DIVISION_BY_ZERO)
-            luaL_error(L, "division by zero");
-#if MOO_OVERFLOW_ERRORS
-        if (status == MOO_POW_SATURATED)
-            luaL_error(L, "number overflow in '^'");
-#endif
-        lua_pushnumber(L, out);
-        return 1;
-    }
-
-    // moo: a fractional exponent is fixPow = fixExp2(exponent * fixLog2(base)); a negative base is the named
-    // error, and 0 ^ positive fraction is 0
-    if (base < 0)
-        luaL_error(L, "pow of a negative number to a fractional power");
-    lua_pushnumber(L, fixPow(base, exponent));
+    // moo: moo_numpow, the ^ operator's value and error
+    fixed_t out = 0;
+    if (const char* error = moo_numpowerror(moo_numpow(base, exponent, &out)))
+        luaL_error(L, "%s", error);
+    lua_pushnumber(L, out);
     return 1;
 }
 

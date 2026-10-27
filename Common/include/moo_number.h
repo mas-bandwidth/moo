@@ -21,9 +21,8 @@
 #define MOO_NUMBER_INT_MAX (MOO_NUMBER_MAX >> MOO_NUMBER_FRACTION_BITS)
 
 // MOO_OVERFLOW_ERRORS 1: the VM raises "number overflow in '<op>'" where release saturates, and the compiler does
-// not fold that operation (docs/DESIGN.md "Overflow"). The exception is ^, which saturates silently in every build;
-// only math.pow raises. Set by CMake MOO_OVERFLOW_ERRORS or make overflow=on/off; otherwise on exactly when
-// LUAU_ASSERT is.
+// not fold that operation (docs/DESIGN.md "Overflow"); ^ and math.pow raise it too. Set by CMake MOO_OVERFLOW_ERRORS
+// or make overflow=on/off; otherwise on exactly when LUAU_ASSERT is.
 #if !defined(MOO_OVERFLOW_ERRORS)
 #if !defined(NDEBUG) || defined(LUAU_ENABLE_ASSERT)
 #define MOO_OVERFLOW_ERRORS 1
@@ -134,8 +133,8 @@ inline fixed_t moo_nummod(fixed_t a, fixed_t b)
 
 // Saturation tests for checked arithmetic: each is true exactly when the operation of the same name clamps, that
 // is when its exact result (for * the rounded one) is outside the domain. An exact result at MOO_NUMBER_MAX or
-// MOO_NUMBER_MIN is not saturation. Unary - and % never saturate. ^ has no test: the operator never raises, and
-// math.pow reads moo_pow_int's status.
+// MOO_NUMBER_MIN is not saturation. Unary - and % never saturate. ^ has no test here: moo_pow_int and moo_numpow
+// return saturation as a status.
 
 inline bool moo_numaddsaturates(fixed_t a, fixed_t b)
 {

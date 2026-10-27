@@ -18,26 +18,48 @@
 #define luai_numsub(a, b) moo_numsub(a, b)
 #define luai_nummul(a, b) moo_nummul(a, b)
 #define luai_numdiv(a, b) moo_numdiv(a, b)
-// moo: the ^ operator. An integer exponent is moo_pow_int, exact, rounded once; its status is discarded, so 0 ^
-// negative gives 0 and a saturated power gives MOO_NUMBER_MAX or MOO_NUMBER_MIN with no error, even when checked.
-// A fractional exponent is fixPow = fixExp2(exponent * fixLog2(base)), 0 for a base <= 0, negative included.
-// Only math.pow and its fastcall raise (lmathlib.cpp).
-inline fixed_t moo_numpow(fixed_t a, fixed_t b)
+#define luai_numunm(a) moo_numunm(a)
+
+// moo: pow, one definition for the ^ operator, math.pow and its fastcall (docs/DESIGN.md "pow and ^"). An integer
+// exponent is moo_pow_int, exact, rounded once. A fractional exponent is fixPow = fixExp2(exponent * fixLog2(base));
+// a negative base is an error, and fixPow's MOO_NUMBER_MAX is saturation. Returns a MOO_POW_ status, *out the
+// release value.
+inline int moo_numpow(fixed_t a, fixed_t b, fixed_t* out)
 {
     if (moo_numisinteger(b))
+        return moo_pow_int(a, b >> MOO_NUMBER_FRACTION_BITS, out);
+
+    if (a < 0)
     {
-        fixed_t r = 0;
-        (void)moo_pow_int(a, b >> MOO_NUMBER_FRACTION_BITS, &r);
-        return r;
+        *out = 0;
+        return MOO_POW_NEGATIVE_BASE;
     }
-    return fixPow(a, b);
+
+    *out = fixPow(a, b);
+    return *out == MOO_NUMBER_MAX ? MOO_POW_SATURATED : MOO_POW_OK;
 }
-#define luai_numpow(a, b) moo_numpow(a, b)
-#define luai_numunm(a) moo_numunm(a)
+
+// moo: the error a MOO_POW_ status raises in this build, or nullptr. Saturation raises only when checked.
+inline const char* moo_numpowerror(int status)
+{
+    switch (status)
+    {
+    case MOO_POW_DIVISION_BY_ZERO:
+        return "division by zero";
+    case MOO_POW_NEGATIVE_BASE:
+        return "pow of a negative number to a fractional power";
+#if MOO_OVERFLOW_ERRORS
+    case MOO_POW_SATURATED:
+        return "number overflow in '^'";
+#endif
+    default:
+        return nullptr;
+    }
+}
 
 // moo: with MOO_OVERFLOW_ERRORS an operation that would saturate leaves the fast path (luai_numnosat is false)
 // and luaV_doarithimpl raises "number overflow in '<op>'". In release luai_numnosat is true and evaluates
-// nothing. ^ is never checked: it saturates silently (moo_numpow above).
+// nothing. ^ leaves the fast path on any moo_numpowerror.
 #if MOO_OVERFLOW_ERRORS
 #define luai_numaddsat(a, b) moo_numaddsaturates(a, b)
 #define luai_numsubsat(a, b) moo_numsubsaturates(a, b)

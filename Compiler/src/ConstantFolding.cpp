@@ -99,8 +99,9 @@ static void mooFold(Constant& result, AstExprBinary::Op op, const Constant& la, 
         break;
     case AstExprBinary::Pow:
     {
-        // moo: ^ with an integer exponent folds through moo_pow_int, the run time's bits. A fractional exponent, 0 ^
-        // negative and a saturated power are left to run time, which computes the same value and raises nothing.
+        // moo: ^ with an integer exponent folds through moo_pow_int, the run time's bits, and only MOO_POW_OK folds.
+        // 0 ^ negative, a saturated power and a fractional exponent are left to run time, which gives the same value
+        // or raises the same error as math.pow, so a folded constant never differs from the run time's result.
         if (!moo_numisinteger(b))
             break;
         fixed_t r = 0;

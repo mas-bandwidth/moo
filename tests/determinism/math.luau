@@ -41,20 +41,30 @@ for _, x in ipairs(values) do
     emit("ldexp", function(v) return math.ldexp(v, 3) end, x)
 end
 
+-- a ^ b as text, or its error. A power above 2^46 saturates in release and raises in a checked build, which
+-- would give the two builds different hashes, so it is logged as "large" and not computed.
+local function pow(a, b)
+    if a ~= 0 and math.log(math.abs(a), 2) * b > 46 then
+        return "large"
+    end
+    local ok, v = pcall(function() return a ^ b end)
+    return ok and tostring(v) or v
+end
+
 for __, a in ipairs(values) do
     for ___, b in ipairs(values) do
         if b ~= 0 then
             log("atan2", tostring(math.atan2(a, b)))
-            log("pow", tostring(a ^ b))
+            log("pow", pow(a, b))
         end
     end
 end
 
 -- exact integer-valued exponentiation and the saturated edges
 for _, e in ipairs{-5, -2, -1, 0, 1, 2, 3, 5, 17, 63} do
-    local ok, v = pcall(function() return 2 ^ e end)
-    log("pow2", tostring(e), ok and tostring(v) or v)
+    log("pow2", tostring(e), pow(2, e))
 end
+log("pow0", pow(0, -1), pow(-4, 0.5))
 log("huge", tostring(math.huge), tostring(-math.huge))
 log("pi", tostring(math.pi), tostring(math.e), tostring(math.tau), tostring(math.phi), tostring(math.sqrt2))
 
