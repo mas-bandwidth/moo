@@ -207,6 +207,9 @@ int countDivergent(HeapDisturber& heap, const std::string& source, int o, int g,
 }
 
 // A seeded generator of syntactically valid programs. They are compiled, never run, so they need not type check.
+// Every random draw is its own statement: C++ leaves the order of the operands of + and of a call's arguments
+// unspecified, so "expr() + expr()" draws in a different order under gcc, clang and MSVC, and the programs, not the
+// compiler, would differ by platform.
 struct ProgramGen
 {
     std::mt19937_64 rng;
@@ -232,11 +235,17 @@ struct ProgramGen
         case 0:
             return std::to_string(pick(20));
         case 1:
-            return std::to_string(pick(100000)) + "." + std::to_string(pick(1000));
+        {
+            std::string whole = std::to_string(pick(100000));
+            return whole + "." + std::to_string(pick(1000));
+        }
         case 2:
             return "0x" + std::to_string(pick(9000) + 1000);
         case 3:
-            return std::to_string(pick(10)) + "e" + std::to_string(pick(5));
+        {
+            std::string mantissa = std::to_string(pick(10));
+            return mantissa + "e" + std::to_string(pick(5));
+        }
         default:
             return std::to_string(pick(16) + 1);
         }
@@ -251,7 +260,11 @@ struct ProgramGen
     std::string expr()
     {
         if (depth > 4)
-            return pick(2) ? number() : var();
+        {
+            if (pick(2))
+                return number();
+            return var();
+        }
         ++depth;
         std::string e;
         static const char* const binops[] = {"+", "-", "*", "/", "//", "%", "^", "..", "<", "<=", "==", "~=", "and", "or"};
@@ -265,18 +278,35 @@ struct ProgramGen
             e = var();
             break;
         case 3:
-            e = "(" + expr() + " " + binops[pick(int(sizeof(binops) / sizeof(binops[0])))] + " " + expr() + ")";
+        {
+            std::string l = expr();
+            const char* op = binops[pick(int(sizeof(binops) / sizeof(binops[0])))];
+            std::string r = expr();
+            e = "(" + l + " " + op + " " + r + ")";
             break;
+        }
         case 4:
             e = "\"s" + std::to_string(pick(50)) + "\"";
             break;
         case 5:
-            e = "{ " + expr() + ", " + expr() + ", k" + std::to_string(pick(6)) + " = " + expr() + ", k" + std::to_string(pick(6)) +
-                " = " + expr() + " }";
+        {
+            std::string a = expr();
+            std::string b = expr();
+            std::string k1 = std::to_string(pick(6));
+            std::string v1 = expr();
+            std::string k2 = std::to_string(pick(6));
+            std::string v2 = expr();
+            e = "{ " + a + ", " + b + ", k" + k1 + " = " + v1 + ", k" + k2 + " = " + v2 + " }";
             break;
+        }
         case 6:
-            e = var() + "." + var() + "(" + expr() + ")";
+        {
+            std::string object = var();
+            std::string method = var();
+            std::string arg = expr();
+            e = object + "." + method + "(" + arg + ")";
             break;
+        }
         case 7:
             e = "`v{(" + expr() + ")}w`"; // parenthesized: "{{" is not allowed in an interpolated string
             break;
@@ -284,8 +314,13 @@ struct ProgramGen
             e = "function(p, q) return " + expr() + " end";
             break;
         case 9:
-            e = "if " + expr() + " then " + expr() + " else " + expr();
+        {
+            std::string c = expr();
+            std::string t = expr();
+            std::string f = expr();
+            e = "if " + c + " then " + t + " else " + f;
             break;
+        }
         case 10:
             e = "-" + number();
             break;
@@ -307,7 +342,8 @@ struct ProgramGen
     {
         if (depth > 3)
         {
-            out += var() + " = " + expr() + "\n";
+            std::string target = var();
+            out += target + " = " + expr() + "\n";
             return;
         }
         ++depth;
@@ -317,8 +353,11 @@ struct ProgramGen
             out += "local l" + std::to_string(names++) + " = " + expr() + "\n";
             break;
         case 1:
-            out += var() + " = " + expr() + "\n";
+        {
+            std::string target = var();
+            out += target + " = " + expr() + "\n";
             break;
+        }
         case 2:
             out += "if " + expr() + " then\n";
             block(1 + pick(3));
@@ -327,12 +366,15 @@ struct ProgramGen
             out += "end\n";
             break;
         case 3:
-            out += "for i = " + std::to_string(pick(3)) + ", " + number() + " do\n";
+        {
+            std::string from = std::to_string(pick(3));
+            out += "for i = " + from + ", " + number() + " do\n";
             ++loops;
             block(1 + pick(3));
             --loops;
             out += "end\n";
             break;
+        }
         case 4:
             out += "while " + expr() + " do\n";
             ++loops;
@@ -352,19 +394,33 @@ struct ProgramGen
             break;
         }
         case 6:
-            out += "t[" + expr() + "] = " + expr() + "\n";
+        {
+            std::string key = expr();
+            out += "t[" + key + "] = " + expr() + "\n";
             break;
+        }
         case 7:
-            out += var() + "(" + expr() + ", " + expr() + ")\n";
+        {
+            std::string callee = var();
+            std::string a = expr();
+            std::string b = expr();
+            out += callee + "(" + a + ", " + b + ")\n";
             break;
+        }
         case 8:
-            out += "do\nlocal u = " + expr() + "\n" + var() + " = function() return u end\nend\n";
+        {
+            std::string value = expr();
+            out += "do\nlocal u = " + value + "\n" + var() + " = function() return u end\nend\n";
             break;
+        }
         default:
             if (loops > 0)
                 out += "if " + expr() + " then break end\n";
             else
-                out += var() + " ..= " + expr() + "\n";
+            {
+                std::string target = var();
+                out += target + " ..= " + expr() + "\n";
+            }
             break;
         }
         --depth;
@@ -506,7 +562,11 @@ TEST_CASE("CompilerGeneratedProgramsIgnoreAddresses")
             if (countDivergent(heap, source, og, og, 4) != 0 && divergent++ < 10)
                 MESSAGE("generated program " << i << " -O" << og << " -g" << og << " differs between allocation states:\n" << source);
             if (hashes.is_open())
+            {
+                if (og == 0) // the program itself, so a platform difference in the generator shows as such
+                    hashes << "generated/" << i << " source " << pinOf(source) << "\n";
                 hashes << "generated/" << i << " O" << og << " g" << og << " " << pinOf(first) << "\n";
+            }
         }
     }
     CHECK_EQ(divergent, 0);
