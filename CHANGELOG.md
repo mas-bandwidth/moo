@@ -2,8 +2,10 @@
 
 ## v1.2.0
 
-The compiler is deterministic: the same source compiles to the same bytecode on every machine and
-every run, within one build mode, and every CI job and every nightly checks it. Modules that
+**This is the stable release: use v1.2.0, not v1.0.x.** The compiler is deterministic: the same
+source compiles to the same bytecode on every machine and every run, within one build mode, and
+every CI job and every nightly checks it. v1.0.x could compile a module that exports more than one
+function or class differently from run to run. Modules that
 export more than one function or class compile to different bytecode than in v1.0.x, once; it is
 stable from here. `moo --version` prints `moo 1.2.0 (Luau 0.741)`. Pull requests #54 to #56.
 
