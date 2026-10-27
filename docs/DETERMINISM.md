@@ -48,6 +48,7 @@ test in `tests/Moo.test.cpp`. This table is the state of `main`:
 | 8 | number formatting and parsing through libc | **fixed**: one exact formatter (`moo_format.h`) and one exact parser (`moo_parse.h`), no `printf`, `strtod` or locale |
 | 9 | `os` and time | **fixed**: the `os` library is deleted (`VM/src/loslib.cpp`) |
 | 10 | `math.random` seeding | **fixed**: constant default seed, `moo_setrandomseed` in `VM/include/moo.h` |
+| 25 | the export table's order follows addresses | **fixed**: exported functions and classes are emitted in source order; every CI job checks the compiler's output against `tests/determinism/bytecode.txt` in shifting allocation states and in separate processes |
 | 14 | FMA in native codegen | **fixed**: native code generation is excluded from the build (`MOO_CODEGEN` off, DESIGN.md "Native codegen"); `moo --codegen*` and `--jit-inliner` are refused |
 
 The creation number costs 8 bytes in every object (16 in a userdata, whose data stays 16-byte
@@ -488,3 +489,39 @@ arithmetic or saturate wrongly.
 **Fix:** built in layer 3 (`Bytecode/include/Luau/Sccp.h` `evaluateNumberBinaryOp`): Sccp folds on the raw Q48.16 value
 with the same `moo_number.h` operations the compiler and VM use; division and `%` by zero and
 `^` are never folded.
+
+### 25. The export table's order follows addresses
+
+`Compiler/src/Compiler.cpp` `compileExportTable` emitted one `SETTABLEKS` per exported function by iterating
+`exports.exportedFunctions`, a `DenseHashSet<AstLocal*>`, and one per exported class by iterating
+`exports.exportedClasses`, a `DenseHashMap<AstLocal*, uint8_t>`. Both hash the `AstLocal` address, so the order of
+the stores, and the order their name constants enter the constant table, followed where the parser's allocator put
+the nodes. With ASLR, `moo-compile` gave two different bytecodes for one module with two exported functions in 13 of
+200 runs; with ASLR off, one. Found by comparing compiles of `tests/require` against themselves. Upstream Luau 0.744
+iterates the same containers.
+
+**Fix:** the stores follow source order: the functions in `exports.exportedVariables` order (filtered by
+`exportedFunctions`), the classes in `exports.exportedClassOrder`, filled at each declaration.
+
+**Checks.** The corpus is every script in `tests/conformance`, `tests/conformance/moo`, `tests/conformance/moo/spec`,
+`tests/determinism` and `tests/determinism/compile` (which adds a module of many exports and one of table shapes),
+at `-O0..2` x `-g0..2`, with `moo-compile`'s flags.
+
+- `tests/moo/compile_determinism.test.cpp` compiles each one ten times in one process with random-sized blocks
+  allocated and freed between compiles, and the same for generated programs and an export of classes; every
+  output must be byte-identical. It is red on the old loop with ASLR off as well as on.
+- `tests/determinism/bytecode.txt` pins each compile's FNV-1a 64; Moo.Test reproduces every pin in every CI job, so a
+  difference between platforms or compilers fails. A checked build reproduces `bytecode-checked.txt`: its compiler
+  leaves a saturating fold to the VM, so six compiles of `conformance/moo/spec/number.luau` differ by design. An intended compiler change re-pins in its own pull request
+  (`MOO_BYTECODE_PINS_WRITE=tests/determinism/bytecode.txt Moo.Test -ts=compile_determinism`).
+- `tools/moo-check-compile.py` runs `moo-compile` in separate processes, from different directories, locales and
+  path spellings, against the same pins, in every CI job.
+- The nightly compiles 4000 generated programs per platform, requires every platform's hashes to be equal, runs the
+  compiler under Valgrind memcheck (MemorySanitizer needs an instrumented C++ library the runners lack), and repeats
+  the checks under `MALLOC_PERTURB_` on glibc and `MallocScribble` on macOS.
+
+**Audit.** Every other iteration over an address-keyed container in `Compiler/`, `Bytecode/` and `Ast/` either
+writes back into a map keyed the same way, so its order cannot reach the output (`Compiler.cpp` `inlineBuiltins`,
+`inlineBuiltinsBackup`; `ConstantFolding.cpp` `buildTableConstantMap`), indexes by a stored position
+(`BytecodeBuilder.cpp` `stringTable`), or is in the bytecode-graph passes, which only the JIT inliner runs and moo
+does not build. `Compiler.cpp`'s template-table keys use an `InsertionOrderedMap`.

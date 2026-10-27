@@ -1,10 +1,13 @@
 # moo per-commit gate.
 #
 # The one-minute rule: the required job, push-gate, builds only Moo.Test (moo's own tests and the
-# determinism suite, on the VM and the compiler alone) and the VM library, with sccache on the
+# determinism suite, on the VM and the compiler alone), the VM library and moo-compile, with sccache on the
 # GitHub Actions cache, so a commit that changes a VM header rebuilds the VM and nothing else.
 # Luau's unmodified suites (Conformance, UnitTest, CLI) run in the full job on pull requests, in
 # parallel and not required, and every night on Linux gcc and clang and macOS arm64 (nightly.yml).
+# Every job checks that the compiler is deterministic (docs/DETERMINISM.md, 25): Moo.Test compiles the corpus in
+# shifting allocation states and against tests/determinism/bytecode.txt, and tools/moo-check-compile.py runs moo-compile
+# in separate processes, directories and locales against the same pins.
 # Pull requests also run Moo.Test and Conformance in a checked build (MOO_OVERFLOW_ERRORS=ON), with
 # gcc and warnings as errors, on macOS and on Windows (MSVC), each with sccache like the jobs above.
 name: ci
@@ -63,10 +66,13 @@ jobs:
           -DCMAKE_C_COMPILER_LAUNCHER=${{ steps.cache.outputs.launcher }} -DCMAKE_CXX_COMPILER_LAUNCHER=${{ steps.cache.outputs.launcher }}
 
       - name: build
-        run: cmake --build build --target Moo.Test Luau.VM
+        run: cmake --build build --target Moo.Test Luau.VM Luau.Compile.CLI
 
       - name: moo tests and the determinism suite
         run: build/Moo.Test
+
+      - name: the compiler across processes, directories and locales
+        run: python3 tools/moo-check-compile.py build/moo-compile
 
       - name: the VM reads no clock
         run: tools/moo-check-no-clock.sh build/libLuau.VM.a
@@ -100,6 +106,9 @@ jobs:
 
       - name: build
         run: cmake --build build --target Luau.Conformance Luau.UnitTest Luau.CLI.Test Luau.Repl.CLI Luau.Analyze.CLI Luau.Compile.CLI
+
+      - name: the compiler across processes, directories and locales
+        run: python3 tools/moo-check-compile.py build/moo-compile
 
       - name: conformance
         run: build/Luau.Conformance
@@ -149,10 +158,13 @@ jobs:
           -DCMAKE_C_COMPILER_LAUNCHER=${{ steps.cache.outputs.launcher }} -DCMAKE_CXX_COMPILER_LAUNCHER=${{ steps.cache.outputs.launcher }}
 
       - name: build
-        run: cmake --build build --target Moo.Test Luau.Conformance
+        run: cmake --build build --target Moo.Test Luau.Conformance Luau.Compile.CLI
 
       - name: moo tests and the determinism suite
         run: build/Moo.Test
+
+      - name: the compiler across processes, directories and locales
+        run: python3 tools/moo-check-compile.py build/moo-compile --pins tests/determinism/bytecode-checked.txt
 
       - name: conformance
         run: build/Luau.Conformance
@@ -181,10 +193,13 @@ jobs:
           -DCMAKE_C_COMPILER_LAUNCHER=${{ steps.cache.outputs.launcher }} -DCMAKE_CXX_COMPILER_LAUNCHER=${{ steps.cache.outputs.launcher }}
 
       - name: build
-        run: cmake --build build --target Moo.Test Luau.Conformance
+        run: cmake --build build --target Moo.Test Luau.Conformance Luau.Compile.CLI
 
       - name: moo tests and the determinism suite
         run: build/Moo.Test
+
+      - name: the compiler across processes, directories and locales
+        run: python3 tools/moo-check-compile.py build/moo-compile
 
       - name: conformance
         run: build/Luau.Conformance
@@ -213,10 +228,13 @@ jobs:
           -DCMAKE_C_COMPILER_LAUNCHER=${{ steps.cache.outputs.launcher }} -DCMAKE_CXX_COMPILER_LAUNCHER=${{ steps.cache.outputs.launcher }}
 
       - name: build
-        run: cmake --build build --target Moo.Test Luau.Conformance
+        run: cmake --build build --target Moo.Test Luau.Conformance Luau.Compile.CLI
 
       - name: moo tests and the determinism suite
         run: build/Moo.Test
+
+      - name: the compiler across processes, directories and locales
+        run: python3 tools/moo-check-compile.py build/moo-compile
 
       - name: conformance
         run: build/Luau.Conformance
@@ -255,10 +273,13 @@ jobs:
           -DCMAKE_POLICY_DEFAULT_CMP0141=NEW -DCMAKE_MSVC_DEBUG_INFORMATION_FORMAT=Embedded
 
       - name: build
-        run: cmake --build build --target Moo.Test Luau.Conformance
+        run: cmake --build build --target Moo.Test Luau.Conformance Luau.Compile.CLI
 
       - name: moo tests and the determinism suite
         run: build/Moo.Test.exe
+
+      - name: the compiler across processes, directories and locales
+        run: python tools/moo-check-compile.py build/moo-compile.exe
 
       - name: conformance
         run: build/Luau.Conformance.exe

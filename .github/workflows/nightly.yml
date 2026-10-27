@@ -59,6 +59,33 @@ jobs:
       - name: moo tests and the determinism suite
         run: build/Moo.Test
 
+      # the compiler is deterministic (docs/DETERMINISM.md, 25): 4000 generated programs, each in several allocation
+      # states, and this platform's hashes of them and of the corpus for the compile-hashes job
+      - name: compiler hashes and generated programs
+        run: |
+          mkdir -p compile-hashes
+          MOO_COMPILE_FUZZ_N=4000 MOO_COMPILE_FUZZ_HASHES=compile-hashes/generated.txt \
+            MOO_BYTECODE_PINS_WRITE=compile-hashes/pins.txt build/Moo.Test -ts=compile_determinism
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: compile-hashes-${{ matrix.name }}
+          path: compile-hashes/
+
+      - name: the compiler across processes, with glibc's freed and new memory filled (MALLOC_PERTURB_)
+        if: runner.os == 'Linux'
+        run: |
+          for p in 1 85 170 255; do
+            MALLOC_PERTURB_=$p build/Moo.Test -ts=compile_determinism
+            MALLOC_PERTURB_=$p python3 tools/moo-check-compile.py build/moo-compile
+          done
+
+      - name: the compiler across processes, with macOS's malloc scribbling (MallocScribble, MallocPreScribble)
+        if: runner.os == 'macOS'
+        run: |
+          MallocScribble=1 MallocPreScribble=1 MallocGuardEdges=1 build/Moo.Test -ts=compile_determinism
+          MallocScribble=1 MallocPreScribble=1 MallocGuardEdges=1 python3 tools/moo-check-compile.py build/moo-compile
+
       - name: conformance
         run: |
           build/Luau.Conformance
@@ -108,16 +135,88 @@ jobs:
         run: cmake -S . -B build -A x64 ${{ matrix.toolset }} -DLUAU_WERROR=OFF
 
       - name: build
-        run: cmake --build build --config RelWithDebInfo --parallel 4 --target Moo.Test Luau.Conformance Luau.UnitTest
+        run: cmake --build build --config RelWithDebInfo --parallel 4 --target Moo.Test Luau.Conformance Luau.UnitTest Luau.Compile.CLI
 
       - name: moo tests and the determinism suite
         run: build/RelWithDebInfo/Moo.Test.exe
+
+      - name: compiler hashes and generated programs
+        shell: bash
+        run: |
+          mkdir -p compile-hashes
+          MOO_COMPILE_FUZZ_N=4000 MOO_COMPILE_FUZZ_HASHES=compile-hashes/generated.txt \
+            MOO_BYTECODE_PINS_WRITE=compile-hashes/pins.txt build/RelWithDebInfo/Moo.Test.exe -ts=compile_determinism
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: compile-hashes-${{ matrix.name }}
+          path: compile-hashes/
+
+      - name: the compiler across processes, directories and locales
+        run: python tools/moo-check-compile.py build/RelWithDebInfo/moo-compile.exe
 
       - name: conformance
         run: build/RelWithDebInfo/Luau.Conformance.exe
 
       - name: unit tests
         run: build/RelWithDebInfo/Luau.UnitTest.exe
+
+  # every platform's compiler gives the same bytecode for the corpus and the generated programs (docs/DETERMINISM.md, 25)
+  compile-hashes:
+    name: compile-hashes
+    needs: [test, windows]
+    if: ${{ !cancelled() && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: compile-hashes-*
+          path: hashes
+
+      - name: every platform's hashes are equal
+        run: |
+          ls hashes
+          test "$(ls hashes | wc -l)" -eq 5
+          status=0
+          for f in pins.txt generated.txt; do
+            first=$(ls hashes | head -n 1)
+            for d in hashes/*; do
+              if ! cmp -s "hashes/$first/$f" "$d/$f"; then
+                echo "$f differs between $first and $(basename "$d"):"
+                diff "hashes/$first/$f" "$d/$f" | head -n 20
+                status=1
+              fi
+            done
+          done
+          exit $status
+
+  # the compiler under Valgrind memcheck over the corpus: MemorySanitizer needs an instrumented C++ standard library,
+  # which the runners do not have, so memcheck stands in for it (docs/DETERMINISM.md, 25)
+  compile-memcheck:
+    name: compile-memcheck
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: install valgrind
+        run: sudo apt-get update && sudo apt-get install -y valgrind
+
+      - name: configure
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo -DLUAU_WERROR=ON -DCMAKE_C_COMPILER=gcc -DCMAKE_CXX_COMPILER=g++
+
+      - name: build
+        run: cmake --build build -j4 --target Moo.Test Luau.Compile.CLI
+
+      - name: moo-compile under memcheck, every pin
+        run: >
+          python3 tools/moo-check-compile.py build/moo-compile --variants 1
+          --wrap "valgrind --error-exitcode=99 --quiet --track-origins=yes --undef-value-errors=yes"
+
+      - name: the in-process compiler tests under memcheck
+        run: valgrind --error-exitcode=99 --quiet --track-origins=yes build/Moo.Test -ts=compile_determinism
 
   tla:
     name: tla

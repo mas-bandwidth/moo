@@ -4,6 +4,10 @@
 
 ### Fixed
 
+- The compiler is deterministic again for modules that export functions or classes: the export
+  table's stores followed the addresses of the AST nodes (a pointer-keyed hash set), so one
+  module could compile to different bytecode from run to run. They follow source order
+  (docs/DETERMINISM.md, 25). Upstream Luau 0.744 has the same loop.
 - The compiler's loop unroller computes the trip count and each unrolled index with `moo_number.h` on
   the raw Q48.16 value; no double reaches a moo number in the compiler or the bytecode passes. The
   unrolled code is unchanged: the bounds it admits are integers within 32767, where the double path
@@ -13,6 +17,12 @@
 
 ### CI
 
+- Every CI job checks that the compiler is deterministic: Moo.Test compiles each conformance,
+  spec and determinism script at `-O0..2` x `-g0..2` ten times with the heap disturbed between
+  compiles, and reproduces the pins in `tests/determinism/bytecode.txt`;
+  `tools/moo-check-compile.py` runs `moo-compile` against the same pins in separate processes,
+  directories and locales. The nightly adds 4000 generated programs per platform, a cross-platform
+  hash comparison, Valgrind memcheck, `MALLOC_PERTURB_` and `MallocScribble`.
 - Each static library is on a macOS link line once (CMake policy CMP0156; the test targets link
   `Luau.Bytecode` through `Luau.Compiler`), and the macOS job fails on any linker warning
   (`-Wl,-fatal_warnings`).

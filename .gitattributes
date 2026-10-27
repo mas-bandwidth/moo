@@ -1,0 +1,3 @@
+# moo: the compiler-determinism pins hash these sources byte for byte, so every checkout has LF line endings
+*.luau text eol=lf
+tests/determinism/bytecode*.txt text eol=lf

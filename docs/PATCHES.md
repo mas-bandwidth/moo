@@ -56,7 +56,7 @@ edits them, except where a row above records the seam.
 |---|---|
 | `Compiler/src/BuiltinFolding.cpp` | no builtin folds until the math library is rebuilt on fixed; `math.pi` and `math.huge` come from the VM at run time, and vector folding is removed (DESIGN.md "math library", "vec3, quat and transform"). |
 | `Compiler/src/Builtins.cpp` | `math.noise` compiles to the fixed shared-path fastcall and all `vector` builtins map to none (DESIGN.md "math library", "vec3, quat and transform"). |
-| `Compiler/src/Compiler.cpp` | number constants come from the AST's raw Q48.16 value, an unrolled loop's index is computed with `moo_number.h`, and no expression emits a vector constant (DESIGN.md "Literals", "Layer 3 as built", "vec3, quat and transform"). |
+| `Compiler/src/Compiler.cpp` | number constants come from the AST's raw Q48.16 value, an unrolled loop's index is computed with `moo_number.h`, the export table is emitted in source order, not address order (DETERMINISM.md, 25), and no expression emits a vector constant (DESIGN.md "Literals", "Layer 3 as built", "vec3, quat and transform"). |
 | `Compiler/src/ConstantFolding.cpp` | folding uses `moo_number.h`, refuses to fold a saturating result in a checked build, and folds integer `^` through `moo_pow_int` (DESIGN.md "Overflow", "math library", "Literals"); an arithmetic or ordering operator on a non-number constant is left to the VM (DESIGN.md "Layer 3 as built"). |
 | `Compiler/src/ConstantFolding.h` | a folded number constant is `fixed_t` and there is no vector constant type (DESIGN.md "Layer 3 as built", "The compiler", "vec3, quat and transform"). |
 | `Compiler/src/CostModel.cpp` | the loop trip count reads the raw Q48.16 bounds with `moo_number.h`, with no double, and admits the same integer bounds as upstream (DESIGN.md "Literals", "Layer 3 as built"). |
@@ -189,8 +189,9 @@ own code, tests, notes or vendored `fixed` sources.
 - `fuzz/` (`moo_arith.cpp`)
 - `tests/` (`Moo.test.cpp`, `MooCompiler.test.cpp`, `MooAnalyzer.test.cpp`, `MooNumber.test.cpp`, `Determinism.test.cpp`, `MooHost.h`, `MooWide.h`, `moo_main.cpp`)
 - `tests/conformance/moo/` (the expected-behaviour scripts, including `spec/`, one per subject)
-- `tests/determinism/` (the determinism programs and `expected.txt`)
+- `tests/determinism/` (the determinism programs and `expected.txt`; `compile/`, the compiler-determinism scripts, and `bytecode.txt` and `bytecode-checked.txt`, their pins)
 - `tests/moo/` (one test file per subject, the oracle C file and `vectors/`)
 - `tla/` (`NumericFor.tla`, `DestructorQueue.tla` and their models)
-- `tools/` (`moo-check-patches.sh`, `moo-check-no-clock.sh`, `moo-check-skips.sh`, `moo-ci-sccache.sh`, `moo-tlc.sh`, `moo-math-oracle/`, `revendor-fixed.sh`)
+- `tools/` (`moo-check-compile.py`, `moo-check-patches.sh`, `moo-check-no-clock.sh`, `moo-check-skips.sh`, `moo-ci-sccache.sh`, `moo-tlc.sh`, `moo-math-oracle/`, `revendor-fixed.sh`)
 - `LICENSE-moo.txt`
+- `.gitattributes` (LF line endings for `.luau` sources and the bytecode pins)
