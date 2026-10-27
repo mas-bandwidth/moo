@@ -296,8 +296,16 @@ assert(math.max(ma, mc, mb) == 2)
 assert(math.max(ma, mb, mc) == 2)
 assert(math.max(ma, mb, mc, md) == 2)
 
--- moo: math.huge * 2 saturates in release and raises in a checked build: local inf = math.huge * 2
-local inf = math.huge
+-- moo: math.huge * 2 saturates to math.huge in release and raises in a checked build (docs/DESIGN.md "Overflow")
+local inf
+if moocheckedbuild then
+  local ok, err = pcall(function() return math.huge * 2 end)
+  assert(not ok and string.find(err, "number overflow in '*'", 1, true))
+  inf = math.huge
+else
+  inf = math.huge * 2
+  assert(inf == math.huge)
+end
 -- moo: no NaN: local nan = 0 / 0
 
 -- moo: no NaN: assert(math.min(nan, 2) ~= math.min(nan, 2))

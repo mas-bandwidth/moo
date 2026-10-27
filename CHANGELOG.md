@@ -1,5 +1,21 @@
 # moo changelog
 
+## Unreleased
+
+### Fixed
+
+- Four upstream conformance scripts assert the overflow edge again instead of avoiding it: the
+  `10^33` table key (`attrib.luau`), `math.huge * 2` (`math.luau`), the `math.pow(2, i)` loop to
+  50 (`tables.luau`) and the depth-2000 sums (`pcall.luau`). Release asserts the saturated
+  `math.huge`; a checked build asserts the named `number overflow in '<op>'`. The conformance
+  runner gives every script the test-only global `moocheckedbuild`; there is no new API.
+
+### CI
+
+- Pull requests run Moo.Test and Luau.Conformance on macOS (`macos-latest`, clang,
+  `-DLUAU_WERROR=ON`) and Windows (`windows-latest`, MSVC), built with sccache like the Linux
+  jobs. The nightly is unchanged.
+
 ## v1.0.1 — 2026-10-27
 
 Cut from f34ee8a0093a40292379a00af0f4347056909b06. 8 pull requests since v1.0.0.

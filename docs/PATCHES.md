@@ -131,7 +131,7 @@ edits them, except where a row above records the seam.
 | `tests/BytecodeCallInliner.test.cpp` | the test skips the 3-byte moo header, and `10 / 0` stays an unfolded `DIV` where upstream folded it to infinity (DESIGN.md "Literals", "Division by zero"). |
 | `tests/BytecodeCompiler.test.cpp` | the test skips the 3-byte moo header and reads raw number constants (DESIGN.md "Literals"). |
 | `tests/Compiler.test.cpp` | constant expectations are Q48.16 values and the vector-folding case is skipped (DESIGN.md "Literals", "vec3, quat and transform"). |
-| `tests/Conformance.test.cpp` | the vector C API and vector-freeze tests are removed and host floats enter through `MooHost.h` (DESIGN.md "Boundary", "vec3, quat and transform"). |
+| `tests/Conformance.test.cpp` | the vector C API and vector-freeze tests are removed and host floats enter through `MooHost.h` (DESIGN.md "Boundary", "vec3, quat and transform"); every script sees the test-only global `moocheckedbuild`, true when `MOO_OVERFLOW_ERRORS` is on (DESIGN.md "Overflow"). |
 | `tests/DirectFieldAccess.test.cpp` | the host pushes numbers through `MooHost.h`'s boundary helper (DESIGN.md "Boundary"). |
 | `tests/Frontend.test.cpp` | the case that lints literals beyond 2^64 is skipped because those are a parse error in moo (DESIGN.md "Literals"); an upstream `#if 0` case says, with `moo:`, that upstream disables it (DESIGN.md "Tests"). |
 | `tests/Linter.test.cpp` | the precision-lint cases on literals beyond 2^53 are skipped because those literals are out of range in moo (DESIGN.md "Literals"). |
@@ -152,9 +152,9 @@ edits them, except where a row above records the seam.
 | `tests/TypeInfer.test.cpp` | an upstream `#if 0` case says, with `moo:`, that upstream disables it, so tools/moo-check-skips.sh accounts for it (DESIGN.md "Tests"). |
 | `tests/TypeInfer.typestates.test.cpp` | two upstream `#if 0` cases say, with `moo:`, that upstream disables them, so tools/moo-check-skips.sh accounts for them (DESIGN.md "Tests"). |
 | `tests/conformance/datetime.luau` | deleted: the case tested `os.date` and `os.time`, which are removed; the moo datetime script replaces it (DETERMINISM.md, 9). |
-| `tests/conformance/pcall.luau` | the deep-recursion sums are taken modulo 1000: at depth 2000 they pass the range, which saturates in release and raises in a checked build (DESIGN.md "Overflow"). |
+| `tests/conformance/pcall.luau` | at depth 2000 the deep-recursion sums pass the range: release asserts the saturated `math.huge`, a checked build asserts `number overflow in '+'` (read from the harness's `moocheckedbuild`), and `assert(result)` becomes `error(s, 0)` so the inner error reaches the caller unprefixed (DESIGN.md "Overflow"). |
 | `tests/conformance/sort.luau` | the timing print uses `os.clock`, so the script no longer measures time (DETERMINISM.md, 9). |
-| `tests/conformance/types.luau` | the analyzer and VM no longer define `os` and `vector`, so those globals are ignored rather than required (DESIGN.md "Analyzer", "vec3, quat and transform"); `vec3`, `quat` and `transform` are now checked against the analyzer, and only `quat.slerp`, which the VM refuses by name, is ignored (DESIGN.md "Layer 3b as built"). |
+| `tests/conformance/types.luau` | the analyzer and VM no longer define `os` and `vector`, so those globals are ignored rather than required (DESIGN.md "Analyzer", "vec3, quat and transform"); `vec3`, `quat` and `transform` are now checked against the analyzer, and only `quat.slerp`, which the VM refuses by name, is ignored (DESIGN.md "Layer 3b as built"); the conformance runner's test-only `moocheckedbuild` is ignored like `limitedstack` (DESIGN.md "Overflow"). |
 | `tests/require/without_config/types/vector.luau` | the fixture returns a plain table because the vector library is out (DESIGN.md "vec3, quat and transform"). |
 
 ### workflows
