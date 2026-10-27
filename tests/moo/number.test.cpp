@@ -212,16 +212,11 @@ TEST_CASE("OverflowFloorDiv")
         "9223372036854710272"});
 }
 
-// The ^ operator raises no named overflow error in either build: 2 ^ 47 saturates (docs/DESIGN.md "pow and ^")
-TEST_CASE("OverflowPowSaturatesInBothBuilds")
+// '^': 2 ^ 47 saturates; 2 ^ 46 is exact (docs/DESIGN.md "pow and ^")
+TEST_CASE("OverflowPow")
 {
-    for (int level = 0; level <= 2; ++level)
-    {
-        CAPTURE(level);
-        CHECK(runAt(runtime("^", "131072", "3080192"), level) == kMax);
-        CHECK(runAt("return moo_test.raw(2 ^ 47)", level) == kMax);
-        CHECK(runAt(runtime("^", "131072", "3014656"), level) == "4611686018427387904");
-    }
+    checkEdge({"^", runtime("^", "131072", "3080192"), "return moo_test.raw(2 ^ 47)", kMax, runtime("^", "131072", "3014656"),
+        "4611686018427387904"});
 }
 
 // unary - and % are exact on the symmetric domain: no edge raises in either build

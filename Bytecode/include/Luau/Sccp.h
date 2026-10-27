@@ -48,7 +48,7 @@ bool bcCompare(T a, T b, BcCondition cond)
 // moo: number folding uses moo_number.h exactly as Compiler/src/ConstantFolding.cpp's mooFold does, so a folded
 // constant and the same computation at run time are the same bits (docs/DESIGN.md "Layer 3 as built"). The operands
 // are raw Q48.16 values. Division, floor division and remainder by zero are never folded: the VM raises "division
-// by zero" at run time. ^ is never folded: it is still on the libm bridge (docs/DESIGN.md "pow and ^").
+// by zero" at run time. ^ is not folded here; the compiler folds it (docs/DESIGN.md "pow and ^").
 inline std::optional<fixed_t> evaluateNumberBinaryOp(fixed_t a, fixed_t b, LuauOpcode op)
 {
     switch (op)

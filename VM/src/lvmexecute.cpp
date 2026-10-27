@@ -1989,9 +1989,11 @@ reentry:
                 VM_CASE_STKID rc = VM_REG(LUAU_INSN_C(insn));
 
                 // fast-path
-                if (ttisnumber(rb) && ttisnumber(rc))
+                // moo: an error leaves it, and luaV_doarithimpl raises
+                fixed_t r = 0;
+                if (ttisnumber(rb) && ttisnumber(rc) && !moo_numpowerror(moo_numpow(nvalue(rb), nvalue(rc), &r)))
                 {
-                    setnvalue(ra, luai_numpow(nvalue(rb), nvalue(rc)));
+                    setnvalue(ra, r);
                     VM_NEXT();
                 }
                 else
@@ -2197,9 +2199,11 @@ reentry:
                 TValue* kv = VM_KV(LUAU_INSN_C(insn));
 
                 // fast-path
-                if (ttisnumber(rb))
+                // moo: an error leaves it, and luaV_doarithimpl raises
+                fixed_t r = 0;
+                if (ttisnumber(rb) && !moo_numpowerror(moo_numpow(nvalue(rb), nvalue(kv), &r)))
                 {
-                    setnvalue(ra, luai_numpow(nvalue(rb), nvalue(kv)));
+                    setnvalue(ra, r);
                     VM_NEXT();
                 }
                 else

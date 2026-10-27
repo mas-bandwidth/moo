@@ -804,8 +804,14 @@ void luaV_doarithimpl(lua_State* L, StkId ra, const TValue* rb, const TValue* rc
             setnvalue(ra, luai_nummod(nb, nc));
             break;
         case TM_POW:
-            setnvalue(ra, luai_numpow(nb, nc));
+        {
+            // moo: the same value and error as math.pow
+            fixed_t r = 0;
+            if (const char* error = moo_numpowerror(moo_numpow(nb, nc, &r)))
+                luaG_runerror(L, "%s", error);
+            setnvalue(ra, r);
             break;
+        }
         case TM_UNM:
             setnvalue(ra, luai_numunm(nb));
             break;

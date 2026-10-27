@@ -25,6 +25,42 @@
 
 TEST_SUITE_BEGIN("pow");
 
+namespace
+{
+
+// The reference status and release value of base ^ exponent for any exponent, from moo_pow_int and fixPow
+// directly: a negative base with a fractional exponent is its own status, and fixPow's MOO_NUMBER_MAX is
+// saturation (docs/DESIGN.md "pow and ^").
+int powReference(fixed_t base, fixed_t exponent, fixed_t* out)
+{
+    if (moo_numisinteger(exponent))
+        return moo_pow_int(base, exponent >> MOO_NUMBER_FRACTION_BITS, out);
+    if (base < 0)
+    {
+        *out = 0;
+        return MOO_POW_NEGATIVE_BASE;
+    }
+    *out = fixPow(base, exponent);
+    return *out == MOO_NUMBER_MAX ? MOO_POW_SATURATED : MOO_POW_OK;
+}
+
+// What every pow path gives for a status in this build, as mooRun prints it for a one-line chunk: the raw value,
+// or the error. Written out here, never read from the VM's moo_numpowerror.
+std::string powExpected(int status, fixed_t value)
+{
+    if (status == MOO_POW_DIVISION_BY_ZERO)
+        return "error: moo:1: division by zero";
+    if (status == MOO_POW_NEGATIVE_BASE)
+        return "error: moo:1: pow of a negative number to a fractional power";
+#if MOO_OVERFLOW_ERRORS
+    if (status == MOO_POW_SATURATED)
+        return "error: moo:1: number overflow in '^'";
+#endif
+    return std::to_string(static_cast<long long>(value));
+}
+
+} // namespace
+
 // moo_pow_int (Common/include/moo_pow.h; docs/DESIGN.md, "pow and ^"; docs/history/layer4/moo-l4-pow-integer.md):
 // a Q48.16 base to an integer exponent, the exact power rounded once, half to even, saturating, with
 // 0 ^ negative reported as division by zero. Every answer here is checked against an exact rational
@@ -694,7 +730,7 @@ TEST_CASE("PowIntFoldsToPowInt")
 }
 
 // DESIGN.md "Division by zero" and "Layer 3 as built", "The compiler": 0 ^ negative stays unfolded, and a
-// fractional exponent stays unfolded, because neither is moo_pow_int's integer path.
+// fractional exponent stays unfolded, including one that raises, because neither is moo_pow_int's MOO_POW_OK.
 TEST_CASE("PowIntFoldLeavesDivisionByZeroAndFractionalUnfolded")
 {
     std::string zero = compileDump("return 0 ^ -1");
@@ -702,6 +738,12 @@ TEST_CASE("PowIntFoldLeavesDivisionByZeroAndFractionalUnfolded")
 
     std::string fractional = compileDump("return 2 ^ 0.5");
     CHECK_MESSAGE(contains(fractional, "POWK"), "2 ^ 0.5 must not fold:\n" << fractional);
+
+    std::string negative = compileDump("return (-4) ^ 0.5");
+    CHECK_MESSAGE(contains(negative, "POWK"), "(-4) ^ 0.5 must not fold:\n" << negative);
+
+    std::string saturating = compileDump("return 2 ^ 47.5");
+    CHECK_MESSAGE(contains(saturating, "POWK"), "2 ^ 47.5 must not fold:\n" << saturating);
 }
 
 // DESIGN.md "Overflow" and "Layer 3 as built", "The compiler": a power that saturates (moo_pow_int returns
@@ -830,8 +872,10 @@ TEST_CASE("PowLibraryFractionalUsesFixed")
         for (int64_t exponent : exponents)
         {
             REQUIRE(!moo_numisinteger(exponent));
-            std::string want = base < 0 ? "error: pow of a negative number to a fractional power"
-                                        : std::to_string(static_cast<long long>(fixPow(base, exponent)));
+            fixed_t ref = 0;
+            std::string want = powExpected(powReference(base, exponent, &ref), ref);
+            if (base < 0)
+                CHECK(want == "error: moo:1: pow of a negative number to a fractional power");
 
             CHECK_MESSAGE(sameResult(runPow(L, base, exponent, false), want), "library " << base << " ^ " << exponent);
             CHECK_MESSAGE(sameResult(runPow(L, base, exponent, true), want), "fastcall " << base << " ^ " << exponent);
@@ -918,9 +962,8 @@ std::string runPowK(lua_State* L, fixed_t a, int64_t n)
 
 } // namespace
 
-// 2^12 seeded (base, integer exponent) pairs: the VM's bits are moo_pow_int's bits. *out carries the
-// release value for OK and SATURATED, and 0 for 0 ^ negative (DIVISION_BY_ZERO), so a status-for-status
-// match is just a value match here.
+// 2^12 seeded (base, integer exponent) pairs: the VM's bits are moo_pow_int's bits, and where its status is an
+// error in this build the VM raises it (powExpected).
 TEST_CASE("PowIntVmMatchesMooPowInt")
 {
     lua_State* L = luaL_newstate();
@@ -936,20 +979,20 @@ TEST_CASE("PowIntVmMatchesMooPowInt")
         fixed_t b = fixed_t(n) * MOO_NUMBER_ONE;
 
         fixed_t ref = 0;
-        moo_pow_int(a, n, &ref);
+        std::string want = powExpected(moo_pow_int(a, n, &ref), ref);
         std::string got = runPow(L, a, b);
         CAPTURE(a);
         CAPTURE(n);
-        CHECK_MESSAGE(got == std::to_string(ref), a << " ^ " << n << ": vm " << got << " ref " << ref);
+        CHECK_MESSAGE(got == want, a << " ^ " << n << ": vm " << got << " want " << want);
 
         got = runPowK(L, a, n);
-        CHECK_MESSAGE(got == std::to_string(ref), "powk " << a << " ^ " << n << ": vm " << got << " ref " << ref);
+        CHECK_MESSAGE(got == want, "powk " << a << " ^ " << n << ": vm " << got << " want " << want);
     }
 
     lua_close(L);
 }
 
-// moo: the opcode's fractional exponent uses fixPow, including its release value 0 for a nonpositive base.
+// moo: the opcode's fractional exponent uses fixPow: 0 for a zero base, and a negative base raises the named error.
 TEST_CASE("PowIntVmFractionalUsesFixed")
 {
     lua_State* L = luaL_newstate();
@@ -964,36 +1007,38 @@ TEST_CASE("PowIntVmFractionalUsesFixed")
     for (fixed_t a : bases)
         for (fixed_t b : exponents)
         {
-            fixed_t ref = fixPow(a, b);
+            fixed_t ref = 0;
+            std::string want = powExpected(powReference(a, b, &ref), ref);
             std::string got = runPow(L, a, b);
             CAPTURE(a);
             CAPTURE(b);
-            CHECK_MESSAGE(got == std::to_string(ref), "fixed: vm " << got << " ref " << ref);
+            CHECK_MESSAGE(got == want, "fixed: vm " << got << " want " << want);
+            if (a < 0)
+                CHECK(got == "error: moo:1: pow of a negative number to a fractional power");
         }
 
     lua_close(L);
 }
 
-// 0 ^ negative releases 0, moo_pow_int's *out on DIVISION_BY_ZERO. The design note's named error
-// ("division by zero") surfaces in luaV_doarithimpl and the LOP_POW opcodes
-// (docs/history/layer4/moo-l4-pow-integer.md, "Saturation, overflow errors and division by zero"); those callers
-// are not this case's subject, so only the released value is pinned here.
-TEST_CASE("PowIntVmZeroToNegative")
+// 0 ^ negative is "division by zero" in every build, as for x / 0 and math.pow: through LOP_POW, LOP_POWK and a
+// coerced operand (luaV_doarithimpl).
+TEST_CASE("PowIntVmZeroToNegativeIsDivisionByZero")
 {
     lua_State* L = luaL_newstate();
     REQUIRE(L != nullptr);
     luaL_openlibs(L);
     mooOpenTestHelpers(L);
 
+    const std::string error = "error: moo:1: division by zero";
     for (fixed_t n : {fixed_t(-MOO_NUMBER_ONE), fixed_t(-2 * MOO_NUMBER_ONE), fixed_t(-1000 * MOO_NUMBER_ONE)})
     {
         CAPTURE(n);
         CHECK(mooRun(L, ("local function f(a, b) return a ^ b end return moo_test.raw(f(moo_test.fromraw('0'), moo_test.fromraw('" +
-                             std::to_string(n) + "')))").c_str()) == "0");
-        CHECK(mooRun(L, ("local function f(a) return a ^ moo_test.fromraw('" + std::to_string(n) +
-                             "') end return moo_test.raw(f(moo_test.fromraw('0')))").c_str()) == "0");
+                             std::to_string(n) + "')))").c_str()) == error);
+        CHECK(mooRun(L, ("local function f(a) return a ^ " + std::to_string(n / MOO_NUMBER_ONE) +
+                             " end return moo_test.raw(f(moo_test.fromraw('0')))").c_str()) == error);
         CHECK(mooRun(L, ("local function f(a, b) return a ^ b end return moo_test.raw(f('0', moo_test.fromraw('" + std::to_string(n) +
-                             "')))").c_str()) == "0");
+                             "')))").c_str()) == error);
     }
 
     CHECK(mooRun(L, "return moo_test.raw(0 ^ 0)") == "65536");
@@ -1007,8 +1052,7 @@ TEST_CASE("PowIntVmZeroToNegative")
 // Layer 4's fractional-exponent pow (docs/DESIGN.md "math library", "pow and ^"): an integer-valued exponent
 // is moo_pow_int (moo-l4-pow-integer and its VM/math cards), any other exponent is fixPow = fixExp2(exponent *
 // fixLog2(base)). A negative base with a fractional exponent is the named error "pow of a negative number to a
-// fractional power"; 0 ^ positive fraction = 0. The `^` opcode (luai_numpow) cannot raise, so it releases
-// fixPow's value (0 for a base <= 0); the named error surfaces in math.pow and its fastcall.
+// fractional power", from the `^` opcode, math.pow and its fastcall alike; 0 ^ positive fraction = 0.
 namespace pow_fractional
 {
 
@@ -1045,9 +1089,8 @@ bool fractional(int64_t b)
 
 } // namespace
 
-// 2^12 seeded (base, fractional exponent) pairs through the `^` opcode (two-operand and POWK), matched bit for
-// bit to fixPow. A negative base with a fractional exponent releases fixPow's 0 on the opcode path; the named
-// error is math.pow's (below).
+// 2^12 seeded (base, fractional exponent) pairs through the `^` opcode, matched bit for bit to fixPow; a power
+// that saturates raises in a checked build (powExpected). A negative base raises the named error, as math.pow.
 TEST_CASE("PowFractionalVmMatchesFixPow")
 {
     lua_State* L = luaL_newstate();
@@ -1065,11 +1108,12 @@ TEST_CASE("PowFractionalVmMatchesFixPow")
         if (a <= 0)
             a = -a + 1;
 
-        int64_t ref = fixPow(a, b);
+        fixed_t ref = 0;
+        std::string want = powExpected(powReference(a, b, &ref), ref);
         std::string got = runPow(L, a, b);
         CAPTURE(a);
         CAPTURE(b);
-        CHECK_MESSAGE(got == std::to_string(ref), "vm " << a << " ^ " << b << ": " << got << " ref " << ref);
+        CHECK_MESSAGE(got == want, "vm " << a << " ^ " << b << ": " << got << " want " << want);
     }
 
     // 0 ^ positive fraction = 0, on both the opcode and math.pow paths
@@ -1078,15 +1122,15 @@ TEST_CASE("PowFractionalVmMatchesFixPow")
     CHECK(runMathPow(L, 0, MOO_NUMBER_ONE / 2) == "0");
     CHECK(runMathPow(L, 0, MOO_NUMBER_ONE + MOO_NUMBER_ONE / 2) == "0");
 
-    // a negative base with a fractional exponent: the opcode releases fixPow's 0 (it cannot raise)
-    CHECK(runPow(L, -MOO_NUMBER_ONE, MOO_NUMBER_ONE / 2) == "0");
-    CHECK(runPow(L, -4 * MOO_NUMBER_ONE, MOO_NUMBER_ONE / 2) == "0");
+    // a negative base with a fractional exponent: the opcode raises math.pow's named error
+    CHECK(runPow(L, -MOO_NUMBER_ONE, MOO_NUMBER_ONE / 2) == "error: moo:1: pow of a negative number to a fractional power");
+    CHECK(runPow(L, -4 * MOO_NUMBER_ONE, MOO_NUMBER_ONE / 2) == "error: moo:1: pow of a negative number to a fractional power");
 
     lua_close(L);
 }
 
-// math.pow and its fastcall raise the named error for a negative base with a fractional exponent. The fastcall
-// returns -1 and the library path raises, so both go through math.pow.
+// math.pow, its fastcall and the ^ operator raise the named error for a negative base with a fractional exponent.
+// The fastcall returns -1 and the library raises; the operator raises in luaV_doarithimpl.
 TEST_CASE("PowFractionalNegativeBaseError")
 {
     lua_State* L = luaL_newstate();
@@ -1095,12 +1139,16 @@ TEST_CASE("PowFractionalNegativeBaseError")
     mooOpenTestHelpers(L);
 
     auto err = [&](const char* src) {
-        return mooRun(L, src).find("pow of a negative number to a fractional power") != std::string::npos;
+        return mooRun(L, src) == "error: moo:1: pow of a negative number to a fractional power";
     };
     CHECK(err("return math.pow(-1, 0.5)"));
     CHECK(err("return math.pow(-4, 0.5)"));
     CHECK(err("return math.pow(-65536, -1.5)"));
     CHECK(err("return math.pow(-2, 1.25)"));
+    CHECK(err("return (-1) ^ 0.5"));
+    CHECK(err("return (-4) ^ 0.5"));
+    CHECK(err("return (-65536) ^ -1.5"));
+    CHECK(err("local t = {-2, 1.25} return t[1] ^ t[2]"));
 
     // an integer exponent is still moo_pow_int, no error
     CHECK(mooRun(L, "return moo_test.raw(math.pow(moo_test.fromraw('-131072'), moo_test.fromraw('196608')))") == "-524288");
@@ -1181,5 +1229,166 @@ TEST_CASE("PowFractionalRelativeError")
 }
 
 } // namespace pow_fractional
+
+// The ^ operator is math.pow (docs/DESIGN.md "pow and ^"): one definition, one result, one set of errors. Every
+// case runs through the operator with registers, the operator with a constant exponent (POWK), the operator with
+// both operands constant (folded when moo_pow_int is MOO_POW_OK, left to run time otherwise), math.pow's fastcall
+// and the library function, at -O0, -O1 and -O2, and each gives powExpected for the build it is in.
+namespace pow_operator
+{
+
+namespace
+{
+
+const fixed_t kOne = MOO_NUMBER_ONE;
+
+const fixed_t kBases[] = {0, kOne, -kOne, 2 * kOne, -2 * kOne, 6 * kOne, 10 * kOne, kOne + kOne / 2, kOne / 2, 1, MOO_NUMBER_MAX,
+    MOO_NUMBER_MIN};
+
+const fixed_t kExponents[] = {0, kOne, -kOne, 3 * kOne, -3 * kOne, 46 * kOne, 47 * kOne, 100000 * kOne, -1000 * kOne, kOne / 2,
+    -kOne / 2, 3 * kOne / 2, 47 * kOne + kOne / 2};
+
+bool contains(const std::string& text, const char* needle)
+{
+    return text.find(needle) != std::string::npos;
+}
+
+// a literal that reads back to raw, in parentheses when negative
+std::string literal(fixed_t raw)
+{
+    char buffer[40];
+    char* end = moo_numtostr(buffer, raw);
+    std::string text(buffer, end);
+    return raw < 0 ? "(" + text + ")" : text;
+}
+
+Luau::CompileOptions at(int level)
+{
+    Luau::CompileOptions options;
+    options.optimizationLevel = level;
+    return options;
+}
+
+std::string run(const std::string& source, int level)
+{
+    lua_State* L = luaL_newstate();
+    REQUIRE(L != nullptr);
+    luaL_openlibs(L);
+    mooOpenTestHelpers(L);
+
+    std::string bytecode = Luau::compile(source, at(level));
+    int status = luau_load(L, "=moo", bytecode.data(), bytecode.size(), 0);
+    if (status == 0)
+        status = lua_pcall(L, 0, 1, 0);
+
+    std::string result = status != 0 ? std::string("error: ") + (lua_isstring(L, -1) ? lua_tostring(L, -1) : "?")
+                                     : std::string(lua_isstring(L, -1) ? lua_tostring(L, -1) : "?");
+    lua_close(L);
+    return result;
+}
+
+std::string dump(const std::string& source, int level)
+{
+    Luau::BytecodeBuilder bcb;
+    bcb.setDumpFlags(Luau::BytecodeBuilder::Dump_Code);
+    Luau::compileOrThrow(bcb, source, at(level));
+    return bcb.dumpFunction(0);
+}
+
+// The operator as it was before it raised: moo_pow_int's *out, or fixPow's value, and no error.
+std::string oldOperator(fixed_t base, fixed_t exponent)
+{
+    fixed_t out = 0;
+    if (moo_numisinteger(exponent))
+        moo_pow_int(base, exponent >> MOO_NUMBER_FRACTION_BITS, &out);
+    else
+        out = fixPow(base, exponent);
+    return std::to_string(static_cast<long long>(out));
+}
+
+} // namespace
+
+TEST_CASE("PowOperatorMatchesMathPow")
+{
+    int errors = 0;
+    for (fixed_t base : kBases)
+        for (fixed_t exponent : kExponents)
+        {
+            fixed_t ref = 0;
+            int status = powReference(base, exponent, &ref);
+            std::string want = powExpected(status, ref);
+            errors += want.rfind("error: ", 0) == 0;
+
+            std::string b = literal(base), e = literal(exponent);
+            const std::string sources[] = {
+                "local t = {" + b + ", " + e + "} return moo_test.raw(t[1] ^ t[2])",
+                "local t = {" + b + "} return moo_test.raw(t[1] ^ " + e + ")",
+                "return moo_test.raw(" + b + " ^ " + e + ")",
+                "local t = {" + b + ", " + e + "} return moo_test.raw(math.pow(t[1], t[2]))",
+                "local p = rawget(math, 'pow') local t = {" + b + ", " + e + "} return moo_test.raw(p(t[1], t[2]))",
+            };
+
+            for (int level = 0; level <= 2; ++level)
+            {
+                CAPTURE(level);
+                for (const std::string& source : sources)
+                    CHECK_MESSAGE(run(source, level) == want, source << " -O" << level << ": want " << want);
+
+                if (level == 0)
+                    continue;
+
+                // the constant path folds exactly when moo_pow_int is MOO_POW_OK, so the fold never hides an error
+                bool folds = moo_numisinteger(exponent) && status == MOO_POW_OK;
+                std::string constant = dump("local x = " + b + " ^ " + e + " return x", level);
+                CHECK_MESSAGE(contains(constant, "POW") == !folds, b << " ^ " << e << " -O" << level << (folds ? " must" : " must not")
+                                                                     << " fold:\n" << constant);
+
+                std::string fastcall = dump(sources[3], level);
+                CHECK_MESSAGE(contains(fastcall, "FASTCALL2"), "math.pow is not a fastcall at -O" << level << ":\n" << fastcall);
+            }
+        }
+
+    // every kind of error is in the table
+    CHECK(errors >= 4);
+}
+
+// Reversed witness: under the old silent operator (moo_pow_int's *out or fixPow's value, no error) the table above
+// goes red. Every case whose expected result is an error differs from the old operator's value, and the table has
+// cases for division by zero, a negative base and, in a checked build, saturation.
+TEST_CASE("PowOperatorGoesRedWithTheOldSilentRule")
+{
+    int divisionByZero = 0, negativeBase = 0, saturated = 0;
+    for (fixed_t base : kBases)
+        for (fixed_t exponent : kExponents)
+        {
+            fixed_t ref = 0;
+            int status = powReference(base, exponent, &ref);
+            std::string want = powExpected(status, ref);
+            if (want.rfind("error: ", 0) != 0)
+            {
+                CHECK(oldOperator(base, exponent) == want); // the two rules agree where nothing raises
+                continue;
+            }
+
+            std::string b = literal(base), e = literal(exponent);
+            std::string got = run("local t = {" + b + ", " + e + "} return moo_test.raw(t[1] ^ t[2])", 1);
+            CHECK_MESSAGE(got == want, b << " ^ " << e);
+            CHECK_MESSAGE(oldOperator(base, exponent) != want, b << " ^ " << e << ": the old rule would pass");
+
+            divisionByZero += status == MOO_POW_DIVISION_BY_ZERO;
+            negativeBase += status == MOO_POW_NEGATIVE_BASE;
+            saturated += status == MOO_POW_SATURATED;
+        }
+
+    CHECK(divisionByZero > 0);
+    CHECK(negativeBase > 0);
+#if MOO_OVERFLOW_ERRORS
+    CHECK(saturated > 0);
+#else
+    CHECK(saturated == 0);
+#endif
+}
+
+} // namespace pow_operator
 
 TEST_SUITE_END();

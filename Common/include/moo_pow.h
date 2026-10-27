@@ -2,9 +2,9 @@
 //
 // moo's pow for an integer exponent: the exact power of a Q48.16 base, rounded once to the nearest Q48.16, ties to
 // even, saturating, with a status for saturation and 0 ^ negative (docs/DESIGN.md "pow and ^"). Integer arithmetic
-// only. Every pow path computes with it: the ^ operator (luai_numpow, LOP_POW/LOP_POWK, luaV_doarithimpl) discards
-// the status; the compiler's constant folding folds only MOO_POW_OK; and math.pow and its fastcall raise on it
-// (docs/history/layer4/moo-l4-pow-integer.md has the design and each caller's steps).
+// only. Every pow path computes with it: the ^ operator, math.pow and its fastcall go through moo_numpow and raise
+// moo_numpowerror (VM/src/lnumutils.h), and the compiler's constant folding folds only MOO_POW_OK
+// (docs/history/layer4/moo-l4-pow-integer.md has the design).
 //
 // For raw base b with a = |b| and exponent n the value is V = 2^16 * (a / 2^16)^|n|, or 2^16 / (a / 2^16)^|n| for
 // n < 0, negative when b < 0 and n is odd, rounded half to even. Two paths:
@@ -16,8 +16,8 @@
 //   interval, |n| > MOO_POW_EXACT_MAX: (a / 2^16)^|n| bracketed by lo <= P <= hi, each a 128-bit mantissa with a
 //   binary exponent, by binary exponentiation rounding lo down and hi up. While no bit has been dropped lo == hi
 //   is exact, so exact results and ties are seen exactly. The answer is certain when both bounds round to the same
-//   value. Only bases near 1 reach the final rounding, a finite set, and MooPowIntCertainEverywhere (tests/moo/
-//   moo-l4-pow-integer-design.test.cpp) checks every one of them is certain. The loop stops early once a bound
+//   value. Only bases near 1 reach the final rounding, a finite set, and PowIntCertainEverywhere (tests/moo/
+//   pow.test.cpp) checks every one of them is certain. The loop stops early once a bound
 //   shows the result saturates or rounds to 0, which also keeps the exponent small.
 #pragma once
 
@@ -26,10 +26,11 @@
 
 #include <stdint.h>
 
-// moo_pow_int's status. Only math.pow and its fastcall raise on it; the ^ operator keeps *out and raises nothing.
+// a pow status. ^, math.pow and its fastcall raise the same error for it (moo_numpowerror, VM/src/lnumutils.h).
 #define MOO_POW_OK 0
-#define MOO_POW_SATURATED 1        // *out is MOO_NUMBER_MAX or MOO_NUMBER_MIN; math.pow: "number overflow" when checked
-#define MOO_POW_DIVISION_BY_ZERO 2 // 0 ^ negative; *out is 0; math.pow: "division by zero" in every build
+#define MOO_POW_SATURATED 1        // *out is MOO_NUMBER_MAX or MOO_NUMBER_MIN; "number overflow in '^'" when checked
+#define MOO_POW_DIVISION_BY_ZERO 2 // 0 ^ negative; *out is 0; "division by zero" in every build
+#define MOO_POW_NEGATIVE_BASE 3    // negative ^ fraction (moo_numpow only); *out is 0; a named error in every build
 
 // the largest |n| computed exactly in 256 bits
 #define MOO_POW_EXACT_MAX 13

@@ -10,8 +10,6 @@
 #include "ldo.h"
 #include "lbuffer.h"
 
-#include "moo_pow.h"
-
 #include "fixed/fixed_math.h"
 
 #include <math.h>
@@ -361,30 +359,11 @@ static int luauF_pow(lua_State* L, StkId res, TValue* arg0, int nresults, StkId 
 {
     if (nparams >= 2 && nresults <= 1 && ttisnumber(arg0) && ttisnumber(args))
     {
-        fixed_t base = nvalue(arg0);
-        fixed_t exponent = nvalue(args);
-
-        // moo: an integer exponent is moo_pow_int, as math_pow; division by zero, and saturation when checked, fall
-        // back so the library raises
-        if (moo_numisinteger(exponent))
-        {
-            fixed_t out;
-            int status = moo_pow_int(base, exponent >> MOO_NUMBER_FRACTION_BITS, &out);
-
-            if (status == MOO_POW_DIVISION_BY_ZERO)
-                return -1;
-#if MOO_OVERFLOW_ERRORS
-            if (status == MOO_POW_SATURATED)
-                return -1;
-#endif
-            setnvalue(res, out);
-            return 1;
-        }
-
-        // moo: a fractional exponent is fixPow; a negative base falls back so the library raises
-        if (base < 0)
+        // moo: moo_numpow, as math_pow; an error falls back so the library raises it
+        fixed_t out = 0;
+        if (moo_numpowerror(moo_numpow(nvalue(arg0), nvalue(args), &out)))
             return -1;
-        setnvalue(res, fixPow(base, exponent));
+        setnvalue(res, out);
         return 1;
     }
 

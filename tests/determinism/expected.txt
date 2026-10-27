@@ -10,10 +10,12 @@
 # moo: re-pinned when layer 3b added the quat tag and the quat library: the "quat" type-name string,
 # the library table and its function names shift every creation number, and global_State grows by two tag
 # slots (docs/history/layer3b/moo-v2-l3b-quat.md).
+# moo: math.luau re-pinned when ^ began raising math.pow's errors: each power is logged through pcall, and a power above
+# 2^46, which saturates in release and raises in a checked build, is logged as "large" (docs/DESIGN.md "pow and ^").
 coroutines.luau 5cb7f17a10d68cc4 6fad6a2c9bf8a173
 gcchurn.luau 971f095d77280529 99a32dc86877a486
 library.luau b37b92ae87f532ba d8e5f88d20c961f8
 objectkeys.luau 1067f47a944c9471 673230ee8047eeaa
 coroutines2.luau 45af4a6f2428da59 5359668bdc22dc58
 errors.luau f7037948e0d4bea2 be21c103205a5f40
-math.luau 0d7b989a30435fce 6f1e734e163b3843
+math.luau 68d56885c722c804 76035fcbe60fe1fe
