@@ -394,8 +394,10 @@ struct Compiler
 
             if (FFlag::DebugLuauUserDefinedClasses)
             {
-                for (auto& [classLocal, classReg] : exports.exportedClasses)
+                // moo: declaration order; exportedClasses is keyed by address, so its iteration order varies run to run
+                for (AstLocal* classLocal : exports.exportedClassOrder)
                 {
+                    uint8_t classReg = exports.exportedClasses[classLocal];
                     BytecodeBuilder::StringRef classNameRef = sref(classLocal->name);
                     int32_t classNameCid = bytecode.addConstantString(classNameRef);
                     if (classNameCid < 0)
@@ -408,8 +410,13 @@ struct Compiler
 
             if (FFlag::LuauOptimizeExportTable)
             {
-                for (auto& funcLocal : exports.exportedFunctions)
+                // moo: source order; exportedFunctions is keyed by address, so its iteration order varies run to run
+                // (docs/DETERMINISM.md, 25)
+                for (AstLocal* funcLocal : exports.exportedVariables)
                 {
+                    if (!exports.exportedFunctions.contains(funcLocal))
+                        continue;
+
                     int32_t cid = bytecode.addConstantString(sref(funcLocal->name));
                     if (cid < 0)
                         CompileError::raise(funcLocal->location, "Exceeded constant limit; simplify the code to compile");
@@ -1742,6 +1749,8 @@ struct Compiler
         {
             // we want to eagerly insert into the exported classes map, as the class may be referenced by one of its methods
             ensureExportTable(decl);
+            if (!exports.exportedClasses.contains(decl->name))
+                exports.exportedClassOrder.push_back(decl->name); // moo: declaration order (docs/DETERMINISM.md, 25)
             exports.exportedClasses[decl->name] = dest;
         }
 
@@ -5824,6 +5833,7 @@ struct Compiler
         DenseHashMap<AstLocal*, uint8_t> exportedClasses;
         DenseHashSet<AstLocal*> exportedFunctions;
         std::vector<AstLocal*> exportedVariables;
+        std::vector<AstLocal*> exportedClassOrder; // moo: exportedClasses' keys in declaration order
         int32_t exportedTableCid = -1;
         bool hasExports = false;
         bool hasTypeExports = false;
