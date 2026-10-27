@@ -33,6 +33,10 @@
   overflow error in a checked build; gcc builds with `-DLUAU_WERROR=ON`; and
   `tools/moo-check-skips.sh` passes, every upstream `#if 0` case naming its reason. Pull requests
   run a checked job and a gcc `-Werror` job, and the nightly gcc build uses `-Werror`.
+- The bytecode-graph constant propagation (`Sccp.h` `evaluateNumberBinaryOp`) no longer folds
+  `+ - * / //` to a saturated value in a checked build; it refuses the fold, as the compiler's
+  constant folding does, so the VM raises `number overflow`. Only the JIT inliner calls it, and
+  moo compiles that out, so no released program was affected.
 
 ## v1.0.0 — 2026-10-25
 

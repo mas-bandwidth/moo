@@ -166,6 +166,19 @@ std::vector<int64_t> rawOperands()
 
 } // namespace
 
+namespace
+{
+
+// the fold Sccp must give: the moo_number.h result, or none where a checked build raises "number overflow"
+std::optional<int64_t> wantFold(bool saturates, int64_t value)
+{
+    if (MOO_OVERFLOW_ERRORS && saturates)
+        return std::nullopt;
+    return value;
+}
+
+} // namespace
+
 TEST_CASE("CompilerSccpFoldOperatorsMatchMooNumber")
 {
     std::vector<int64_t> vals = rawOperands();
@@ -173,13 +186,13 @@ TEST_CASE("CompilerSccpFoldOperatorsMatchMooNumber")
     {
         for (int64_t b : vals)
         {
-            CHECK(Luau::Bytecode::evaluateNumberBinaryOp(a, b, LuauOpcode::LOP_ADD) == moo_numadd(a, b));
-            CHECK(Luau::Bytecode::evaluateNumberBinaryOp(a, b, LuauOpcode::LOP_SUB) == moo_numsub(a, b));
-            CHECK(Luau::Bytecode::evaluateNumberBinaryOp(a, b, LuauOpcode::LOP_MUL) == moo_nummul(a, b));
+            CHECK(Luau::Bytecode::evaluateNumberBinaryOp(a, b, LuauOpcode::LOP_ADD) == wantFold(moo_numaddsaturates(a, b), moo_numadd(a, b)));
+            CHECK(Luau::Bytecode::evaluateNumberBinaryOp(a, b, LuauOpcode::LOP_SUB) == wantFold(moo_numsubsaturates(a, b), moo_numsub(a, b)));
+            CHECK(Luau::Bytecode::evaluateNumberBinaryOp(a, b, LuauOpcode::LOP_MUL) == wantFold(moo_nummulsaturates(a, b), moo_nummul(a, b)));
             if (b != 0)
             {
-                CHECK(Luau::Bytecode::evaluateNumberBinaryOp(a, b, LuauOpcode::LOP_DIV) == moo_numdiv(a, b));
-                CHECK(Luau::Bytecode::evaluateNumberBinaryOp(a, b, LuauOpcode::LOP_IDIV) == moo_numidiv(a, b));
+                CHECK(Luau::Bytecode::evaluateNumberBinaryOp(a, b, LuauOpcode::LOP_DIV) == wantFold(moo_numdivsaturates(a, b), moo_numdiv(a, b)));
+                CHECK(Luau::Bytecode::evaluateNumberBinaryOp(a, b, LuauOpcode::LOP_IDIV) == wantFold(moo_numidivsaturates(a, b), moo_numidiv(a, b)));
                 CHECK(Luau::Bytecode::evaluateNumberBinaryOp(a, b, LuauOpcode::LOP_MOD) == moo_nummod(a, b));
             }
             else
@@ -190,6 +203,49 @@ TEST_CASE("CompilerSccpFoldOperatorsMatchMooNumber")
             }
         }
     }
+}
+
+// Sccp refuses a fold that saturates in a checked build, exactly as the compiler's mooFold does, so a re-enabled
+// inliner never folds a result the VM would raise "number overflow" for (docs/DESIGN.md "Overflow").
+TEST_CASE("CompilerSccpSaturatingFoldRefusedWhenChecked")
+{
+    using Luau::Bytecode::evaluateNumberBinaryOp;
+    const int64_t one = MOO_NUMBER_ONE;
+    const int64_t max = MOO_NUMBER_MAX;
+
+    struct Case
+    {
+        int64_t a;
+        int64_t b;
+        LuauOpcode op;
+        int64_t released;
+    };
+    const Case cases[] = {
+        {max, one, LuauOpcode::LOP_ADD, moo_numadd(max, one)},
+        {-max, one, LuauOpcode::LOP_SUB, moo_numsub(-max, one)},
+        {max, 2 * one, LuauOpcode::LOP_MUL, moo_nummul(max, 2 * one)},
+        {max, 1, LuauOpcode::LOP_DIV, moo_numdiv(max, 1)},
+        {max, 1, LuauOpcode::LOP_IDIV, moo_numidiv(max, 1)},
+    };
+    for (const Case& c : cases)
+    {
+        std::optional<int64_t> folded = evaluateNumberBinaryOp(c.a, c.b, c.op);
+#if MOO_OVERFLOW_ERRORS
+        CHECK(!folded);
+#else
+        CHECK(folded == c.released);
+#endif
+    }
+
+    // the edges themselves are exact, never saturation, and fold in every build
+    CHECK(evaluateNumberBinaryOp(max - one, one, LuauOpcode::LOP_ADD) == max);
+    CHECK(evaluateNumberBinaryOp(-max + one, one, LuauOpcode::LOP_SUB) == -max);
+    CHECK(evaluateNumberBinaryOp(max, one, LuauOpcode::LOP_MUL) == max);
+
+    // division, floor division and remainder by zero are never folded in any build
+    CHECK(!evaluateNumberBinaryOp(one, 0, LuauOpcode::LOP_DIV));
+    CHECK(!evaluateNumberBinaryOp(one, 0, LuauOpcode::LOP_IDIV));
+    CHECK(!evaluateNumberBinaryOp(one, 0, LuauOpcode::LOP_MOD));
 }
 
 TEST_CASE("CompilerSccpPowNeverFolded")

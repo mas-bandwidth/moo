@@ -88,7 +88,7 @@ edits them, except where a row above records the seam.
 | `Common/include/Luau/Bytecode.h` | the moo bytecode version numbers and the raw-number constant encoding are declared here (DESIGN.md "Literals"). |
 | `Bytecode/include/Luau/BytecodeBuilder.h` | the builder takes a number constant as its raw Q48.16 value and converts a double once by the boundary rule (DESIGN.md "Literals", "Boundary"). |
 | `Bytecode/include/Luau/BytecodeGraph.h` | a graph number constant is raw Q48.16, with the same one-place double conversion (DESIGN.md "Literals", "Boundary"). |
-| `Bytecode/include/Luau/Sccp.h` | SCCP's constant is the raw Q48.16 value and its folds use `moo_number.h` exactly as the compiler does (DESIGN.md "Literals", "Semantics"). |
+| `Bytecode/include/Luau/Sccp.h` | SCCP's constant is the raw Q48.16 value and its folds use `moo_number.h` exactly as the compiler does, refusing a saturating result in a checked build (DESIGN.md "Literals", "Semantics", "Overflow"). |
 | `Bytecode/src/BytecodeBuilder.cpp` | a constant is written as the raw 8-byte little-endian integer, prints through the exact formatter, and no vector constant is written (DESIGN.md "Literals", "Number formatting", "vec3, quat and transform"). |
 | `Bytecode/src/BytecodeDump.cpp` | the dump prints a number constant with moo's shortest-round-trip formatter (DESIGN.md "Number formatting"). |
 | `Bytecode/src/BytecodeGraph.cpp` | serialization writes and reads the raw 8-byte value and refuses `INT64_MIN` (DESIGN.md "Literals", "Representation"). |
