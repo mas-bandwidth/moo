@@ -21,8 +21,8 @@
 
 ### Fixed
 
-- `^` now raises the same errors as `math.pow`. `0 ^ n` for an integer `n < 0` is `division by
-  zero`; a negative base with a fractional exponent is `pow of a negative number to a fractional
+- `^` now raises the same errors as `math.pow`. `0 ^ n` for any `n < 0`, integer or fractional, is
+  `division by zero` (before, `0 ^ -0.5` and `math.pow(0, -0.5)` were 0); a negative base with a fractional exponent is `pow of a negative number to a fractional
   power`; a power that saturates is `number overflow in '^'` in a checked build and saturates in
   release. Before, the operator returned 0 or the saturated value with no error. The operator,
   `math.pow` and its fastcall share one definition (`moo_numpow`) and one error helper

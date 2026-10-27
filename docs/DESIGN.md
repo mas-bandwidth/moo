@@ -304,7 +304,7 @@ value and `math.isnan` always returns false. `math.isinf` returns false; `math.i
 returns true.
 
 `math.fmod(a, 0)`, `math.map` with `inmax == inmin`, `math.tan` at a zero cosine,
-`math.log(x, 1)`, and `0 ^ n` and `math.pow(0, n)` for an integer `n < 0` raise `division by zero`.
+`math.log(x, 1)`, and `0 ^ n` and `math.pow(0, n)` for any `n < 0` raise `division by zero`.
 `math.nan` is 0.
 
 ## Exact integers
@@ -421,12 +421,12 @@ double inside the VM. Layer 4 either keeps it with that argument written down, o
 - **The `^` operator is `math.pow`.** `LOP_POW`, `LOP_POWK`, `luaV_doarithimpl`, `math.pow` and
   its fastcall all call `moo_numpow` (`VM/src/lnumutils.h`), and `moo_numpowerror` turns its
   status into the one error each raises, so every build gives one result and one set of errors
-  for every path: `0 ^ n` for an integer `n < 0` is `division by zero`; a negative base with a
+  for every path: `0 ^ n` for any `n < 0`, integer or fractional, is `division by zero`; a negative base with a
   fractional exponent is `pow of a negative number to a fractional power`; and a power that
   saturates is `MOO_NUMBER_MAX` or `MOO_NUMBER_MIN` in release and `number overflow in '^'` in a
   checked build, as for `+ - * /`. A fractional power saturates when `fixPow` returns
-  `MOO_NUMBER_MAX`, which it does only past the range. `0 ^ negative fraction` is `fixPow`'s 0
-  on every path. The compiler folds only `MOO_POW_OK` with an integer exponent and never a
+  `MOO_NUMBER_MAX`, which it does exactly when `floor(exponent * fixLog2(base)) >= 47` (the product
+  rounded by `fixMul`). The compiler folds only `MOO_POW_OK` with an integer exponent and never a
   fractional one, so a folded constant and the run time never differ (`PowOperatorMatchesMathPow`).
 
 ## Number formatting
