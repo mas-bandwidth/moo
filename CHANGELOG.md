@@ -1,5 +1,19 @@
 # moo changelog
 
+## v1.2.0 — 2026-10-27
+
+Cut from 31ce1d4d9b6ce663fc109c6ba4ff61dce8db3b7f. 4 pull requests since v1.0.2.
+
+Dogfood gate waived: moo is a language runtime, not a nova tool: it has no nova CLI reference or dogfood receipts, and no sprint spend store or provider spend
+
+Spend gate waived: moo is a language runtime, not a nova tool: it has no nova CLI reference or dogfood receipts, and no sprint spend store or provider spend (window 2026-10-27T00:00:00Z..2026-10-27T23:02:46Z)
+- unread: --spend-store <addr> names no sprint store, so the recorded spend cannot be read
+
+- #54 changelog: the v1.0.2 cut record
+- #55 No double reaches a moo number; one link per library on macOS; cache outages non-fatal
+- #56 The compiler is deterministic: export order, and a determinism gate on every check-in
+- #57 release readiness for v1.2.0: version and CHANGELOG
+
 ## v1.2.0
 
 **This is the stable release: use v1.2.0, not v1.0.x.** The compiler is deterministic: the same
