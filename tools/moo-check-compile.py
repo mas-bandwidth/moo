@@ -58,13 +58,16 @@ def main():
     ap.add_argument("--wrap-error", type=int, default=99)
     args = ap.parse_args()
 
-    compiler = os.path.abspath(args.compiler)
-    tests = os.path.join(os.path.abspath(args.root), "tests")
+    compiler = os.path.realpath(args.compiler)
+    tests = os.path.join(os.path.realpath(args.root), "tests")
     pins = read_pins(args.pins or os.path.join(tests, "determinism", "bytecode.txt"))
     wrap = shlex.split(args.wrap)
 
-    with tempfile.TemporaryDirectory(prefix="moo check compile ") as scratch:
-        cwds = [scratch, os.path.join(scratch, "déjà vu"), os.path.abspath(args.root), tests, os.path.join(tests, "conformance")]
+    with tempfile.TemporaryDirectory(prefix="moo check compile ") as tmp:
+        # resolved: macOS's temporary directory is under a symlink (/var -> /private/var), where a relative path made
+        # from the unresolved name points nowhere
+        scratch = os.path.realpath(tmp)
+        cwds = [scratch, os.path.join(scratch, "déjà vu"), os.path.realpath(args.root), tests, os.path.join(tests, "conformance")]
         os.makedirs(cwds[1], exist_ok=True)
 
         def run(job):
@@ -85,7 +88,8 @@ def main():
                 return "%s: memory error\n%s" % (where, proc.stderr.decode("utf-8", "replace")[-4000:])
             got = "error" if proc.returncode != 0 else fnv1a(proc.stdout)
             if got != pin:
-                return "%s: %s, pinned %s" % (where, got, pin)
+                detail = proc.stderr.decode("utf-8", "replace").strip()[-400:] if got == "error" else ""
+                return "%s: %s, pinned %s%s" % (where, got, pin, ("\n  " + detail) if detail else "")
             return None
 
         jobs = [(i, v, p) for i, p in enumerate(pins) for v in range(args.variants)]
