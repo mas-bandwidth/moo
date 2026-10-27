@@ -16,8 +16,8 @@
 #include "lnumutils.h"
 #include "lbuffer.h"
 #include "lvector.h"
-#include "moo_vec3.h" // moo: the vec3, quat and transform C API
-#include "moo_quat.h" // moo: quat
+#include "moo_vec3.h"      // moo: the vec3, quat and transform C API
+#include "moo_quat.h"      // moo: quat
 #include "moo_transform.h" // moo: transform
 
 #include <string.h>

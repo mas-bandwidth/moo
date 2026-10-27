@@ -9,8 +9,8 @@
 #include "lapi.h"
 #include "lgc.h"
 #include "lnumutils.h"
-#include "moo_vec3.h" // moo: tostring of vec3, quat and transform
-#include "moo_quat.h" // moo: quat
+#include "moo_vec3.h"      // moo: tostring of vec3, quat and transform
+#include "moo_quat.h"      // moo: quat
 #include "moo_transform.h" // moo: transform
 
 #include <string.h>

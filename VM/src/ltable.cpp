@@ -31,8 +31,8 @@
 #include "lmem.h"
 #include "lnumutils.h"
 #include "ltm.h"
-#include "moo_vec3.h" // moo: vec3, quat and transform keys hash and compare by value
-#include "moo_quat.h" // moo: quat
+#include "moo_vec3.h"      // moo: vec3, quat and transform keys hash and compare by value
+#include "moo_quat.h"      // moo: quat
 #include "moo_transform.h" // moo: transform
 
 #include <string.h>

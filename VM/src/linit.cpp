@@ -21,8 +21,8 @@ LUAU_FASTFLAGVARIABLE(LuauSandboxFreezesVectorMetatable)
     {LUA_BITLIBNAME, luaopen_bit32},
     {LUA_BUFFERLIBNAME, luaopen_buffer},
     // moo: no float vector library
-    {"vec3", luaopen_vec3}, // moo: vec3
-    {"quat", luaopen_quat}, // moo: quat
+    {"vec3", luaopen_vec3},           // moo: vec3
+    {"quat", luaopen_quat},           // moo: quat
     {"transform", luaopen_transform}, // moo: transform
     {LUA_INTLIBNAME, luaopen_integer},
     {NULL, NULL},
@@ -38,8 +38,8 @@ static const luaL_Reg lualibs_NOINTEGER[] = {
     {LUA_UTF8LIBNAME, luaopen_utf8},
     {LUA_BITLIBNAME, luaopen_bit32},
     {LUA_BUFFERLIBNAME, luaopen_buffer},
-    {"vec3", luaopen_vec3}, // moo: vec3
-    {"quat", luaopen_quat}, // moo: quat
+    {"vec3", luaopen_vec3},           // moo: vec3
+    {"quat", luaopen_quat},           // moo: quat
     {"transform", luaopen_transform}, // moo: transform
     {NULL, NULL},
 };

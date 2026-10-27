@@ -342,8 +342,8 @@ union GCObject
     struct LuauClass lclass;
     struct LuauObject lobject;
     struct LuauVector vec;
-    struct MooVec3 v3; // moo: vec3
-    struct MooQuat q; // moo: quat
+    struct MooVec3 v3;      // moo: vec3
+    struct MooQuat q;       // moo: quat
     struct MooTransform tf; // moo: transform
 };
 
