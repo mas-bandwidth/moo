@@ -320,23 +320,31 @@ end
 
 -- protected and regular calls without C stack limit
 do
-	-- moo: the sums are taken modulo 1000: at this depth they pass the range, which saturates in release and raises in a
-	-- checked build (docs/DESIGN.md "Overflow")
+	-- moo: at this depth the sums pass the range: release saturates them to math.huge, a checked build raises
+	-- (docs/DESIGN.md "Overflow"); assert(result) is error(s, 0), which passes the inner error out unprefixed
 	local function regularadd(depth: number, a: number, b: number): number
 		if depth == 0 then return 1 end
 
-		return (a + regularadd(depth - 1, b, (a + b) % 1000)) % 1000
+		return a + regularadd(depth - 1, b, a + b)
 	end
 
 	local function protectedadd(depth: number, a: number, b: number): number
 		if depth == 0 then return 1 end
 
-		local result, s = pcall(protectedadd, depth - 1, b, (a + b) % 1000)
-		assert(result)
-		return (a + s) % 1000
+		local result, s = pcall(protectedadd, depth - 1, b, a + b)
+		if not result then error(s, 0) end
+		return a + s
 	end
 
-	assert(regularadd(2000, 0, 1) == protectedadd(2000, 0, 1))
+	if moocheckedbuild then
+		local rok, rerr = pcall(regularadd, 2000, 0, 1)
+		assert(not rok and string.find(rerr, "number overflow in '+'", 1, true))
+		local pok, perr = pcall(protectedadd, 2000, 0, 1)
+		assert(not pok and string.find(perr, "number overflow in '+'", 1, true))
+	else
+		assert(regularadd(2000, 0, 1) == math.huge)
+		assert(regularadd(2000, 0, 1) == protectedadd(2000, 0, 1))
+	end
 end
 
 -- check base tests in deoptimized environment

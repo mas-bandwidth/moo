@@ -5,8 +5,8 @@
 # GitHub Actions cache, so a commit that changes a VM header rebuilds the VM and nothing else.
 # Luau's unmodified suites (Conformance, UnitTest, CLI) run in the full job on pull requests, in
 # parallel and not required, and every night on Linux gcc and clang and macOS arm64 (nightly.yml).
-# Pull requests also run Moo.Test and Conformance in a checked build (MOO_OVERFLOW_ERRORS=ON) and
-# with gcc and warnings as errors.
+# Pull requests also run Moo.Test and Conformance in a checked build (MOO_OVERFLOW_ERRORS=ON), with
+# gcc and warnings as errors, on macOS and on Windows (MSVC), each with sccache like the jobs above.
 name: ci
 
 on:
@@ -160,3 +160,68 @@ jobs:
 
       - name: conformance
         run: build/Luau.Conformance
+
+  # nightly.yml's macos-arm64, cut to Moo.Test and Conformance
+  macos:
+    if: github.event_name != 'push'
+    runs-on: macos-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: sccache
+        uses: mozilla-actions/sccache-action@v0.0.9
+
+      - name: configure
+        run: >
+          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DLUAU_WERROR=ON
+          -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++
+          -DCMAKE_C_COMPILER_LAUNCHER=sccache -DCMAKE_CXX_COMPILER_LAUNCHER=sccache
+
+      - name: build
+        run: cmake --build build --target Moo.Test Luau.Conformance
+
+      - name: moo tests and the determinism suite
+        run: build/Moo.Test
+
+      - name: conformance
+        run: build/Luau.Conformance
+
+      - name: sccache stats
+        if: always()
+        run: sccache --show-stats
+
+  # nightly.yml's windows-msvc, cut to Moo.Test and Conformance; Ninja in the MSVC environment so sccache can cache
+  # (it needs debug information embedded in each object, /Z7)
+  windows:
+    if: github.event_name != 'push'
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: MSVC environment
+        uses: ilammy/msvc-dev-cmd@v1
+
+      - name: sccache
+        uses: mozilla-actions/sccache-action@v0.0.9
+
+      - name: configure
+        run: >
+          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DLUAU_WERROR=OFF
+          -DCMAKE_C_COMPILER=cl -DCMAKE_CXX_COMPILER=cl
+          -DCMAKE_C_COMPILER_LAUNCHER=sccache -DCMAKE_CXX_COMPILER_LAUNCHER=sccache
+          -DCMAKE_POLICY_DEFAULT_CMP0141=NEW -DCMAKE_MSVC_DEBUG_INFORMATION_FORMAT=Embedded
+
+      - name: build
+        run: cmake --build build --target Moo.Test Luau.Conformance
+
+      - name: moo tests and the determinism suite
+        run: build/Moo.Test.exe
+
+      - name: conformance
+        run: build/Luau.Conformance.exe
+
+      - name: sccache stats
+        if: always()
+        run: sccache --show-stats

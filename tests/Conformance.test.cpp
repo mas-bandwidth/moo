@@ -24,6 +24,7 @@
 
 #include "doctest.h"
 #include "MooHost.h" // moo: host floats cross the boundary
+#include "moo_number.h" // moo: MOO_OVERFLOW_ERRORS
 #include "ScopedFlags.h"
 #include "BufferCage.h"
 #include "ConformanceIrHooks.h"
@@ -433,6 +434,10 @@ static StateRef runConformance(
     lua_pushboolean(L, true);
     lua_setglobal(L, "limitedstack");
 #endif
+
+    // moo: test-only global, so a script asserts its own build's rule at the overflow edge (docs/DESIGN.md "Overflow")
+    lua_pushboolean(L, MOO_OVERFLOW_ERRORS);
+    lua_setglobal(L, "moocheckedbuild");
 
     // Extra test-specific setup
     if (setup)

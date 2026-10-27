@@ -318,8 +318,17 @@ assert(table.maxn(a) == 10)
 
 -- int overflow
 a = {}
--- moo: 2 ^ 47 and above saturate in release and raise in a checked build: for i=0,50 do a[math.pow(2,i)] = true end
-for i=0,46 do a[math.pow(2,i)] = true end
+-- moo: 2 ^ 47 and above are past the range: release saturates them to math.huge, a checked build raises
+-- (docs/DESIGN.md "Overflow")
+for i=0,50 do
+  if moocheckedbuild and i >= 47 then
+    local ok, err = pcall(math.pow, 2, i)
+    assert(not ok and string.find(err, "number overflow in '^'", 1, true))
+  else
+    a[math.pow(2,i)] = true
+  end
+end
+assert(moocheckedbuild or (math.pow(2, 47) == math.huge and math.pow(2, 50) == math.huge))
 assert(a[table.getn(a)])
 
 print("+")

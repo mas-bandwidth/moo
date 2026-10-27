@@ -86,12 +86,19 @@ a[1], f(a)[2], b, c = {['alo']=assert}, 10, a[1], a[f], 6, 10, 23, f(a), 2
 a[1].alo(a[2]==10 and b==10 and c==print)
 
 a[2^31] = 10; a[2^31+1] = 11; a[-2^31] = 12;
--- moo: 10^33 saturates in release and raises in a checked build: a[2^32] = 13; a[-2^32] = 14; a[2^32+1] = 15; a[10^33] = 16;
-a[2^32] = 13; a[-2^32] = 14; a[2^32+1] = 15; a[math.huge] = 16;
+a[2^32] = 13; a[-2^32] = 14; a[2^32+1] = 15;
+-- moo: 10^33 is past the range: release saturates it to math.huge, a checked build raises (docs/DESIGN.md "Overflow")
+if moocheckedbuild then
+  local ok, err = pcall(function() a[10^33] = 16 end)
+  assert(not ok and string.find(err, "number overflow in '^'", 1, true))
+else
+  a[10^33] = 16;
+  assert(10^33 == math.huge)
+end
 
 assert(a[2^31] == 10 and a[2^31+1] == 11 and a[-2^31] == 12 and
        a[2^32] == 13 and a[-2^32] == 14 and a[2^32+1] == 15 and
-       a[math.huge] == 16)
+       (moocheckedbuild or a[10^33] == 16))
 
 a = nil
 
