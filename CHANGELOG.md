@@ -1,6 +1,38 @@
 # moo changelog
 
-## Unreleased
+## v1.0.1
+
+A point release of fixes after v1.0.0: `^` raises the same errors as `math.pow`, every build
+configuration is green, and the bytecode-graph constant propagation never folds a value a checked
+build raises for. moo's own source and tests are reorganised with no change in behaviour.
+`moo --version` prints `moo 1.0.1 (Luau 0.741)`. Pull requests #44 to #49.
+
+### Fixed
+
+- `^` now raises the same errors as `math.pow`. `0 ^ n` for any `n < 0`, integer or fractional, is
+  `division by zero` (before, `0 ^ -0.5` and `math.pow(0, -0.5)` were 0); a negative base with a fractional exponent is `pow of a negative number to a fractional
+  power`; a power that saturates is `number overflow in '^'` in a checked build and saturates in
+  release. Before, the operator returned 0 or the saturated value with no error. The operator,
+  `math.pow` and its fastcall share one definition (`moo_numpow`) and one error helper
+  (`moo_numpowerror`), so a fractional power that saturates now raises in a checked
+  `math.pow` too (#47).
+- Every build configuration is green: a checked build (`MOO_OVERFLOW_ERRORS=ON`) passes Moo.Test
+  and the conformance suite, whose tests now assert the release value in release and the named
+  overflow error in a checked build; gcc builds with `-DLUAU_WERROR=ON`; and
+  `tools/moo-check-skips.sh` passes, every upstream `#if 0` case naming its reason. Pull requests
+  run a checked job and a gcc `-Werror` job, and the nightly gcc build uses `-Werror` (#48).
+- The bytecode-graph constant propagation (`Sccp.h` `evaluateNumberBinaryOp`) no longer folds
+  `+ - * / //` to a saturated value in a checked build; it refuses the fold, as the compiler's
+  constant folding does, so the VM raises `number overflow`. Only the JIT inliner calls it, and
+  moo compiles that out, so no released program was affected (#49).
+
+### Source cleanup
+
+- moo's own source has one definition per rule and terse comments that state the current
+  behaviour; behaviour is bit-identical. `moo_numfloorquot` is the one floor quotient,
+  `moo_nummulwide` the one rounded 128-bit product, and `moo_numfromfloat` the one float
+  conversion; `vec3`, `quat` and `transform` share their check, push and payload helpers and call
+  fixed's transform functions directly (#45).
 
 ### Tests and design records by subject
 
@@ -17,26 +49,11 @@
   states the current behaviour they specified: the bytecode refusals, the compiler's folding
   limits, the exact-integer and boundary error texts, the math library's definitions, constants
   and asserted error bounds, `moo_pow_int`'s proof, the vec3/quat/transform key hash, and how the
-  `^` operator behaves today.
+  `^` operator behaves today (#46).
 
-### Fixed
+### Docs
 
-- `^` now raises the same errors as `math.pow`. `0 ^ n` for any `n < 0`, integer or fractional, is
-  `division by zero` (before, `0 ^ -0.5` and `math.pow(0, -0.5)` were 0); a negative base with a fractional exponent is `pow of a negative number to a fractional
-  power`; a power that saturates is `number overflow in '^'` in a checked build and saturates in
-  release. Before, the operator returned 0 or the saturated value with no error. The operator,
-  `math.pow` and its fastcall share one definition (`moo_numpow`) and one error helper
-  (`moo_numpowerror`), so a fractional power that saturates now raises in a checked
-  `math.pow` too.
-- Every build configuration is green: a checked build (`MOO_OVERFLOW_ERRORS=ON`) passes Moo.Test
-  and the conformance suite, whose tests now assert the release value in release and the named
-  overflow error in a checked build; gcc builds with `-DLUAU_WERROR=ON`; and
-  `tools/moo-check-skips.sh` passes, every upstream `#if 0` case naming its reason. Pull requests
-  run a checked job and a gcc `-Werror` job, and the nightly gcc build uses `-Werror`.
-- The bytecode-graph constant propagation (`Sccp.h` `evaluateNumberBinaryOp`) no longer folds
-  `+ - * / //` to a saturated value in a checked build; it refuses the fold, as the compiler's
-  constant folding does, so the VM raises `number overflow`. Only the JIT inliner calls it, and
-  moo compiles that out, so no released program was affected.
+- The README's logo is the terminal cow (#44).
 
 ## v1.0.0 — 2026-10-25
 
