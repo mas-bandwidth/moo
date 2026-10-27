@@ -22,11 +22,11 @@ static_assert(offsetof(TString, data) == 32, "string header layout changed");
 static_assert(offsetof(Udata, data) == 32, "userdata header layout changed");
 static_assert(offsetof(Buffer, data) == 16, "buffer header layout changed");
 static_assert(sizeof(LuauVector) == 24, "vector object layout changed");
-// docs/layer3b/moo-v2-l3b-vec3-object.md, decision 2
+// docs/history/layer3b/moo-v2-l3b-vec3-object.md, decision 2
 static_assert(sizeof(MooVec3) == 40, "vec3 object layout changed");
-// docs/layer3b/moo-v2-l3b-quat-object.md, decision 2
+// docs/history/layer3b/moo-v2-l3b-quat-object.md, decision 2
 static_assert(sizeof(MooQuat) == 48, "quat object layout changed");
-// docs/layer3b/moo-v2-l3b-transform.md
+// docs/history/layer3b/moo-v2-l3b-transform.md
 static_assert(sizeof(MooTransform) == 72, "transform object layout changed");
 static_assert(sizeof(Proto) == 224, "function prototype layout changed");
 static_assert(sizeof(LocVar) == 24, "local variable record layout changed");

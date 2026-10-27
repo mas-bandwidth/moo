@@ -573,9 +573,10 @@ including `fixed/fixed.h`), so the comparison also defines `FIX_SATURATE`; and `
 the top of the range, deterministically ("Layer 3b as built").
 
 transform's compose, point and invpoint call fixed's `fixMulTransforms`, `fixTransformPoint` and
-`fixInvTransformPoint` directly (`VM/src/moo_transformlib.cpp`). Their one position add is fixed's
-`fixVecAdd`/`fixVecSub`, which under `FIX_SATURATE` saturates per component to the same bits as
-`moo_numadd`/`moo_numsub`; a checked build raises no named error for it. What this buys is narrow:
+`fixInvTransformPoint` directly (`VM/src/lvmutils.cpp` for `*`, `VM/src/moo_transformlib.cpp` for the
+library). Their one position add is fixed's `fixVecAdd`/`fixVecSub`, which under `FIX_SATURATE`
+saturates per component to the same bits as `moo_numadd`/`moo_numsub`; a checked build raises no
+named error for it. What this buys is narrow:
 the add itself is defined everywhere, so a script cannot reach behaviour that differs between
 compilers through it. With a non-identity rotation, a position near the
 range ends also reaches `fixRotateVector` or `fixInvRotateVector` (compose's input, invpoint's

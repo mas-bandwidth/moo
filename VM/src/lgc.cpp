@@ -309,7 +309,7 @@ static void reallymarkobject(global_State* g, GCObject* o)
         return;
     }
     // moo: vec3, quat and transform hold no references, so they turn black directly like a string
-    // (docs/layer3b/moo-v2-l3b-vec3-object.md, decision 6)
+    // (docs/history/layer3b/moo-v2-l3b-vec3-object.md, decision 6)
     case LUA_TVEC3:
     {
         gray2black(o);
@@ -689,7 +689,7 @@ static int isobjcleared(GCObject* o)
         return 0;
     }
     // moo: vec3, quat and transform are values, like a string, never cleared from a weak table
-    // (docs/layer3b/moo-v2-l3b-vec3-object.md, decision 4)
+    // (docs/history/layer3b/moo-v2-l3b-vec3-object.md, decision 4)
     if (o->gch.tt == LUA_TVEC3)
     {
         stringmark(&o->gch);
@@ -791,7 +791,7 @@ static size_t cleartable(lua_State* L, GCObject* l)
             else
             {
                 // moo: an emptied weak entry turns a collectable key into LUA_TDEADKEY before sweep frees its object, so value
-                // equality never reads a freed key (docs/layer3b/moo-v2-l3b-vec3-object.md, decision 4)
+                // equality never reads a freed key (docs/history/layer3b/moo-v2-l3b-vec3-object.md, decision 4)
                 removeentry(n);
             }
         }

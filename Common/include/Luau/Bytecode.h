@@ -59,7 +59,7 @@
 // WIP Versions: Used for in-progress features that might require multiple changes to bytecode. Since these versions are higher than the non-WIP versions, they are responsible for maintaining compatibility with them. For example, tests exercising WIP bytecode versions may need to enable flags for unreleased but non-WIP bytecode versions.
 // Version 100: Adds NEWCLASS for use with Luau Classes. Future class-related bytecode changes should go in this version before release. Experimental.
 
-// moo: # moo bytecode versions (docs/layer3/moo-l3-bytecode-version.md)
+// moo: # moo bytecode versions (docs/history/layer3/moo-l3-bytecode-version.md)
 // A moo blob starts with LBC_MOO_VERSION_FLAG | the moo version, so its first byte is never a Luau version (Luau's
 // versions are 7-bit, LBC_VERSION_MAX <= 127); the byte after it is the Luau version whose format the rest follows,
 // with the moo changes below. The VM loads only moo bytecode and refuses Luau bytecode by name. A moo format change

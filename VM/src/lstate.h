@@ -3,9 +3,9 @@
 #pragma once
 
 #include "lobject.h"
-#include "moo_vec3.h" // moo: MooVec3 in union GCObject (docs/layer3b/moo-v2-l3b-vec3-object.md)
-#include "moo_quat.h" // moo: MooQuat in union GCObject (docs/layer3b/moo-v2-l3b-quat-object.md)
-#include "moo_transform.h" // moo: MooTransform in union GCObject (docs/layer3b/moo-v2-l3b-transform.md)
+#include "moo_vec3.h" // moo: MooVec3 in union GCObject (docs/history/layer3b/moo-v2-l3b-vec3-object.md)
+#include "moo_quat.h" // moo: MooQuat in union GCObject (docs/history/layer3b/moo-v2-l3b-quat-object.md)
+#include "moo_transform.h" // moo: MooTransform in union GCObject (docs/history/layer3b/moo-v2-l3b-transform.md)
 #include "ltm.h"
 #include "ludata.h"
 

@@ -2,7 +2,7 @@
 //
 // moo: the vec3 object. One immutable GC object, tag LUA_TVEC3: the common header and three Q48.16 components. It
 // references nothing, so the GC treats it as a leaf, like a string. The decisions and their reasons are in
-// docs/layer3b/moo-v2-l3b-vec3-object.md.
+// docs/history/layer3b/moo-v2-l3b-vec3-object.md.
 #pragma once
 
 #include "lobject.h"

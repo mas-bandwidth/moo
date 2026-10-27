@@ -357,7 +357,7 @@ class AstExprConstantNumber : public AstExpr
 public:
     LUAU_RTTI(AstExprConstantNumber)
 
-    // moo: two forms (docs/layer3/moo-l3-ast-raw-literals.md). The parser's four-argument form takes moo_numparse's
+    // moo: two forms (docs/history/layer3/moo-l3-ast-raw-literals.md). The parser's four-argument form takes moo_numparse's
     // raw value and value = moo_numtodouble(rawValue). The two-argument form is for tools that build a node from a
     // double, infinity and NaN included: value is kept as given and rawValue = moo_numfromdoublevalue(value).
     AstExprConstantNumber(const Location& location, double value, ConstantNumberParseResult parseResult = ConstantNumberParseResult::Ok);

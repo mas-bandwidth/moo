@@ -101,7 +101,7 @@ enum lua_Type
 #endif
 
     // moo: vec3, quat and transform, immutable GC values of Q48.16 components; after every upstream GC type so
-    // upstream tags keep their values (docs/layer3b/moo-v2-l3b-vec3-object.md, decision 1)
+    // upstream tags keep their values (docs/history/layer3b/moo-v2-l3b-vec3-object.md, decision 1)
     LUA_TVEC3,
 
     // moo: quat

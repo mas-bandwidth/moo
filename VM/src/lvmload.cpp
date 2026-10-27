@@ -333,7 +333,7 @@ static int loadsafe(
     }
 
     // moo: the VM loads only moo bytecode and refuses Luau bytecode by name (Bytecode.h, "moo bytecode versions";
-    // docs/layer3/moo-l3-bytecode-version.md)
+    // docs/history/layer3/moo-l3-bytecode-version.md)
     if ((version & LBC_MOO_VERSION_FLAG) == 0)
     {
         char chunkbuf[LUA_IDSIZE];

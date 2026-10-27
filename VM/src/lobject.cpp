@@ -39,7 +39,7 @@ int luaO_log2(unsigned int x)
     return l + log_2[x];
 }
 
-// moo: vec3, quat and transform allocation, equality and tostring (docs/layer3b/moo-v2-l3b-vec3-object.md)
+// moo: vec3, quat and transform allocation, equality and tostring (docs/history/layer3b/moo-v2-l3b-vec3-object.md)
 MooVec3* moo_vec3_new(lua_State* L, fixed_t x, fixed_t y, fixed_t z)
 {
     MooVec3* v = luaM_newgcofixed(L, MooVec3, sizeof(MooVec3), L->activememcat, LUA_TVEC3);
@@ -143,7 +143,7 @@ char* moo_transform_tostring(char* buf, const MooTransform* t)
     return p;
 }
 
-// moo: no float vector arm; vec3, quat and transform compare by value (docs/layer3b/moo-v2-l3b-vec3-object.md,
+// moo: no float vector arm; vec3, quat and transform compare by value (docs/history/layer3b/moo-v2-l3b-vec3-object.md,
 // decision 3)
 int luaO_rawequalObj(const TValue* t1, const TValue* t2)
 {
