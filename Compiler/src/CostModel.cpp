@@ -271,7 +271,7 @@ struct CostVisitor : AstVisitor
             result += model(node->step);
 
         int tripCount = -1;
-        double from, to, step = 1;
+        fixed_t from, to, step = moo_numfromint(1);
 
         if (getNumber(node->from, from) && getNumber(node->to, to) && (!node->step || getNumber(node->step, step)))
             tripCount = getTripCount(from, to, step);
@@ -394,14 +394,14 @@ struct CostVisitor : AstVisitor
         return false;
     }
 
-    bool getNumber(AstExpr* node, double& result)
+    bool getNumber(AstExpr* node, fixed_t& result)
     {
         if (const Constant* constant = constants.find(node))
         {
             if (constant->type == Constant::Type_Number)
             {
-                // moo: the boundary rule, exact for the small integers a trip count cares about
-                result = moo_numtodouble(constant->valueNumber);
+                // moo: the raw Q48.16 value
+                result = constant->valueNumber;
                 return true;
             }
         }
@@ -464,12 +464,18 @@ int computeCost(uint64_t model, const bool* varsConst, size_t varCount)
     return cost;
 }
 
-int getTripCount(double from, double to, double step)
+// moo: an integer in [-32767, 32767] read from its raw Q48.16 value, or INT_MIN
+static int getTripBound(fixed_t value)
+{
+    return (moo_numisinteger(value) && value >= moo_numfromint(-32767) && value <= moo_numfromint(32767)) ? int(moo_numtrunc(value)) : INT_MIN;
+}
+
+int getTripCount(fixed_t from, fixed_t to, fixed_t step)
 {
     // we compute trip count in integers because that way we know that the loop math (repeated addition) is precise
-    int fromi = (from >= -32767 && from <= 32767 && double(int(from)) == from) ? int(from) : INT_MIN;
-    int toi = (to >= -32767 && to <= 32767 && double(int(to)) == to) ? int(to) : INT_MIN;
-    int stepi = (step >= -32767 && step <= 32767 && double(int(step)) == step) ? int(step) : INT_MIN;
+    int fromi = getTripBound(from);
+    int toi = getTripBound(to);
+    int stepi = getTripBound(step);
 
     if (fromi == INT_MIN || toi == INT_MIN || stepi == INT_MIN || stepi == 0)
         return -1;

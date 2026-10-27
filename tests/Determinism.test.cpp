@@ -125,11 +125,8 @@ void hashValue(Fnv& f, const TValue* v)
         f.u64(uint64_t(bvalue(v)));
         break;
     case LUA_TNUMBER:
-    {
-        double d = nvalue(v);
-        f.bytes(&d, sizeof(d));
+        f.u64(uint64_t(nvalue(v))); // moo: every bit of the raw Q48.16 value
         break;
-    }
     case LUA_TVECTOR:
         f.bytes(vvalue(v), sizeof(float) * LUA_VECTOR_SIZE);
         break;

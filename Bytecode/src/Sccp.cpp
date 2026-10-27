@@ -236,7 +236,7 @@ fixed_t BcVmConstImpl::asNumber(const BcOp& op) const
     }
 
     LUAU_ASSERT(!"unsupported type, use isNumber first");
-    return 0.0;
+    return 0; // moo: raw 0, the number 0, with no double
 }
 
 ConstnessLattice SccpInterpreter::evaluateArith(LuauOpcode opcode, BcRef<BcInst> instRepr)
