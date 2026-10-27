@@ -6,12 +6,15 @@
 // tools/moo-fixed3d-compare.sh checks is identical to moo's extern/fixed, so every case must agree bit for bit; the
 // program exits 1 on any difference. Built with -fwrapv so a plain int64 add that overflowed would be counted as a
 // difference instead of being undefined. Not part of Moo.Test: it needs fixed3d, which the script clones at its pin.
+// Against a checked moo build (MOO_OVERFLOW_ERRORS) a vec3 + - or * that saturates must raise the named error instead
+// (docs/DESIGN.md "Overflow"); the program asks the VM which build it is.
 #include "box3d/base.h"
 #include "box3d/math_functions.h"
 
 #include "lua.h"
 #include "lualib.h"
 #include "Luau/Compiler.h"
+#include "moo_number.h"
 
 #include <stdint.h>
 #include <stdio.h>
@@ -78,23 +81,51 @@ static bool same(fixed_t a, fixed_t b) { return a == b; }
 struct Tally { long cases = 0, differ = 0; std::string first; };
 static std::map<std::string, Tally> tally;
 
+// true when the moo build under test is checked: it raises where release saturates
+static bool checked = false;
+
+// want, or in a checked build the named overflow error when raises is true
 template<typename R, typename... A>
-static void cmp(const char* name, const char* fn, R want, A... args)
+static void cmpOrRaise(const char* name, const char* fn, R want, bool raises, A... args)
 {
     lua_getglobal(L, fn);
     (push(args), ...);
     R got{};
     Tally& t = tally[name];
     t.cases++;
+    raises = raises && checked;
     if (lua_pcall(L, int(sizeof...(A)), 1, 0) != 0)
     {
+        const char* error = lua_isstring(L, -1) ? lua_tostring(L, -1) : "";
+        if (!raises || !strstr(error, "number overflow in '"))
+            t.differ++;
         lua_pop(L, 1);
-        t.differ++;
         return;
     }
     pop(got);
-    if (!same(got, want))
+    if (raises || !same(got, want))
         t.differ++;
+}
+
+template<typename R, typename... A>
+static void cmp(const char* name, const char* fn, R want, A... args)
+{
+    cmpOrRaise(name, fn, want, false, args...);
+}
+
+static bool addSaturates(fixVec3 a, fixVec3 b)
+{
+    return moo_numaddsaturates(a.x, b.x) || moo_numaddsaturates(a.y, b.y) || moo_numaddsaturates(a.z, b.z);
+}
+
+static bool subSaturates(fixVec3 a, fixVec3 b)
+{
+    return moo_numsubsaturates(a.x, b.x) || moo_numsubsaturates(a.y, b.y) || moo_numsubsaturates(a.z, b.z);
+}
+
+static bool scaleSaturates(fixed_t s, fixVec3 a)
+{
+    return moo_nummulsaturates(s, a.x) || moo_nummulsaturates(s, a.y) || moo_nummulsaturates(s, a.z);
 }
 
 int main()
@@ -111,14 +142,21 @@ int main()
     if (luau_load(L, "=cmp", bc.data(), bc.size(), 0) != 0 || lua_pcall(L, 0, 0, 0) != 0)
         return 2;
 
+    lua_getglobal(L, "add");
+    lua_pushnumber(L, kMax);
+    lua_pushnumber(L, fixed_t(1));
+    checked = lua_pcall(L, 2, 1, 0) != 0;
+    lua_pop(L, 1);
+    printf("moo-fixed3d-compare: %s build\n", checked ? "checked" : "release");
+
     const int N = 1 << 16;
     Rng r{0xf1ed3d};
     for (int i = 0; i < N; ++i)
     {
         fixVec3 a = r.vecFull(), b = r.vecFull();
-        cmp("vec3 + vec3 (full range)", "add", b3Add(a, b), a, b);
-        cmp("vec3 - vec3 (full range)", "sub", b3Sub(a, b), a, b);
-        cmp("vec3 * number (full range)", "mul", b3MulSV(a.x, b), b, a.x);
+        cmpOrRaise("vec3 + vec3 (full range)", "add", b3Add(a, b), addSaturates(a, b), a, b);
+        cmpOrRaise("vec3 - vec3 (full range)", "sub", b3Sub(a, b), subSaturates(a, b), a, b);
+        cmpOrRaise("vec3 * number (full range)", "mul", b3MulSV(a.x, b), scaleSaturates(a.x, b), b, a.x);
         cmp("-vec3 (full range)", "unm", b3Neg(a), a);
         cmp("vec3.dot (full range)", "dot", b3Dot(a, b), a, b);
         cmp("vec3.length (full range)", "length", b3Length(a), a);

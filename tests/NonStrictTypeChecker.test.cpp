@@ -879,6 +879,7 @@ TEST_CASE_FIXTURE(NonStrictTypeCheckerFixture, "nonstrict_check_block_recursion_
     LUAU_REQUIRE_NO_ERRORS(result);
 }
 
+// moo: upstream disables this case (CLI-181303); not a moo skip
 #if 0 // CLI-181303 requires a ConstraintGenerator::checkPack fix to succeed in debug on Windows
 TEST_CASE_FIXTURE(NonStrictTypeCheckerFixture, "nonstrict_check_expr_recursion_limit")
 {

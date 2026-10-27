@@ -275,6 +275,7 @@ TEST_CASE_FIXTURE(IsSubtypeFixture, "mismatched_indexers")
     CHECK(isSubtype(b, c));
 }
 
+// moo: upstream disables this case; not a moo skip
 #if 0
 TEST_CASE_FIXTURE(IsSubtypeFixture, "cyclic_table")
 {
@@ -331,6 +332,7 @@ TEST_CASE_FIXTURE(IsSubtypeFixture, "extern_types")
     CHECK(!isSubtype(p, u));
 }
 
+// moo: upstream disables this case; not a moo skip
 #if 0
 TEST_CASE_FIXTURE(IsSubtypeFixture, "metatable" * doctest::expected_failures{1})
 {
@@ -1543,6 +1545,7 @@ do end
     )"));
 }
 
+// moo: upstream disables this case; not a moo skip
 #if 0
 TEST_CASE_FIXTURE(BuiltinsFixture, "fuzz_union_type_pack_cycle")
 {

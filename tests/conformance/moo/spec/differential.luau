@@ -3,6 +3,9 @@
 -- with a negative control (the libFuzzer targets in fuzz/ run the same checks; docs/DESIGN.md "Layers").
 -- Each block below is one rule; MooSpecScripts runs this file and expects "OK".
 
+-- a checked build (MOO_OVERFLOW_ERRORS) raises where release saturates; + says which build this is
+local checked = not pcall(function(a, b) return a + b end, moo_test.fromraw("9223372036854775807"), moo_test.fromraw("1"))
+
 do
     -- moo: the layer 5 differential fuzz target's rules, from inside the VM (docs/DESIGN.md "Layers", layer 5: fuzzing;
     -- docs/history/layer5/moo-l5-fuzz-differential.md). The libFuzzer runs are functional and never run here; this script pins the
@@ -20,9 +23,18 @@ do
 
     -- fixes's fixMul rounds half up: 3 raw * 0.5 = 1.5 raw -> 2 raw (DESIGN.md "Semantics")
     assert(moo_test.raw(moo_test.fromraw("3") * moo_test.fromraw("32768")) == "2")
-    -- exact add and sub, saturating at the domain edge (DESIGN.md "Overflow")
-    assert(moo_test.raw(moo_test.fromraw("9223372036854775807") + moo_test.fromraw("65536")) == "9223372036854775807")
-    assert(moo_test.raw(moo_test.fromraw("-9223372036854775807") - moo_test.fromraw("65536")) == "-9223372036854775807")
+    -- exact add and sub, saturating at the domain edge in release; a checked build raises the named error instead
+    -- (DESIGN.md "Overflow")
+    local function edge(op, want, f)
+        local ok, result = pcall(f)
+        if checked then
+            assert(not ok and string.find(tostring(result), "number overflow in '" .. op .. "'", 1, true), tostring(result))
+        else
+            assert(ok and moo_test.raw(result) == want, tostring(result))
+        end
+    end
+    edge("+", "9223372036854775807", function() return moo_test.fromraw("9223372036854775807") + moo_test.fromraw("65536") end)
+    edge("-", "-9223372036854775807", function() return moo_test.fromraw("-9223372036854775807") - moo_test.fromraw("65536") end)
     -- floor division and remainder have the sign of the divisor (DESIGN.md "Semantics")
     assert(moo_test.raw(moo_test.fromraw("-98304") // moo_test.fromraw("65536")) == "-131072")
     assert(moo_test.raw(moo_test.fromraw("-98304") % moo_test.fromraw("65536")) == "32768")

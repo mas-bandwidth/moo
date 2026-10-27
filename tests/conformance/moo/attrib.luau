@@ -86,11 +86,12 @@ a[1], f(a)[2], b, c = {['alo']=assert}, 10, a[1], a[f], 6, 10, 23, f(a), 2
 a[1].alo(a[2]==10 and b==10 and c==print)
 
 a[2^31] = 10; a[2^31+1] = 11; a[-2^31] = 12;
-a[2^32] = 13; a[-2^32] = 14; a[2^32+1] = 15; a[10^33] = 16;
+-- moo: 10^33 saturates in release and raises in a checked build: a[2^32] = 13; a[-2^32] = 14; a[2^32+1] = 15; a[10^33] = 16;
+a[2^32] = 13; a[-2^32] = 14; a[2^32+1] = 15; a[math.huge] = 16;
 
 assert(a[2^31] == 10 and a[2^31+1] == 11 and a[-2^31] == 12 and
        a[2^32] == 13 and a[-2^32] == 14 and a[2^32+1] == 15 and
-       a[10^33] == 16)
+       a[math.huge] == 16)
 
 a = nil
 

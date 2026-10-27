@@ -22,12 +22,18 @@
 
 // moo: pow, one definition for the ^ operator, math.pow and its fastcall (docs/DESIGN.md "pow and ^"). An integer
 // exponent is moo_pow_int, exact, rounded once. A fractional exponent is fixPow = fixExp2(exponent * fixLog2(base));
-// a negative base is an error, and fixPow's MOO_NUMBER_MAX is saturation. Returns a MOO_POW_ status, *out the
-// release value.
+// 0 ^ negative is division by zero as for an integer, a negative base is an error, and fixPow's MOO_NUMBER_MAX is
+// saturation. Returns a MOO_POW_ status, *out the release value.
 inline int moo_numpow(fixed_t a, fixed_t b, fixed_t* out)
 {
     if (moo_numisinteger(b))
         return moo_pow_int(a, b >> MOO_NUMBER_FRACTION_BITS, out);
+
+    if (a == 0 && b < 0)
+    {
+        *out = 0;
+        return MOO_POW_DIVISION_BY_ZERO;
+    }
 
     if (a < 0)
     {

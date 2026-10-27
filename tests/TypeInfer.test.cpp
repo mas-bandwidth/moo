@@ -2613,6 +2613,7 @@ do end
     )"));
 }
 
+// moo: upstream disables this case (CLI-166473); not a moo skip
 #if 0 // CLI-166473: re-enable after flakiness is resolved
 TEST_CASE_FIXTURE(Fixture, "txnlog_checks_for_occurrence_before_self_binding_a_type")
 {

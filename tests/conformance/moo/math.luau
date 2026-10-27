@@ -296,7 +296,8 @@ assert(math.max(ma, mc, mb) == 2)
 assert(math.max(ma, mb, mc) == 2)
 assert(math.max(ma, mb, mc, md) == 2)
 
-local inf = math.huge * 2
+-- moo: math.huge * 2 saturates in release and raises in a checked build: local inf = math.huge * 2
+local inf = math.huge
 -- moo: no NaN: local nan = 0 / 0
 
 -- moo: no NaN: assert(math.min(nan, 2) ~= math.min(nan, 2))

@@ -29,12 +29,17 @@ namespace
 {
 
 // The reference status and release value of base ^ exponent for any exponent, from moo_pow_int and fixPow
-// directly: a negative base with a fractional exponent is its own status, and fixPow's MOO_NUMBER_MAX is
-// saturation (docs/DESIGN.md "pow and ^").
+// directly: 0 ^ any negative is division by zero, a negative base with a fractional exponent is its own status,
+// and fixPow's MOO_NUMBER_MAX is saturation (docs/DESIGN.md "pow and ^").
 int powReference(fixed_t base, fixed_t exponent, fixed_t* out)
 {
     if (moo_numisinteger(exponent))
         return moo_pow_int(base, exponent >> MOO_NUMBER_FRACTION_BITS, out);
+    if (base == 0 && exponent < 0)
+    {
+        *out = 0;
+        return MOO_POW_DIVISION_BY_ZERO;
+    }
     if (base < 0)
     {
         *out = 0;
@@ -934,7 +939,7 @@ TEST_CASE("PowLibraryIntegerEdges")
 
 } // namespace pow_library
 
-// Layer 4 integer-exponent pow in the VM (docs/DESIGN.md "math library", "pow and ^"): luai_numpow calls
+// Layer 4 integer-exponent pow in the VM (docs/DESIGN.md "math library", "pow and ^"): the ^ operator calls
 // moo_pow_int for an integer-valued exponent, and moo: a fractional exponent uses fixed's fixPow. The
 // scripts run through the VM (`^` and the constant-exponent opcode); the reference is moo_pow_int called
 // directly and fixPow itself.
@@ -1354,6 +1359,30 @@ TEST_CASE("PowOperatorMatchesMathPow")
 
     // every kind of error is in the table
     CHECK(errors >= 4);
+}
+
+// 0 ^ negative fraction is "division by zero" on every path, as 0 ^ negative integer is (docs/DESIGN.md "pow and ^").
+// Written out, not read from powReference, so this goes red if moo_numpow returns fixPow's 0 here again.
+TEST_CASE("PowZeroToNegativeFractionIsDivisionByZero")
+{
+    for (const char* e : {"-0.5", "-1.5", "-0.0000152587890625", "-1000.25"})
+    {
+        const std::string sources[] = {
+            std::string("local t = {0, ") + e + "} return moo_test.raw(t[1] ^ t[2])",
+            std::string("local t = {0} return moo_test.raw(t[1] ^ ") + e + ")",
+            std::string("return moo_test.raw(0 ^ ") + e + ")",
+            std::string("local t = {0, ") + e + "} return moo_test.raw(math.pow(t[1], t[2]))",
+            std::string("local p = rawget(math, 'pow') local t = {0, ") + e + "} return moo_test.raw(p(t[1], t[2]))",
+            std::string("local t = {'0', ") + e + "} return moo_test.raw(t[1] ^ t[2])",
+        };
+        for (int level = 0; level <= 2; ++level)
+            for (const std::string& source : sources)
+                CHECK_MESSAGE(run(source, level) == "error: moo:1: division by zero", source << " -O" << level);
+    }
+
+    // a positive fraction and a negative integer are unchanged: 0 and division by zero
+    CHECK(run("local t = {0, 0.5} return moo_test.raw(t[1] ^ t[2])", 1) == "0");
+    CHECK(run("local t = {0, -1} return moo_test.raw(t[1] ^ t[2])", 1) == "error: moo:1: division by zero");
 }
 
 // Reversed witness: under the old silent operator (moo_pow_int's *out or fixPow's value, no error) the table above

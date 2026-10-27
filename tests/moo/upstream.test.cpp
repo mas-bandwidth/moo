@@ -20,8 +20,8 @@ TEST_SUITE_BEGIN("upstream");
 // Layer 5 (docs/DESIGN.md "Layers", layer 5): the Luau suite is adapted for fixed, not silenced.
 // Every skipped doctest case and every moved conformance script states its reason with "moo:",
 // and a reason that names a replacement test resolves by grep. tools/moo-check-skips.sh applies
-// the same rule over the whole tree and reports the upstream #if 0 blocks it finds; this case
-// keeps the moo side of that list honest inside Moo.Test.
+// the same rule over the whole tree, upstream #if 0 blocks included; this case keeps that list
+// honest inside Moo.Test.
 namespace skips
 {
 
@@ -312,8 +312,7 @@ TEST_CASE("UpstreamSkippedCasesNameAReason")
             if (record.reason.empty())
             {
                 unmarkedIfZero++;
-                // moo's own test files must never gain an unmarked skip; upstream #if 0 blocks
-                // are the known gap moo-check-skips.sh reports for a follow-up.
+                // every #if 0 block names its reason; moo's own test files are named apart
                 bool mooOwned = record.file.rfind("tests/moo/", 0) == 0 || startsWith(fs::path(record.file).filename().string(), "Moo");
                 CHECK_MESSAGE(!mooOwned, record.file << ":" << record.line << " is moo's own #if 0 block and has no moo: reason");
             }
@@ -326,7 +325,7 @@ TEST_CASE("UpstreamSkippedCasesNameAReason")
     // moo: current sprint/moo has 45; moo-l3-unittest-base-reds-named adds eleven (docs/history/layer3/moo-l3-unittest-base-reds-named.md)
     CHECK_MESSAGE(doctestSkips == 56, "expected 56 doctest skip decorators, found " << doctestSkips);
     CHECK_MESSAGE(earlyReturns == 2, "expected 2 marked early returns, found " << earlyReturns);
-    CHECK_MESSAGE(unmarkedIfZero == 11, "expected 11 unmarked upstream #if 0 blocks, found " << unmarkedIfZero);
+    CHECK_MESSAGE(unmarkedIfZero == 0, "expected no unmarked #if 0 blocks, found " << unmarkedIfZero);
     for (const std::string& failure : failures)
         CHECK_MESSAGE(false, failure);
 }

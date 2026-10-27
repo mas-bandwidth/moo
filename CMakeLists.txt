@@ -270,6 +270,14 @@ if(LUAU_VECTOR_FOUR_WIDE)
     target_compile_definitions(Luau.VM PUBLIC "LUA_VECTOR_SIZE=4")
 endif()
 
+if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+    # moo: gcc only, one file each, so -Werror holds everywhere else. Confusables.cpp's bidi characters are its
+    # confusable data, on purpose (gcc 12+ -Wbidi-chars). gcc 13 reports a false -Wfree-nonheap-object on a
+    # std::vector inlined into BuiltinTypeFunctions.cpp's tryDistributeTypeFunctionApp.
+    set_source_files_properties(Ast/src/Confusables.cpp PROPERTIES COMPILE_OPTIONS -Wno-bidi-chars)
+    set_source_files_properties(Analysis/src/BuiltinTypeFunctions.cpp PROPERTIES COMPILE_OPTIONS -Wno-free-nonheap-object)
+endif()
+
 if (CMAKE_CXX_COMPILER_ID STREQUAL "MSVC" AND MSVC_VERSION GREATER_EQUAL 1924)
     # disable partial redundancy elimination which regresses interpreter codegen substantially in VS2022:
     # https://developercommunity.visualstudio.com/t/performance-regression-on-a-complex-interpreter-lo/1631863
