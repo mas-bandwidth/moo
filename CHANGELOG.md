@@ -1,5 +1,23 @@
 # moo changelog
 
+## v1.0.1 — 2026-10-27
+
+Cut from f34ee8a0093a40292379a00af0f4347056909b06. 8 pull requests since v1.0.0.
+
+Dogfood gate waived: moo is a language runtime, not a nova tool: it has no nova CLI reference or dogfood receipts, and no sprint spend store or provider spend
+
+Spend gate waived: moo is a language runtime, not a nova tool: it has no nova CLI reference or dogfood receipts, and no sprint spend store or provider spend (window 2026-10-25T00:00:00Z..2026-10-27T17:50:56Z)
+- unread: --spend-store <addr> names no sprint store, so the recorded spend cannot be read
+
+- #43 changelog: the v1.0.0 cut record
+- #44 docs: replace the logo with the terminal cow
+- #45 Clean up moo's own source: one definition per rule, terse current-state comments
+- #46 tests, docs: organise moo's tests and design records by subject
+- #47 ^ raises the same errors as math.pow
+- #48 Every build configuration green; CI runs checked and gcc -Werror
+- #49 Sccp: refuse a saturating fold in a checked build, as mooFold does
+- #50 release readiness for v1.0.1: version and CHANGELOG
+
 ## v1.0.1
 
 A point release of fixes after v1.0.0: `^` raises the same errors as `math.pow`, every build
