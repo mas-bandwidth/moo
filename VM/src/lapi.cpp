@@ -16,9 +16,9 @@
 #include "lnumutils.h"
 #include "lbuffer.h"
 #include "lvector.h"
-#include "moo_vec3.h" // moo: the vec3 C API (docs/DESIGN.md "vec3, quat and transform (layer 3b)")
-#include "moo_quat.h" // moo: the quat C API (docs/DESIGN.md "vec3, quat and transform (layer 3b)")
-#include "moo_transform.h" // moo: the transform C API (docs/DESIGN.md "vec3, quat and transform (layer 3b)")
+#include "moo_vec3.h"      // moo: the vec3, quat and transform C API
+#include "moo_quat.h"      // moo: quat
+#include "moo_transform.h" // moo: transform
 
 #include <string.h>
 
@@ -439,8 +439,8 @@ int lua_tointegerx(lua_State* L, int idx, int* isnum)
     if (tonumber(o, &n))
     {
         lua_Number num = nvalue(o);
-        // moo: DESIGN.md "Exact integers": an integer-valued number has no fraction bits (Lua 5.3's rule);
-        // a fraction is not a conversion, so *isnum stays 0 and the caller names the error.
+        // moo: a number with fraction bits is not an integer (Lua 5.3's rule): *isnum stays 0 and the caller names
+        // the error (docs/DESIGN.md "Exact integers")
         if (!moo_numisinteger(num))
         {
             if (isnum)
@@ -468,7 +468,7 @@ unsigned lua_tounsignedx(lua_State* L, int idx, int* isnum)
     if (tonumber(o, &n))
     {
         lua_Number num = nvalue(o);
-        // moo: DESIGN.md "Exact integers": a fraction is not an unsigned integer either.
+        // moo: nor an unsigned one
         if (!moo_numisinteger(num))
         {
             if (isnum)
@@ -582,10 +582,9 @@ const char* lua_namecallatom(lua_State* L, int* atom)
     return getstr(s);
 }
 
-// moo: lua_tovector is removed with the vector C API; no vector reaches a host (layer 3, docs/DESIGN.md "vec3, quat and transform")
+// moo: lua_tovector is removed with the float vector
 
-// moo: the vec3 C API (docs/DESIGN.md "vec3, quat and transform (layer 3b)"). The components are raw Q48.16
-// values; a vec3 is immutable, so moo_tovec3 copies them out.
+// moo: the vec3, quat and transform C API copies raw Q48.16 components in and out
 int moo_tovec3(lua_State* L, int idx, lua_Number out[3])
 {
     StkId o = index2addr(L, idx);
@@ -598,7 +597,7 @@ int moo_tovec3(lua_State* L, int idx, lua_Number out[3])
     return 1;
 }
 
-// moo: the quat C API (docs/DESIGN.md "vec3, quat and transform (layer 3b)"). out is x, y, z and s, raw Q48.16.
+// moo: out is x, y, z, s
 int moo_toquat(lua_State* L, int idx, lua_Number out[4])
 {
     StkId o = index2addr(L, idx);
@@ -612,8 +611,7 @@ int moo_toquat(lua_State* L, int idx, lua_Number out[4])
     return 1;
 }
 
-// moo: the transform C API (docs/DESIGN.md "vec3, quat and transform (layer 3b)"). out is px, py, pz, qx, qy, qz
-// and qs, raw Q48.16.
+// moo: out is px, py, pz, qx, qy, qz, qs
 int moo_totransform(lua_State* L, int idx, lua_Number out[7])
 {
     StkId o = index2addr(L, idx);
@@ -729,8 +727,8 @@ const void* lua_topointer(lua_State* L, int idx)
         return uvalue(o)->data;
     case LUA_TLIGHTUSERDATA:
         return pvalue(o);
-    // moo: a vec3, quat or transform is a value, like a number: two equal ones are one value, so no address is
-    // exposed (docs/layer3b/moo-v2-l3b-vec3-object.md, card gc item 9; docs/DETERMINISM.md, 6)
+    // moo: a vec3, quat or transform is a value, like a number, so it has no address to expose
+    // (docs/layer3b/moo-v2-l3b-vec3-object.md; docs/DETERMINISM.md, 6)
     case LUA_TVEC3:
     case LUA_TQUAT:
     case LUA_TTRANSFORM:
@@ -779,10 +777,9 @@ void lua_pushunsigned(lua_State* L, unsigned u)
     api_incr_top(L);
 }
 
-// moo: lua_pushvector is removed with the vector C API; a host that calls it fails to compile (layer 3, docs/DESIGN.md "vec3, quat and transform")
+// moo: lua_pushvector is removed with the float vector
 
-// moo: one new vec3 on the stack, the same shape as lua_pushstring (docs/DESIGN.md "vec3, quat and transform
-// (layer 3b)"; every vec3 operation allocates a new object).
+// moo: pushes a new vec3, as lua_pushstring pushes a new string
 void moo_pushvec3(lua_State* L, lua_Number x, lua_Number y, lua_Number z)
 {
     luaC_checkGC(L);
@@ -793,7 +790,7 @@ void moo_pushvec3(lua_State* L, lua_Number x, lua_Number y, lua_Number z)
     api_incr_top(L);
 }
 
-// moo: one new quat on the stack (docs/DESIGN.md "vec3, quat and transform (layer 3b)").
+// moo: quat
 void moo_pushquat(lua_State* L, lua_Number x, lua_Number y, lua_Number z, lua_Number s)
 {
     luaC_checkGC(L);
@@ -804,7 +801,7 @@ void moo_pushquat(lua_State* L, lua_Number x, lua_Number y, lua_Number z, lua_Nu
     api_incr_top(L);
 }
 
-// moo: one new transform on the stack (docs/DESIGN.md "vec3, quat and transform (layer 3b)").
+// moo: transform
 void moo_pushtransform(
     lua_State* L, lua_Number px, lua_Number py, lua_Number pz, lua_Number qx, lua_Number qy, lua_Number qz, lua_Number qs)
 {

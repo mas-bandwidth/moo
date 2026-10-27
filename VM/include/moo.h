@@ -3,8 +3,8 @@
 
 #include "lua.h"
 
-// moo's additions to the C API. Each one exists because a Luau behaviour that depended on
-// the machine (an address, a clock) became a host input; see docs/DETERMINISM.md.
+// moo's additions to the C API: host inputs that replace Luau's machine-dependent behaviour (docs/DETERMINISM.md),
+// and the boundary between host floating point and moo's number.
 
 // moo's release version (CHANGELOG.md). Luau's _VERSION global stays "Luau"; this is the version of moo itself,
 // which `moo --version` prints with the Luau release it is forked from.
@@ -25,7 +25,7 @@ LUA_API void moo_setrandomseed(lua_State* L, uint64_t seed);
 
 // The creation number of the collectable value at idx (a table, function, userdata, thread,
 // buffer, string, ...): the per-VM sequence number it was given when it was allocated. The main
-// thread is 0. Non-collectable values (nil, boolean, number, vector, light userdata) give 0.
+// thread is 0. Non-collectable values (nil, boolean, number, light userdata) give 0.
 // tostring prints it as "table: #123".
 LUA_API uint64_t moo_objectseq(lua_State* L, int idx);
 

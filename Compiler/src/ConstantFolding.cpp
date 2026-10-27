@@ -23,10 +23,8 @@ namespace Compile
 
 constexpr size_t kConstantFoldStringLimit = 4096;
 
-// moo: number constants fold with the VM's own operations (moo_number.h), so a folded constant and the same
-// computation at run time are the same bits. A number constant is the raw Q48.16 value: the operands are read
-// raw, and every in-range result folds, with no double in the path (docs/DESIGN.md "Layer 3 as built",
-// "The compiler"). Division by zero is not folded: the VM raises the named error at run time.
+// moo: number constants fold with the VM's own operations (moo_number.h) on raw Q48.16 values, so a folded
+// constant is the run time's bits. Division by zero is not folded: the VM raises the error at run time.
 static bool mooOperands(const Constant& la, const Constant& ra, fixed_t* a, fixed_t* b)
 {
     *a = la.valueNumber;
@@ -42,8 +40,8 @@ static bool mooResult(Constant& result, fixed_t r)
 }
 
 #if MOO_OVERFLOW_ERRORS
-// moo: a checked build keeps an operation that saturates for run time, where it raises "number overflow
-// in '<op>'" instead of carrying a folded saturated constant (docs/DESIGN.md, "Overflow")
+// moo: a checked build leaves an operation that saturates to run time, where it raises "number overflow in
+// '<op>'"
 static bool mooSaturates(AstExprBinary::Op op, fixed_t a, fixed_t b)
 {
     switch (op)
@@ -71,7 +69,7 @@ static void mooFold(Constant& result, AstExprBinary::Op op, const Constant& la, 
         return;
 
 #if MOO_OVERFLOW_ERRORS
-    // moo: docs/DESIGN.md, "Overflow"
+    // moo: docs/DESIGN.md "Overflow"
     if (mooSaturates(op, a, b))
         return;
 #endif
@@ -101,18 +99,14 @@ static void mooFold(Constant& result, AstExprBinary::Op op, const Constant& la, 
         break;
     case AstExprBinary::Pow:
     {
-        // moo: ^ with an integer exponent folds through moo_pow_int, so the folded constant is the run time's bits
-        // (docs/DESIGN.md, "Layer 3 as built", "The compiler"; "math library", "pow and ^"). A fractional exponent
-        // stays unfolded; division by zero and a saturated power are never folded, because the run time raises the
-        // named errors ("division by zero" in every build, "number overflow in '^'" in a checked build).
+        // moo: ^ with an integer exponent folds through moo_pow_int, the run time's bits. A fractional exponent, 0 ^
+        // negative and a saturated power are left to run time, which computes the same value and raises nothing.
         if (!moo_numisinteger(b))
             break;
         fixed_t r = 0;
         int status = moo_pow_int(a, b >> MOO_NUMBER_FRACTION_BITS, &r);
         if (status == MOO_POW_OK)
             mooResult(result, r);
-        // MOO_POW_SATURATED and MOO_POW_DIVISION_BY_ZERO: leave them for run time (docs/DESIGN.md,
-        // "Overflow", "Division by zero")
         break;
     }
     case AstExprBinary::CompareLt:
@@ -150,11 +144,11 @@ static bool constantsEqual(const Constant& la, const Constant& ra)
 
     case Constant::Type_Number:
     {
-        // moo: equal as raw Q48.16 values (docs/DESIGN.md "Layer 3 as built", "The compiler")
+        // moo: equal as raw values
         return ra.type == Constant::Type_Number && la.valueNumber == ra.valueNumber;
     }
 
-    // moo: the float vector is removed (docs/DESIGN.md "vec3, quat and transform").
+    // moo: no float vector
 
     case Constant::Type_String:
         return ra.type == Constant::Type_String && la.stringLength == ra.stringLength && memcmp(la.valueString, ra.valueString, la.stringLength) == 0;
@@ -173,7 +167,7 @@ static bool constantsEqual(const Constant& la, const Constant& ra)
     }
 }
 
-// moo: the float vector is removed (docs/DESIGN.md "vec3, quat and transform").
+// moo: no float vector
 
 static void foldUnary(Constant& result, AstExprUnary::Op op, const Constant& arg)
 {
@@ -193,7 +187,7 @@ static void foldUnary(Constant& result, AstExprUnary::Op op, const Constant& arg
             result.type = Constant::Type_Number;
             result.valueNumber = moo_numunm(arg.valueNumber);
         }
-        // moo: the float vector is removed; unary minus never folds a vector (docs/DESIGN.md "vec3, quat and transform").
+        // moo: no float vector to negate
         break;
 
     case AstExprUnary::Op::Len:
@@ -220,8 +214,7 @@ static void foldBinary(Constant& result, AstExprBinary::Op op, const Constant& l
 
     switch (op)
     {
-    // moo: the float vector is removed, and number arithmetic folds only through mooFold above; binary operations
-    // never fold a vector (docs/DESIGN.md "vec3, quat and transform").
+    // moo: number arithmetic folds only through mooFold above, and there is no float vector
     case AstExprBinary::Concat:
         if (la.type == Constant::Type_String && ra.type == Constant::Type_String && la.stringLength + ra.stringLength <= kConstantFoldStringLimit)
         {
@@ -273,9 +266,8 @@ static void foldBinary(Constant& result, AstExprBinary::Op op, const Constant& l
         }
         break;
 
-    // moo: an arithmetic or ordering operator with an operand that is not a number constant ("a" + 1, true < 2)
-    // does not fold; the VM raises its error at run time. Upstream's cases for these operators were removed with
-    // the vector (above), so without these labels a checked build hit the assert below.
+    // moo: an arithmetic or ordering operator on a non-number constant ("a" + 1, true < 2) does not fold; the VM
+    // raises its error at run time. Without these labels the assert below fires.
     case AstExprBinary::Add:
     case AstExprBinary::Sub:
     case AstExprBinary::Mul:
@@ -566,7 +558,7 @@ struct ConstantVisitor : AstVisitor
         }
         else if (AstExprConstantNumber* expr = node->as<AstExprConstantNumber>())
         {
-            // moo: the AST carries the exact raw Q48.16 value the parser read (docs/DESIGN.md "Literals")
+            // moo: the exact raw Q48.16 value the parser read
             result.type = Constant::Type_Number;
             result.valueNumber = expr->rawValue;
         }
@@ -647,7 +639,7 @@ struct ConstantVisitor : AstVisitor
                         result = *prop;
                 }
             }
-            // moo: the float vector is removed; no vector component or library constant folding (docs/DESIGN.md "vec3, quat and transform").
+            // moo: no float vector component or library constant to fold
             else if (foldLibraryK)
             {
                 if (AstExprGlobal* eg = expr->expr->as<AstExprGlobal>())

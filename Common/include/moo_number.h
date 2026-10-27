@@ -1,14 +1,10 @@
 // This file is part of moo, a fork of the Luau programming language; moo's changes are licensed under MIT License; see LICENSE-moo.txt for details
 //
-// moo's number: Q48.16 fixed point, the raw signed 64-bit value of fixed's fixed_t
-// (docs/DESIGN.md, "Representation" to "Division by zero"). Every operator the VM applies to a
-// number is here, so the VM's arithmetic has one definition.
+// moo's number: Q48.16 fixed point, the raw int64 of fixed's fixed_t. Every number operation the VM does is here.
 //
-// The domain is [MOO_NUMBER_MIN, MOO_NUMBER_MAX] = [-INT64_MAX, INT64_MAX] raw, fixed's
-// [FIX_MIN, FIX_MAX]: about +-1.4e14, symmetric, so negation is exact and fixed's C, which does
-// not take INT64_MIN, takes every value. Every operation saturates into the domain, never wraps
-// and never produces INT64_MIN. Division, floor division and remainder by zero are not defined
-// here: the VM raises the named error "division by zero" before calling them.
+// The domain is [-INT64_MAX, INT64_MAX] raw (FIX_MIN, FIX_MAX), about +-1.4e14. It is symmetric, so negation is
+// exact. Every operation saturates into it and never produces INT64_MIN. Division, floor division and remainder by
+// zero are not defined here: the VM raises "division by zero" before calling them.
 #pragma once
 
 #include "fixed/fixed.h"
@@ -21,14 +17,13 @@
 #define MOO_NUMBER_ONE FIX_ONE
 #define MOO_NUMBER_FRACTION_BITS FIX_FRACTION_BITS
 
-// the largest and smallest integer value a number holds (2^47 - 1 and its negation)
+// the largest integer a number holds, 2^47 - 1; the smallest is its negation
 #define MOO_NUMBER_INT_MAX (MOO_NUMBER_MAX >> MOO_NUMBER_FRACTION_BITS)
 
-// Checked arithmetic (docs/DESIGN.md, "Overflow"): MOO_OVERFLOW_ERRORS 1 makes the VM raise
-// "number overflow in '<op>'" where release saturates, and keeps the compiler from folding such an
-// operation. Unless the build sets it (CMake MOO_OVERFLOW_ERRORS ON/OFF, make overflow=on/off), it follows
-// assertions exactly as LUAU_ASSERT does (Common/include/Luau/Common.h): on without NDEBUG or with
-// LUAU_ENABLE_ASSERT, off in release.
+// MOO_OVERFLOW_ERRORS 1: the VM raises "number overflow in '<op>'" where release saturates, and the compiler does
+// not fold that operation (docs/DESIGN.md "Overflow"). The exception is ^, which saturates silently in every build;
+// only math.pow raises. Set by CMake MOO_OVERFLOW_ERRORS or make overflow=on/off; otherwise on exactly when
+// LUAU_ASSERT is.
 #if !defined(MOO_OVERFLOW_ERRORS)
 #if !defined(NDEBUG) || defined(LUAU_ENABLE_ASSERT)
 #define MOO_OVERFLOW_ERRORS 1
@@ -37,118 +32,37 @@
 #endif
 #endif
 
-// a + b, exact, saturating (a and b in the domain)
-inline fixed_t moo_numadd(fixed_t a, fixed_t b)
+// |a| as unsigned, exact for every int64
+inline uint64_t moo_numabs(int64_t a)
 {
-    if (b > 0 && a > MOO_NUMBER_MAX - b)
-        return MOO_NUMBER_MAX;
-    if (b < 0 && a < MOO_NUMBER_MIN - b)
-        return MOO_NUMBER_MIN;
-    return a + b;
+    return a < 0 ? uint64_t(0) - uint64_t(a) : uint64_t(a);
 }
 
-// a - b, exact, saturating (a and b in the domain)
-inline fixed_t moo_numsub(fixed_t a, fixed_t b)
+// m >> shift rounded to nearest, ties to even (1 <= shift <= 63)
+inline uint64_t moo_numshiftround(uint64_t m, int shift)
 {
-    if (b < 0 && a > MOO_NUMBER_MAX + b)
-        return MOO_NUMBER_MAX;
-    if (b > 0 && a < MOO_NUMBER_MIN + b)
-        return MOO_NUMBER_MIN;
-    return a - b;
+    uint64_t q = m >> shift;
+    uint64_t rest = m & ((uint64_t(1) << shift) - 1);
+    uint64_t half = uint64_t(1) << (shift - 1);
+    if (rest > half || (rest == half && (q & 1)))
+        q += 1;
+    return q;
 }
 
-// -a, exact (the domain is symmetric)
-inline fixed_t moo_numunm(fixed_t a)
-{
-    return a == INT64_MIN ? MOO_NUMBER_MAX : -a;
-}
-
-// a * b: fixed's fixMul, round half up, saturating (FIX_SATURATE)
-inline fixed_t moo_nummul(fixed_t a, fixed_t b)
-{
-    return fixMul(a, b);
-}
-
-// a / b, b != 0: fixed's fixDiv, truncates toward zero, saturating
-inline fixed_t moo_numdiv(fixed_t a, fixed_t b)
-{
-    return fixDiv(a, b);
-}
-
-// floor(a / b) as a number, b != 0: the exact quotient's floor (both raws share the 2^16 scale,
-// so the integer quotient of the raws is the quotient's integer part), saturating
-inline fixed_t moo_numidiv(fixed_t a, fixed_t b)
+// floor(a / b) as an integer, b != 0. Both raws share the 2^16 scale, so it is the quotient's integer part.
+inline int64_t moo_numfloorquot(fixed_t a, fixed_t b)
 {
     int64_t q = a / b;
     if ((a % b != 0) && ((a < 0) != (b < 0)))
         q -= 1;
-    if (q > MOO_NUMBER_INT_MAX)
-        return MOO_NUMBER_MAX;
-    if (q < -MOO_NUMBER_INT_MAX)
-        return MOO_NUMBER_MIN;
-    return fixShiftLeft(q, MOO_NUMBER_FRACTION_BITS);
+    return q;
 }
 
-// a - floor(a / b) * b, b != 0: exact, with the sign of b (Lua's rule)
-inline fixed_t moo_nummod(fixed_t a, fixed_t b)
+// a * b rounded half up at 128 bits, before saturation: fixMul's product on fixed's int128 seam, for
+// moo_nummulsaturates
+inline fixInt128 moo_nummulwide(fixed_t a, fixed_t b)
 {
-    int64_t r = a % b;
-    if (r != 0 && ((r < 0) != (b < 0)))
-        r += b;
-    return r;
-}
-
-// Saturation tests for checked arithmetic (docs/DESIGN.md, "Overflow"): each is true exactly when the
-// operation above it would saturate, that is when the exact (for * the rounded) result is outside
-// [MOO_NUMBER_MIN, MOO_NUMBER_MAX]. A result equal to MOO_NUMBER_MAX or MOO_NUMBER_MIN that is exact does not
-// saturate. The value is always the release operation's own; these only say whether it was clamped, so a
-// checked build either gives the release value or stops with the named error. Unary - and % are exact on
-// the domain and never saturate, so they have no test. ^ is not checked while it is the libm bridge: a test
-// would be a second double pow in the VM; moo-l4-pow-integer adds it with the integer pow.
-
-// true when moo_numadd(a, b) saturates
-inline bool moo_numaddsaturates(fixed_t a, fixed_t b)
-{
-    return (b > 0 && a > MOO_NUMBER_MAX - b) || (b < 0 && a < MOO_NUMBER_MIN - b);
-}
-
-// true when moo_numsub(a, b) saturates
-inline bool moo_numsubsaturates(fixed_t a, fixed_t b)
-{
-    return (b < 0 && a > MOO_NUMBER_MAX + b) || (b > 0 && a < MOO_NUMBER_MIN + b);
-}
-
-// true when moo_nummul(a, b) saturates: fixMul clamps only to the two edges, so any other result is exact;
-// at an edge, the product rounded as fixMul rounds it (on fixed's own 128-bit seam) decides
-inline bool moo_nummulsaturates(fixed_t a, fixed_t b)
-{
-    fixed_t r = fixMul(a, b);
-    if (r != MOO_NUMBER_MAX && r != MOO_NUMBER_MIN)
-        return false;
-    fixInt128 x = fixInt128Shr(fixInt128Add(fixInt128MulI64(a, b), fixInt128FromI64(FIX_HALF)), FIX_FRACTION_BITS);
-    return fixInt128Gt(x, fixInt128FromI64(MOO_NUMBER_MAX)) || fixInt128Lt(x, fixInt128FromI64(MOO_NUMBER_MIN));
-}
-
-// true when moo_numdiv(a, b) saturates (b != 0; division by zero is its own error): the quotient
-// a * 2^16 / b truncated is outside the domain exactly when |a| >= 2^47 * |b|, that is |a| >> 47 >= |b|
-inline bool moo_numdivsaturates(fixed_t a, fixed_t b)
-{
-    if (b == 0)
-        return false;
-    uint64_t ma = a < 0 ? uint64_t(0) - uint64_t(a) : uint64_t(a);
-    uint64_t mb = b < 0 ? uint64_t(0) - uint64_t(b) : uint64_t(b);
-    return (ma >> 47) >= mb;
-}
-
-// true when moo_numidiv(a, b) saturates (b != 0): the floor of the quotient is beyond the integer range
-inline bool moo_numidivsaturates(fixed_t a, fixed_t b)
-{
-    if (b == 0)
-        return false;
-    int64_t q = a / b;
-    if ((a % b != 0) && ((a < 0) != (b < 0)))
-        q -= 1;
-    return q > MOO_NUMBER_INT_MAX || q < -MOO_NUMBER_INT_MAX;
+    return fixInt128Shr(fixInt128Add(fixInt128MulI64(a, b), fixInt128FromI64(FIX_HALF)), FIX_FRACTION_BITS);
 }
 
 // true when the value has no fraction bits
@@ -173,6 +87,88 @@ inline fixed_t moo_numfromint(int64_t i)
     return fixShiftLeft(i, MOO_NUMBER_FRACTION_BITS);
 }
 
+// a + b, saturating
+inline fixed_t moo_numadd(fixed_t a, fixed_t b)
+{
+    return fixAddSaturate(a, b);
+}
+
+// a - b, saturating
+inline fixed_t moo_numsub(fixed_t a, fixed_t b)
+{
+    return fixSubSaturate(a, b);
+}
+
+// -a, exact on the domain
+inline fixed_t moo_numunm(fixed_t a)
+{
+    return a == INT64_MIN ? MOO_NUMBER_MAX : -a;
+}
+
+// a * b: fixed's fixMul, round half up, saturating (FIX_SATURATE); vec3 * shares it through fixVecMul
+inline fixed_t moo_nummul(fixed_t a, fixed_t b)
+{
+    return fixMul(a, b);
+}
+
+// a / b, b != 0: fixed's fixDiv, truncates toward zero, saturating
+inline fixed_t moo_numdiv(fixed_t a, fixed_t b)
+{
+    return fixDiv(a, b);
+}
+
+// floor(a / b) as a number, b != 0, saturating
+inline fixed_t moo_numidiv(fixed_t a, fixed_t b)
+{
+    return moo_numfromint(moo_numfloorquot(a, b));
+}
+
+// a - floor(a / b) * b, b != 0: exact, with the sign of b (Lua's rule)
+inline fixed_t moo_nummod(fixed_t a, fixed_t b)
+{
+    int64_t r = a % b;
+    if (r != 0 && ((r < 0) != (b < 0)))
+        r += b;
+    return r;
+}
+
+// Saturation tests for checked arithmetic: each is true exactly when the operation of the same name clamps, that
+// is when its exact result (for * the rounded one) is outside the domain. An exact result at MOO_NUMBER_MAX or
+// MOO_NUMBER_MIN is not saturation. Unary - and % never saturate. ^ has no test: the operator never raises, and
+// math.pow reads moo_pow_int's status.
+
+inline bool moo_numaddsaturates(fixed_t a, fixed_t b)
+{
+    return (b > 0 && a > MOO_NUMBER_MAX - b) || (b < 0 && a < MOO_NUMBER_MIN - b);
+}
+
+inline bool moo_numsubsaturates(fixed_t a, fixed_t b)
+{
+    return (b < 0 && a > MOO_NUMBER_MAX + b) || (b > 0 && a < MOO_NUMBER_MIN + b);
+}
+
+inline bool moo_nummulsaturates(fixed_t a, fixed_t b)
+{
+    fixInt128 r = moo_nummulwide(a, b);
+    return fixInt128Gt(r, fixInt128FromI64(MOO_NUMBER_MAX)) || fixInt128Lt(r, fixInt128FromI64(MOO_NUMBER_MIN));
+}
+
+// b != 0 (division by zero is its own error): a * 2^16 / b is outside the domain exactly when |a| >> 47 >= |b|
+inline bool moo_numdivsaturates(fixed_t a, fixed_t b)
+{
+    if (b == 0)
+        return false;
+    return (moo_numabs(a) >> 47) >= moo_numabs(b);
+}
+
+inline bool moo_numidivsaturates(fixed_t a, fixed_t b)
+{
+    if (b == 0)
+        return false;
+    int64_t q = moo_numfloorquot(a, b);
+    return q > MOO_NUMBER_INT_MAX || q < -MOO_NUMBER_INT_MAX;
+}
+
 // the integer part, toward zero
 inline int64_t moo_numtrunc(fixed_t a)
 {
@@ -191,8 +187,8 @@ inline int64_t moo_numceil(fixed_t a)
     return -moo_numfloor(-a);
 }
 
-// the number of iterations of `for i = from, to, step` (step != 0): one for each k >= 0 with from + k * step between
-// from and to inclusive, computed exactly before the loop starts (tla/NumericFor.tla). At most 2^64 - 1.
+// the number of iterations of `for i = from, to, step` (step != 0), exact, computed before the loop starts
+// (tla/NumericFor.tla). At most 2^64 - 1.
 inline uint64_t moo_numfortrips(fixed_t from, fixed_t to, fixed_t step)
 {
     if (step > 0)
@@ -221,8 +217,8 @@ inline bool moo_numtoint(fixed_t a, int* out)
     return true;
 }
 
-// the boundary rule (moo.h moo_fromdouble): the IEEE bits decoded in integer arithmetic and rounded once, ties to even
-// returns 0 (0), 1 (NaN), 2 (infinite) or 3 (out of range); writes *out only on 0
+// The boundary rule (docs/DESIGN.md "Boundary"): a double in, the nearest Q48.16, ties to even, decoded from the IEEE
+// bits in integer arithmetic. Returns 0 (ok), 1 (NaN), 2 (infinite) or 3 (out of range); writes *out only on 0.
 inline int moo_numfromdouble(double x, int64_t* out)
 {
     uint64_t bits;
@@ -255,14 +251,7 @@ inline int moo_numfromdouble(double x, int64_t* out)
     else if (-shift >= 64)
         magnitude = 0; // below 2^-64 units: far under half a unit
     else
-    {
-        int drop = -shift;
-        magnitude = mantissa >> drop;
-        uint64_t rest = mantissa & ((uint64_t(1) << drop) - 1);
-        uint64_t half = uint64_t(1) << (drop - 1);
-        if (rest > half || (rest == half && (magnitude & 1)))
-            magnitude += 1;
-    }
+        magnitude = moo_numshiftround(mantissa, -shift);
 
     if (magnitude > uint64_t(INT64_MAX))
         return 3;
@@ -271,85 +260,52 @@ inline int moo_numfromdouble(double x, int64_t* out)
     return 0;
 }
 
-// the IEEE-754 binary32 bits nearest the exact value raw / 2^16, ties to even, in integer arithmetic
-// (docs/DESIGN.md, "Boundary"): the boundary rule going out of the VM, and buffer.writef32 and
-// string.pack's float encoding. Every Q48.16 value is a finite normal binary32, so there is no
-// subnormal, infinity or overflow case. raw = 0 gives +0.0's bits.
+// float to double is exact, so a float takes the double rule
+inline int moo_numfromfloat(float x, int64_t* out)
+{
+    return moo_numfromdouble(double(x), out);
+}
+
+// The boundary rule out: the IEEE-754 bits nearest raw / 2^16, ties to even, in integer arithmetic, for a format
+// `width` bits wide with `bits` significand bits (the implicit one included). Every Q48.16 value is a finite normal
+// binary32 and binary64, so there is no subnormal, infinity or overflow case. raw = 0 gives +0.0.
+inline uint64_t moo_numtoieeebits(fixed_t raw, int bits, int width)
+{
+    if (raw == 0)
+        return 0;
+
+    uint64_t m = moo_numabs(raw);
+
+    int b = 0;
+    for (uint64_t x = m; x; x >>= 1)
+        b += 1;
+    int e = b - 17; // raw / 2^16 = significand * 2^e, significand in [1, 2)
+
+    uint64_t significand = b <= bits ? m << (bits - b) : moo_numshiftround(m, b - bits);
+    if (significand == (uint64_t(1) << bits)) // rounded up to 2.0
+    {
+        significand >>= 1;
+        e += 1;
+    }
+
+    int bias = (1 << (width - bits - 1)) - 1;
+    uint64_t sign = raw < 0 ? 1 : 0;
+    return sign << (width - 1) | uint64_t(e + bias) << (bits - 1) | (significand - (uint64_t(1) << (bits - 1)));
+}
+
+// binary32 bits: moo_tofloat, buffer.writef32 and string.pack's float
 inline uint32_t moo_numtofloatbits(fixed_t raw)
 {
-    if (raw == 0)
-        return 0;
-
-    uint32_t sign = raw < 0 ? 0x80000000u : 0u;
-    uint64_t m = raw < 0 ? uint64_t(0) - uint64_t(raw) : uint64_t(raw);
-
-    int b = 0;
-    for (uint64_t x = m; x; x >>= 1)
-        b += 1;
-    int E = b - 17; // value = m * 2^-16 = significand * 2^E, significand in [1, 2)
-
-    uint64_t M24;
-    if (b <= 24)
-        M24 = m << (24 - b);
-    else
-    {
-        int shift = b - 24;
-        M24 = m >> shift;
-        uint64_t rest = m & ((uint64_t(1) << shift) - 1);
-        uint64_t half = uint64_t(1) << (shift - 1);
-        if (rest > half || (rest == half && (M24 & 1)))
-            M24 += 1;
-    }
-
-    if (M24 == (uint64_t(1) << 24)) // rounded up to 2.0
-    {
-        M24 = uint64_t(1) << 23;
-        E += 1;
-    }
-
-    return sign | uint32_t(E + 127) << 23 | uint32_t(M24 - (uint64_t(1) << 23));
+    return uint32_t(moo_numtoieeebits(raw, 24, 32));
 }
 
-// the IEEE-754 binary64 bits nearest the exact value raw / 2^16, ties to even, in integer arithmetic
-// (docs/DESIGN.md, "Boundary"): moo_todouble's one rule. Every Q48.16 value is a finite normal
-// binary64, so there is no subnormal, infinity or overflow case. raw = 0 gives +0.0's bits.
+// binary64 bits: moo_todouble, buffer.writef64 and string.pack's double
 inline uint64_t moo_numtodoublebits(fixed_t raw)
 {
-    if (raw == 0)
-        return 0;
-
-    uint64_t sign = raw < 0 ? 0x8000000000000000ull : 0ull;
-    uint64_t m = raw < 0 ? uint64_t(0) - uint64_t(raw) : uint64_t(raw);
-
-    int b = 0;
-    for (uint64_t x = m; x; x >>= 1)
-        b += 1;
-    int E = b - 17; // value = m * 2^-16 = significand * 2^E, significand in [1, 2)
-
-    uint64_t M53;
-    if (b <= 53)
-        M53 = m << (53 - b);
-    else
-    {
-        int shift = b - 53;
-        M53 = m >> shift;
-        uint64_t rest = m & ((uint64_t(1) << shift) - 1);
-        uint64_t half = uint64_t(1) << (shift - 1);
-        if (rest > half || (rest == half && (M53 & 1)))
-            M53 += 1;
-    }
-
-    if (M53 == (uint64_t(1) << 53)) // rounded up to 2.0
-    {
-        M53 = uint64_t(1) << 52;
-        E += 1;
-    }
-
-    return sign | uint64_t(E + 1023) << 52 | (M53 - (uint64_t(1) << 52));
+    return moo_numtoieeebits(raw, 53, 64);
 }
 
-// the boundary rule out of the VM as a value (moo.h moo_todouble): moo_numtodoublebits decoded
-// (docs/DESIGN.md, "Boundary"). The permanent replacement for the deleted temporary bridge.
+// the nearest double (moo.h moo_todouble)
 inline double moo_numtodouble(fixed_t raw)
 {
     uint64_t bits = moo_numtodoublebits(raw);
@@ -358,8 +314,7 @@ inline double moo_numtodouble(fixed_t raw)
     return d;
 }
 
-// the boundary rule into the VM as a value (moo.h moo_fromdouble): the nearest Q48.16, ties to
-// even; NaN gives 0 and an infinity or out-of-range value saturates (docs/DESIGN.md, "Boundary").
+// the nearest Q48.16 to a double (moo.h moo_fromdouble): NaN gives 0, an infinity or out-of-range value saturates
 inline fixed_t moo_numfromdoublevalue(double x)
 {
     int64_t out = 0;

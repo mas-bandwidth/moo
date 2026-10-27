@@ -1003,7 +1003,7 @@ static int str_format(lua_State* L)
             {
             case 'c':
             {
-                // moo: DESIGN.md "Exact integers": %c takes an integer-valued number, through luaL_checkinteger.
+                // moo: %c takes an integer-valued number
                 int count = snprintf(buff, sizeof(buff), form, luaL_checkinteger(L, arg));
                 luaL_addlstring(&b, buff, count);
                 continue; // skip the 'luaL_addlstring' at the end
@@ -1018,7 +1018,7 @@ static int str_format(lua_State* L)
                 }
                 else
                 {
-                    // moo: DESIGN.md "Exact integers": %d and %i take an integer-valued number, not a truncation.
+                    // moo: %d and %i take an integer-valued number, never a truncation
                     luaL_checkinteger(L, arg);
                     value = moo_numtrunc(luaL_checknumber(L, arg));
                 }
@@ -1038,7 +1038,7 @@ static int str_format(lua_State* L)
                 }
                 else
                 {
-                    // moo: DESIGN.md "Exact integers": %o, %u, %x and %X take an integer-valued number.
+                    // moo: so do %o, %u, %x and %X
                     luaL_checkunsigned(L, arg);
                     v = (uint64_t)moo_numtrunc(luaL_checknumber(L, arg)); // moo: toward zero, modulo 2^64
                 }
@@ -1052,7 +1052,7 @@ static int str_format(lua_State* L)
             case 'g':
             case 'G':
             {
-                // moo: exact, on the number's finite decimal expansion, half to even, no libc (moo_format.h)
+                // moo: exact, half to even, no libc (moo_format.h)
                 if (moo_numformat(buff, sizeof(buff), form + 1, formatIndicator, luaL_checknumber(L, arg)) < 0)
                     luaL_error(L, "invalid format (width or precision too long)");
                 break;
@@ -1503,18 +1503,9 @@ static void copywithendian(volatile char* dest, volatile const char* src, int si
     }
 }
 
-// moo: the exact float boundary rule (docs/DESIGN.md "Boundary", DETERMINISM.md 18). A Q48.16 number
-// packs to the nearest float/double bit pattern, ties to even, through moo_numtofloatbits and
-// moo_numtodoublebits (moo_number.h); a float/double's IEEE bits unpack to Q48.16 in integer
-// arithmetic through moo_numfromdouble. The byte store below is integer only: no float or double
-// arithmetic reaches lstrlib.cpp itself.
-// moo: float to double is exact, so the double decoder is the one boundary rule for both f and d.
-static int moo_numfromfloat(float x, int64_t* out)
-{
-    return moo_numfromdouble((double)x, out);
-}
-
-// moo: the named unpack errors (THE TASK); a NaN, infinity or out-of-range float/double never becomes a number.
+// moo: floats pack and unpack by the boundary rule (docs/DESIGN.md "Boundary"), in integer arithmetic only:
+// moo_numtofloatbits, moo_numtodoublebits, moo_numfromfloat and moo_numfromdouble. A NaN, infinity or out-of-range
+// float never becomes a number.
 static void moo_packfloat_error(lua_State* L, int status)
 {
     if (status == MOO_NUMBER_NAN)
@@ -1547,7 +1538,7 @@ static int str_pack(lua_State* L)
         {
         case Kint:
         { // signed integers
-            // moo: DESIGN.md "Exact integers": an integer format takes an integer-valued number.
+            // moo: an integer format takes an integer-valued number
             luaL_checkinteger(L, arg);
             long long n = (long long)moo_numtrunc(luaL_checknumber(L, arg));
             if (size < SZINT)
@@ -1560,7 +1551,7 @@ static int str_pack(lua_State* L)
         }
         case Kuint:
         { // unsigned integers
-            // moo: DESIGN.md "Exact integers": an integer format takes an integer-valued number.
+            // moo: an integer format takes an integer-valued number
             luaL_checkunsigned(L, arg);
             long long n = (long long)moo_numtrunc(luaL_checknumber(L, arg));
             if (size < SZINT) // need overflow check?

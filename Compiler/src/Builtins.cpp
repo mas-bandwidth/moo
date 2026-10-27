@@ -165,7 +165,7 @@ static int getBuiltinFunctionId(const Builtin& builtin, const CompileOptions& op
             return LBF_MATH_ROUND;
         if (builtin.method == "lerp")
             return LBF_MATH_LERP;
-        // moo: compile math.noise to its fixed shared-path fastcall (DESIGN.md "math library")
+        // moo: math.noise has a fastcall
         if (builtin.method == "noise")
             return LBF_MATH_NOISE;
         if (builtin.method == "isnan")
@@ -264,7 +264,7 @@ static int getBuiltinFunctionId(const Builtin& builtin, const CompileOptions& op
             return LBF_BUFFER_WRITEINTEGER;
     }
 
-    // moo: the float vector is removed; vector.* maps to no builtin (docs/DESIGN.md "vec3, quat and transform").
+    // moo: no float vector, so vector.* is no builtin
 
     if (FFlag::LuauIntegerFastcalls && builtin.object == "integer")
     {
@@ -344,7 +344,7 @@ static int getBuiltinFunctionId(const Builtin& builtin, const CompileOptions& op
             return LBF_INTEGER_TONUMBER;
     }
 
-    // moo: the float vector is removed; vectorLib/vectorCtor options map to no builtin (docs/DESIGN.md "vec3, quat and transform").
+    // moo: no float vector, so the vectorLib and vectorCtor options are no builtin
     (void)options;
 
     return -1;

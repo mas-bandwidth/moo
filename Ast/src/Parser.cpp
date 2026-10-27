@@ -3948,10 +3948,8 @@ AstExpr* Parser::parseAssertionExpr()
         return expr;
 }
 
-// moo: a number literal is the exact rational it denotes, rounded once to the nearest Q48.16 value, ties to even, with
-// no libc (moo_parse.h, docs/DESIGN.md "Literals"). The AST carries that exact raw value over the whole range, and
-// the nearest double to it for the analyzer and tools (docs/DESIGN.md "Analyzer"). Hexadecimal and binary literals
-// are integers.
+// moo: a number literal is the exact rational it denotes rounded once to the nearest Q48.16, ties to even
+// (moo_parse.h, docs/DESIGN.md "Literals"). The AST carries the raw value and the nearest double to it.
 static ConstantNumberParseResult parseDouble(double& result, fixed_t& rawResult, const char* data)
 {
     fixed_t raw = 0;
@@ -5036,8 +5034,7 @@ AstExpr* Parser::parseNumber()
 
     if (FFlag::LuauIntegerType2 && (scratchData.back() == 'i'))
     {
-        // moo: moo has one number type and no integer type (docs/DESIGN.md "integer"), so a Luau integer literal is
-        // refused by name and no AstExprConstantInteger is built
+        // moo: one number type, so a Luau integer literal is refused by name
         nextLexeme();
         return reportExprError(start, {}, "moo has no integer type");
     }

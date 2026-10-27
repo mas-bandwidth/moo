@@ -342,9 +342,9 @@ union GCObject
     struct LuauClass lclass;
     struct LuauObject lobject;
     struct LuauVector vec;
-    struct MooVec3 v3; // moo: vec3 GC object (docs/DESIGN.md "vec3, quat and transform (layer 3b)"; docs/layer3b/moo-v2-l3b-vec3-object.md)
-    struct MooQuat q; // moo: quat GC object (docs/DESIGN.md "vec3, quat and transform (layer 3b)"; docs/layer3b/moo-v2-l3b-quat-object.md)
-    struct MooTransform tf; // moo: transform GC object (docs/layer3b/moo-v2-l3b-transform.md)
+    struct MooVec3 v3;      // moo: vec3
+    struct MooQuat q;       // moo: quat
+    struct MooTransform tf; // moo: transform
 };
 
 // macros to convert a GCObject into a specific value
@@ -359,11 +359,11 @@ union GCObject
 #define gco2class(o) check_exp((o)->gch.tt == LUA_TCLASS, &((o)->lclass))
 #define gco2object(o) check_exp((o)->gch.tt == LUA_TOBJECT, &((o)->lobject))
 #define gco2vec(o) check_exp((o)->gch.tt == LUA_TVECTOR, &((o)->vec))
-// moo: vec3 GC object (docs/DESIGN.md "vec3, quat and transform (layer 3b)"; docs/layer3b/moo-v2-l3b-vec3-object.md)
+// moo: vec3
 #define gco2vec3(o) check_exp((o)->gch.tt == LUA_TVEC3, &((o)->v3))
-// moo: quat GC object (docs/DESIGN.md "vec3, quat and transform (layer 3b)"; docs/layer3b/moo-v2-l3b-quat-object.md)
+// moo: quat
 #define gco2quat(o) check_exp((o)->gch.tt == LUA_TQUAT, &((o)->q))
-// moo: transform GC object (docs/layer3b/moo-v2-l3b-transform.md)
+// moo: transform
 #define gco2transform(o) check_exp((o)->gch.tt == LUA_TTRANSFORM, &((o)->tf))
 
 // macro to convert any Lua object into a GCObject

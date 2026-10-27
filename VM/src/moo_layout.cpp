@@ -1,15 +1,11 @@
 // This file is part of moo, a fork of the Luau programming language; moo's changes are licensed under MIT License; see LICENSE-moo.txt for details
 //
-// The GC paces itself by g->totalbytes, the sum of the sizes the VM requests from the allocator
-// (lmem.cpp adds nsize, never the size class or the host allocator's own overhead). Each request is a
-// size from the table below plus a payload length the program chose (a string's bytes, an array's
-// element count, a userdata's length). So the allocation counter is a fixed formula per object kind and
-// payload length, and with it when each GC step runs, which weak entries clear and when destructors
-// run (docs/DETERMINISM.md, 4 and 5).
+// The GC paces itself by g->totalbytes, the sum of the sizes the VM asks the allocator for: a size from the
+// table below plus a length the program chose (a string's bytes, an array's count). So when each GC step runs,
+// which weak entries clear and when destructors run are a function of the program (docs/DETERMINISM.md, 4 and 5).
 //
-// Nothing in C guarantees these sizes on every compiler. These asserts do: a target whose layout
-// differs in any of them does not build. A change to a struct changes the numbers here, on purpose,
-// and with them the determinism suite's pinned hashes.
+// C does not guarantee these sizes. These asserts do: a target where any differs does not build. Changing a struct
+// changes the numbers here on purpose, and with them the determinism suite's pinned hashes.
 #include "lobject.h"
 #include "lstate.h"
 
@@ -26,11 +22,11 @@ static_assert(offsetof(TString, data) == 32, "string header layout changed");
 static_assert(offsetof(Udata, data) == 32, "userdata header layout changed");
 static_assert(offsetof(Buffer, data) == 16, "buffer header layout changed");
 static_assert(sizeof(LuauVector) == 24, "vector object layout changed");
-// moo: vec3 object size (docs/DESIGN.md "vec3, quat and transform (layer 3b)"; docs/layer3b/moo-v2-l3b-vec3-object.md, decision 2)
+// docs/layer3b/moo-v2-l3b-vec3-object.md, decision 2
 static_assert(sizeof(MooVec3) == 40, "vec3 object layout changed");
-// moo: quat object size (docs/DESIGN.md "vec3, quat and transform (layer 3b)"; docs/layer3b/moo-v2-l3b-quat-object.md, decision 2)
+// docs/layer3b/moo-v2-l3b-quat-object.md, decision 2
 static_assert(sizeof(MooQuat) == 48, "quat object layout changed");
-// moo: transform object size (docs/DESIGN.md "vec3, quat and transform (layer 3b)"; docs/layer3b/moo-v2-l3b-transform.md)
+// docs/layer3b/moo-v2-l3b-transform.md
 static_assert(sizeof(MooTransform) == 72, "transform object layout changed");
 static_assert(sizeof(Proto) == 224, "function prototype layout changed");
 static_assert(sizeof(LocVar) == 24, "local variable record layout changed");

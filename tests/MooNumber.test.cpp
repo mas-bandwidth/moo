@@ -1,6 +1,6 @@
 // This file is part of moo, a fork of the Luau programming language; moo's changes are licensed under MIT License; see LICENSE-moo.txt for details
 //
-// Tests of moo's number operations (VM/src/moo_number.h) and the boundary (moo_fromdouble,
+// Tests of moo's number operations (Common/include/moo_number.h) and the boundary (moo_fromdouble,
 // moo_todouble), against independent references: two-word integer arithmetic (MooWide.h), and for the boundary the
 // FPU itself (scaling by 2^16 is exact, and nearbyint rounds ties to even in the default mode).
 #include "moo.h"
@@ -166,6 +166,52 @@ TEST_CASE("NumberFloorDivModAreExact")
     CHECK(moo_numisinteger(3 * 65536));
     CHECK(!moo_numisinteger(3 * 65536 + 1));
     CHECK(moo_numisinteger(-65536));
+}
+
+TEST_CASE("NumberHelpers")
+{
+    // m >> shift, ties to even
+    CHECK(moo_numshiftround(5, 1) == 2);
+    CHECK(moo_numshiftround(7, 1) == 4);
+    CHECK(moo_numshiftround(10, 2) == 2);
+    CHECK(moo_numshiftround(11, 2) == 3);
+    CHECK(moo_numshiftround(6, 2) == 2);
+    CHECK(moo_numshiftround(UINT64_MAX, 63) == 2);
+
+    // the floor of the raw quotient, every sign
+    CHECK(moo_numfloorquot(7, 2) == 3);
+    CHECK(moo_numfloorquot(-7, 2) == -4);
+    CHECK(moo_numfloorquot(7, -2) == -4);
+    CHECK(moo_numfloorquot(-7, -2) == 3);
+    CHECK(moo_numfloorquot(6, -2) == -3);
+
+    CHECK(moo_numabs(-5) == 5);
+    CHECK(moo_numabs(INT64_MIN) == uint64_t(1) << 63);
+
+    // the wide product is fixMul's before saturation; saturation is exactly a wide product outside the domain
+    Lcg r;
+    for (int i = 0; i < 200000; ++i)
+    {
+        int64_t a = int64_t(r.next()) >> (r.next() % 40), b = int64_t(r.next()) >> (r.next() % 40);
+        if (a == INT64_MIN || b == INT64_MIN)
+            continue;
+        fixInt128 w = moo_nummulwide(a, b);
+        bool outside = fixInt128Gt(w, fixInt128FromI64(INT64_MAX)) || fixInt128Lt(w, fixInt128FromI64(-INT64_MAX));
+        CHECK(outside == moo_nummulsaturates(a, b));
+        CHECK(moo_nummul(a, b) == fixMul(a, b));
+        if (!outside)
+            CHECK(fixInt128ToI64(w) == moo_nummul(a, b));
+    }
+    CHECK(!moo_nummulsaturates(INT64_MAX, 65536)); // an exact edge is not saturation
+    CHECK(moo_nummulsaturates(INT64_MAX, 65537));
+
+    // the IEEE encoder at both widths
+    CHECK(moo_numtofloatbits(65536) == 0x3f800000u);
+    CHECK(moo_numtofloatbits(-32768) == 0xbf000000u);
+    CHECK(moo_numtodoublebits(65536) == 0x3ff0000000000000ull);
+    CHECK(moo_numtodoublebits(-32768) == 0xbfe0000000000000ull);
+    CHECK(moo_numtofloatbits(INT64_MAX) == 0x57000000u);    // 2^47 - 2^-16 rounds up to 2^47
+    CHECK(moo_numtodoublebits(1) == 0x3ef0000000000000ull); // 2^-16
 }
 
 TEST_CASE("BoundaryRoundTrip")

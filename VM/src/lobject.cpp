@@ -8,11 +8,11 @@
 #include "lgc.h"
 #include "ldo.h"
 #include "lnumutils.h"
-#include "lmem.h"       // moo: luaM_newgcofixed for MooVec3 (docs/layer3b/moo-v2-l3b-vec3-object.md)
-#include "moo_format.h" // moo: moo_numtostr for moo_vec3_tostring (docs/layer3b/moo-v2-l3b-vec3-object.md)
-#include "moo_vec3.h"   // moo: vec3 GC object (docs/layer3b/moo-v2-l3b-vec3-object.md)
-#include "moo_quat.h"   // moo: quat GC object (docs/layer3b/moo-v2-l3b-quat-object.md)
-#include "moo_transform.h" // moo: transform GC object (docs/layer3b/moo-v2-l3b-transform.md)
+#include "lmem.h"          // moo: luaM_newgcofixed
+#include "moo_format.h"    // moo: moo_numtostr
+#include "moo_vec3.h"      // moo: vec3
+#include "moo_quat.h"      // moo: quat
+#include "moo_transform.h" // moo: transform
 
 #include <ctype.h>
 #include <string.h>
@@ -39,8 +39,7 @@ int luaO_log2(unsigned int x)
     return l + log_2[x];
 }
 
-// moo: vec3 allocation, value equality and tostring (docs/DESIGN.md "vec3, quat and transform (layer 3b)",
-// "Number formatting"; docs/layer3b/moo-v2-l3b-vec3-object.md, decisions 2, 3, 5 and "Card moo-v2-l3b-vec3-object-gc").
+// moo: vec3, quat and transform allocation, equality and tostring (docs/layer3b/moo-v2-l3b-vec3-object.md)
 MooVec3* moo_vec3_new(lua_State* L, fixed_t x, fixed_t y, fixed_t z)
 {
     MooVec3* v = luaM_newgcofixed(L, MooVec3, sizeof(MooVec3), L->activememcat, LUA_TVEC3);
@@ -70,8 +69,7 @@ char* moo_vec3_tostring(char* buf, const MooVec3* v)
     return p;
 }
 
-// moo: quat allocation, value equality and tostring, the vec3 pattern again (docs/DESIGN.md "vec3, quat and
-// transform (layer 3b)", "Number formatting"; docs/layer3b/moo-v2-l3b-quat-object.md, decisions 2, 3 and 5).
+// moo: quat
 MooQuat* moo_quat_new(lua_State* L, fixed_t x, fixed_t y, fixed_t z, fixed_t s)
 {
     MooQuat* q = luaM_newgcofixed(L, MooQuat, sizeof(MooQuat), L->activememcat, LUA_TQUAT);
@@ -105,8 +103,7 @@ char* moo_quat_tostring(char* buf, const MooQuat* q)
     return p;
 }
 
-// moo: transform allocation, value equality and tostring, the vec3 pattern again (docs/DESIGN.md "vec3, quat and
-// transform (layer 3b)", "Number formatting"; docs/layer3b/moo-v2-l3b-transform.md, decision 1).
+// moo: transform
 MooTransform* moo_transform_new(lua_State* L, fixTransform t)
 {
     MooTransform* o = luaM_newgcofixed(L, MooTransform, sizeof(MooTransform), L->activememcat, LUA_TTRANSFORM);
@@ -114,11 +111,6 @@ MooTransform* moo_transform_new(lua_State* L, fixTransform t)
     o->p = t.p;
     o->q = t.q;
     return o;
-}
-
-fixTransform moo_transform_payload(const MooTransform* t)
-{
-    return FIX_LITERAL(fixTransform){{t->p.x, t->p.y, t->p.z}, {{t->q.v.x, t->q.v.y, t->q.v.z}, t->q.s}};
 }
 
 int moo_transform_equal(const MooTransform* a, const MooTransform* b)
@@ -151,9 +143,8 @@ char* moo_transform_tostring(char* buf, const MooTransform* t)
     return p;
 }
 
-// moo: raw equality has no vector arm because the public API no longer creates vector values; a vec3 compares
-// its three raw components by value (docs/DESIGN.md "vec3, quat and transform (layer 3b)";
-// docs/layer3b/moo-v2-l3b-vec3-object.md, decision 3).
+// moo: no float vector arm; vec3, quat and transform compare by value (docs/layer3b/moo-v2-l3b-vec3-object.md,
+// decision 3)
 int luaO_rawequalObj(const TValue* t1, const TValue* t2)
 {
     if (ttype(t1) != ttype(t2))
@@ -212,8 +203,8 @@ int luaO_rawequalKey(const TKey* t1, const TValue* t2)
         }
 }
 
-// moo: tonumber and string coercion use the literal parser (moo_parse.h): the exact rational, rounded once, ties to
-// even, no strtod and no locale. Spaces around it and one sign are allowed; out of range is not a number.
+// moo: tonumber and string coercion use the literal parser (moo_parse.h). Spaces around it and one sign are
+// allowed; out of range is not a number.
 int luaO_str2d(const char* s, lua_Number* result)
 {
     while (isspace(cast_to(unsigned char, *s)))

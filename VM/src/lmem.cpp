@@ -126,11 +126,11 @@ static_assert(sizeof(void*) == 8, "moo supports 64-bit targets only");
 static_assert(offsetof(TString, data) == 32, "size mismatch for string header");
 static_assert(sizeof(LuaTable) == 56, "size mismatch for table header");
 static_assert(offsetof(Buffer, data) == 16, "size mismatch for buffer header");
-// moo: vec3 object size (docs/DESIGN.md "vec3, quat and transform (layer 3b)"; docs/layer3b/moo-v2-l3b-vec3-object.md, decision 2)
+// moo: vec3 object size (docs/layer3b/moo-v2-l3b-vec3-object.md, decision 2)
 static_assert(sizeof(MooVec3) == 40, "size mismatch for vec3 object");
-// moo: quat object size (docs/DESIGN.md "vec3, quat and transform (layer 3b)"; docs/layer3b/moo-v2-l3b-quat-object.md, decision 2)
+// moo: quat object size (docs/layer3b/moo-v2-l3b-quat-object.md, decision 2)
 static_assert(sizeof(MooQuat) == 48, "size mismatch for quat object");
-// moo: transform object size (docs/DESIGN.md "vec3, quat and transform (layer 3b)"; docs/layer3b/moo-v2-l3b-transform.md)
+// moo: transform object size (docs/layer3b/moo-v2-l3b-transform.md)
 static_assert(sizeof(MooTransform) == 72, "size mismatch for transform object");
 
 // The userdata is designed to provide 16 byte alignment for 16 byte and larger userdata sizes

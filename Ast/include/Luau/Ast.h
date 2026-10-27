@@ -5,7 +5,7 @@
 #include "Luau/Location.h"
 #include "Luau/Variant.h"
 
-// moo: fixed_t, the raw Q48.16 value of a number literal (docs/DESIGN.md "Literals")
+// moo: fixed_t, the raw Q48.16 value of a number literal
 #include "moo_number.h"
 
 #include <iterator>
@@ -357,12 +357,9 @@ class AstExprConstantNumber : public AstExpr
 public:
     LUAU_RTTI(AstExprConstantNumber)
 
-    // moo: two forms, each with its own invariant (docs/DESIGN.md "Literals", docs/layer3/moo-l3-ast-raw-literals.md).
-    // The parser uses the four-argument form: rawValue is moo_numparse's exact raw value and value is
-    // moo_numtodouble(rawValue), the nearest double to it. The two-argument form is for a tool that builds a node
-    // from a double (the AST JSON encoder tests pass 8.2, infinity and NaN): value is the tool's double, kept as given,
-    // and rawValue is moo_numfromdoublevalue(value), the nearest raw value to it, saturating, NaN to 0. The program
-    // path never uses it.
+    // moo: two forms (docs/layer3/moo-l3-ast-raw-literals.md). The parser's four-argument form takes moo_numparse's
+    // raw value and value = moo_numtodouble(rawValue). The two-argument form is for tools that build a node from a
+    // double, infinity and NaN included: value is kept as given and rawValue = moo_numfromdoublevalue(value).
     AstExprConstantNumber(const Location& location, double value, ConstantNumberParseResult parseResult = ConstantNumberParseResult::Ok);
     AstExprConstantNumber(
         const Location& location, double value, fixed_t rawValue, ConstantNumberParseResult parseResult = ConstantNumberParseResult::Ok
@@ -371,8 +368,8 @@ public:
     void visit(AstVisitor* visitor) override;
 
     double value;
-    // moo: the raw Q48.16 value the compiler emits; on a parsed node it is exact and `value` is the nearest double to it,
-    // for the analyzer and tools, which never depend on the representation (docs/DESIGN.md "Analyzer", "Literals")
+    // moo: the raw Q48.16 value the compiler emits; on a parsed node `value` is the nearest double to it, for the
+    // analyzer and tools
     fixed_t rawValue;
     ConstantNumberParseResult parseResult;
 };
