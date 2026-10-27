@@ -1,6 +1,10 @@
 # moo changelog
 
-## Unreleased
+## v1.0.2
+
+A point release: the conformance suite asserts the overflow edge in both builds again, and pull
+requests build and test on macOS and Windows as well as Linux. No change to the VM, compiler or
+libraries. `moo --version` prints `moo 1.0.2 (Luau 0.741)`. Pull requests #51 and #52.
 
 ### Fixed
 
