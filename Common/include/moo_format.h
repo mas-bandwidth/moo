@@ -1,12 +1,11 @@
 // This file is part of moo, a fork of the Luau programming language; moo's changes are licensed under MIT License; see LICENSE-moo.txt for details
 //
-// moo's number formatting (docs/DESIGN.md, "Number formatting" and "string.format"), in integer arithmetic with no libc
-// printf. Every Q48.16 value has a finite decimal expansion of at most 16 fraction digits: raw / 2^16 = raw * 5^16 / 10^16.
+// moo's number formatting (docs/DESIGN.md "Number formatting", "string.format"), in integer arithmetic, no libc
+// printf. Every Q48.16 value has an exact decimal expansion of at most 16 fraction digits: raw / 2^16 = raw * 5^16 /
+// 10^16.
 //
-// - moo_numtostr: the shortest decimal that reads back (moo_parse.h) to exactly the same value; integers print with no
-//   fraction. tonumber(tostring(x)) == x for every x.
-// - moo_numformat: C's %f, %e, %g, %E and %G, with its flags, width and precision, on the exact value, rounded half to
-//   even on the exact decimal expansion.
+// moo_numtostr: the shortest decimal that reads back (moo_parse.h) to the same value, so tonumber(tostring(x)) == x.
+// moo_numformat: C's %f %e %g %E %G with flags, width and precision, rounded half to even on the exact expansion.
 #pragma once
 
 #include "moo_number.h"
@@ -64,7 +63,7 @@ inline char* moo_numtostr(char* buf, fixed_t n)
 {
     using namespace moo_format_detail;
     char* p = buf;
-    uint64_t m = n < 0 ? uint64_t(0) - uint64_t(n) : uint64_t(n);
+    uint64_t m = moo_numabs(n);
     if (n < 0)
         *p++ = '-';
     uint64_t ip = m >> 16;
@@ -91,7 +90,7 @@ inline char* moo_numtostr(char* buf, fixed_t n)
                 return p;
             *p++ = '.';
             int digits = k;
-            while (q % 10 == 0) // the shortest has no trailing zero, but keep the form canonical
+            while (q % 10 == 0) // the shortest form has no trailing zero; strip any to be sure
             {
                 q /= 10;
                 digits--;
@@ -132,7 +131,7 @@ inline int moo_numformat(char* out, size_t cap, const char* spec, char conv, fix
     }
 
     bool neg = n < 0;
-    uint64_t m = neg ? uint64_t(0) - uint64_t(n) : uint64_t(n);
+    uint64_t m = moo_numabs(n);
     uint64_t ip = m >> 16;
     uint64_t frac16 = (m & 0xffff) * kPow5[16];
 
@@ -148,8 +147,7 @@ inline int moo_numformat(char* out, size_t cap, const char* spec, char conv, fix
     bool upper = conv == 'E' || conv == 'G';
     char kind = (conv == 'f' || conv == 'F') ? 'f' : (conv == 'e' || conv == 'E') ? 'e' : 'g';
 
-    // rounds the digit string to keep the first `keep` digits (counting from index 0), half to even on the exact digits;
-    // writes the kept digits to r (which may gain a leading 1 on a carry) and returns how many were written
+    // the first `keep` digits rounded half to even into r; returns the count, keep + 1 when a carry adds a leading 1
     auto roundDigits = [&](int keep, char* r) -> int {
         for (int i = 0; i < keep; ++i)
             r[i] = i < ndig ? digits[i] : '0';
@@ -183,8 +181,8 @@ inline int moo_numformat(char* out, size_t cap, const char* spec, char conv, fix
         return len;
     };
 
+    // fixed notation with p fraction digits
     auto emitFixed = [&](int p, bool stripZeros) {
-        // fixed notation with p fraction digits
         char r[160];
         int keep = nint + (p < 16 ? p : 16);
         int len = roundDigits(keep, r);
@@ -208,14 +206,14 @@ inline int moo_numformat(char* out, size_t cap, const char* spec, char conv, fix
             body[blen++] = fr[i];
     };
 
-    // the decimal exponent of the leading significant digit, and its index in digits[]
+    // the index of the leading significant digit in digits[]
     int lead = 0;
     while (lead < ndig && digits[lead] == '0')
         lead++;
     bool isZero = lead == ndig;
 
+    // the p + 1 significant digits of scientific notation into r, and the decimal exponent
     auto sciParts = [&](int p, char* r, int* exp10) -> int {
-        // p digits after the point: p + 1 significant digits
         if (isZero)
         {
             for (int i = 0; i <= p; ++i)
@@ -224,24 +222,20 @@ inline int moo_numformat(char* out, size_t cap, const char* spec, char conv, fix
             return p + 1;
         }
         int x = nint - 1 - lead; // the exponent of digits[lead]
-        // round the digit string starting at lead to p + 1 digits
         char tmp[160];
         int keep = lead + p + 1;
         int len = roundDigits(keep, tmp);
-        int off = len - keep; // 1 if a carry added a leading digit
-        // tmp[lead - ... ] : the first significant digit is at index lead (or lead - 1 after a carry... handled by off)
         int first = lead;
-        if (off)
+        if (len > keep)
         {
-            // carry: digits shifted right by one; the leading '1' is at index 0 only if lead == 0, else it went into tmp[lead - 1]
-            first = 0;
+            // the carry ran off the front (lead == 0): the digits moved right by one behind a new leading 1
             for (int i = 0; i < p + 1; ++i)
                 r[i] = tmp[i];
             x += 1;
         }
         else
         {
-            // a carry could also have made tmp[lead - 1] nonzero when lead > 0
+            // a carry into the zero before the leading digit (lead > 0)
             if (first > 0 && tmp[first - 1] != '0')
             {
                 first--;
@@ -294,7 +288,7 @@ inline int moo_numformat(char* out, size_t cap, const char* spec, char conv, fix
             emitSci(P - 1, !alt);
     }
 
-    // the sign is the value's, as in C: -0.01 with %.1f is "-0.0" (the number is negative; moo has no negative zero)
+    // the sign is the value's, as in C: -0.01 with %.1f is "-0.0"
     char sign = neg ? '-' : plus ? '+' : space ? ' ' : 0;
 
     int total = blen + (sign ? 1 : 0);

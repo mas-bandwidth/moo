@@ -81,12 +81,11 @@ typedef struct lua_TValue
 #define ttisupval(o) (ttype(o) == LUA_TUPVAL)
 #define ttisclass(o) (ttype(o) == LUA_TCLASS)
 #define ttisobject(o) (ttype(o) == LUA_TOBJECT)
-// moo: vec3 GC object (docs/DESIGN.md "vec3, quat and transform (layer 3b)"; docs/layer3b/moo-v2-l3b-vec3-object.md)
+// moo: vec3
 #define ttisvec3(o) (ttype(o) == LUA_TVEC3)
-// moo: quat GC object, the vec3 pattern again (docs/DESIGN.md "vec3, quat and transform (layer 3b)";
-// docs/layer3b/moo-v2-l3b-quat-object.md)
+// moo: quat
 #define ttisquat(o) (ttype(o) == LUA_TQUAT)
-// moo: transform GC object, the vec3 pattern again (docs/layer3b/moo-v2-l3b-transform.md)
+// moo: transform
 #define ttistransform(o) (ttype(o) == LUA_TTRANSFORM)
 
 // Macros to access values
@@ -106,11 +105,11 @@ typedef struct lua_TValue
 #define upvalue(o) check_exp(ttisupval(o), &(o)->value.gc->uv)
 #define classvalue(o) check_exp(ttisclass(o), &(o)->value.gc->lclass)
 #define objectvalue(o) check_exp(ttisobject(o), &(o)->value.gc->lobject)
-// moo: vec3 GC object (docs/DESIGN.md "vec3, quat and transform (layer 3b)"; docs/layer3b/moo-v2-l3b-vec3-object.md)
+// moo: vec3
 #define vec3value(o) check_exp(ttisvec3(o), &(o)->value.gc->v3)
-// moo: quat GC object (docs/DESIGN.md "vec3, quat and transform (layer 3b)"; docs/layer3b/moo-v2-l3b-quat-object.md)
+// moo: quat
 #define quatvalue(o) check_exp(ttisquat(o), &(o)->value.gc->q)
-// moo: transform GC object (docs/layer3b/moo-v2-l3b-transform.md)
+// moo: transform
 #define transformvalue(o) check_exp(ttistransform(o), &(o)->value.gc->tf)
 
 #define l_isfalse(o) (ttisnil(o) || (ttisboolean(o) && bvalue(o) == 0))
@@ -270,7 +269,7 @@ typedef struct lua_TValue
         checkliveness(L->global, i_o); \
     }
 
-// moo: vec3 GC object (docs/DESIGN.md "vec3, quat and transform (layer 3b)"; docs/layer3b/moo-v2-l3b-vec3-object.md)
+// moo: vec3
 #define setvec3value(L, obj, x) \
     { \
         TValue* i_o = (obj); \
@@ -279,7 +278,7 @@ typedef struct lua_TValue
         checkliveness((L)->global, i_o); \
     }
 
-// moo: quat GC object (docs/DESIGN.md "vec3, quat and transform (layer 3b)"; docs/layer3b/moo-v2-l3b-quat-object.md)
+// moo: quat
 #define setquatvalue(L, obj, x) \
     { \
         TValue* i_o = (obj); \
@@ -288,7 +287,7 @@ typedef struct lua_TValue
         checkliveness((L)->global, i_o); \
     }
 
-// moo: transform GC object (docs/layer3b/moo-v2-l3b-transform.md)
+// moo: transform
 #define settransformvalue(L, obj, x) \
     { \
         TValue* i_o = (obj); \
@@ -547,8 +546,8 @@ typedef struct TKey
 {
     ::Value value;
     int extra[LUA_EXTRA_SIZE];
-    // moo: the quat and transform tags push LUA_TDEADKEY to 17, so tt needs 5 bits (docs/layer3b/moo-v2-l3b-vec3-object.md,
-    // decision 1, item 4); next still holds +/- (MAXSIZE - 1) in signed 27 bits
+    // moo: moo's tags push LUA_TDEADKEY to 17, so tt needs 5 bits; next still holds +/- (MAXSIZE - 1) in 27 bits
+    // (docs/layer3b/moo-v2-l3b-vec3-object.md, decision 1)
     unsigned tt : 5;
     int next : 27; // for chaining
 } TKey;

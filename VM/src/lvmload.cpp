@@ -332,8 +332,8 @@ static int loadsafe(
         return 1;
     }
 
-    // moo: the VM loads only moo bytecode and refuses Luau bytecode by name (docs/DESIGN.md "Literals"; Bytecode.h,
-    // "moo bytecode versions"; docs/layer3/moo-l3-bytecode-version.md)
+    // moo: the VM loads only moo bytecode and refuses Luau bytecode by name (Bytecode.h, "moo bytecode versions";
+    // docs/layer3/moo-l3-bytecode-version.md)
     if ((version & LBC_MOO_VERSION_FLAG) == 0)
     {
         char chunkbuf[LUA_IDSIZE];
@@ -552,8 +552,7 @@ static int loadsafe(
 
             case LBC_CONSTANT_NUMBER:
             {
-                // moo: the raw Q48.16 value, 8 bytes little-endian (docs/DESIGN.md "Literals"); INT64_MIN is outside
-                // the number's domain [-INT64_MAX, INT64_MAX] (DESIGN.md "Layer 3 as built") and is refused by name
+                // moo: the raw Q48.16 value, 8 bytes little-endian; INT64_MIN is outside the domain and refused by name
                 uint64_t bits = 0;
                 for (int b = 0; b < 8; ++b)
                     bits |= uint64_t(read<uint8_t>(data, size, offset)) << (8 * b);
@@ -572,7 +571,7 @@ static int loadsafe(
             case LBC_CONSTANT_VECTOR:
             case LBC_CONSTANT_VECTORD:
             {
-                // moo: one number type, so moo bytecode has no vector constant (docs/DESIGN.md "vec3, quat and transform")
+                // moo: moo bytecode has no vector constant
                 char chunkbuf[LUA_IDSIZE];
                 const char* chunkid = luaO_chunkid(chunkbuf, sizeof(chunkbuf), chunkname, strlen(chunkname));
                 lua_pushfstring(L, "%s: moo bytecode has no vector constant", chunkid);
@@ -690,7 +689,7 @@ static int loadsafe(
 
             case LBC_CONSTANT_INTEGER:
             {
-                // moo: one number type, so moo bytecode has no integer constant (docs/DESIGN.md "integer")
+                // moo: one number type, so moo bytecode has no integer constant
                 char chunkbuf[LUA_IDSIZE];
                 const char* chunkid = luaO_chunkid(chunkbuf, sizeof(chunkbuf), chunkname, strlen(chunkname));
                 lua_pushfstring(L, "%s: moo bytecode has no integer constant", chunkid);

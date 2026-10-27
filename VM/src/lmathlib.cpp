@@ -13,7 +13,7 @@
 #include <limits>
 #include <math.h>
 
-// moo: exact Q48.16 constants, each rounded once to nearest 2^-16 (docs/DESIGN.md "math library")
+// moo: Q48.16 constants, each rounded once to the nearest 2^-16
 #define MOO_MATH_PI (fixed_t(205887))          // round(pi * 2^16): 3.14159265358979323846 * 65536 = 205887.416...
 #define MOO_MATH_DEG_PER_RAD (fixed_t(3754936)) // round((180 / pi) * 2^16): 57.29577951308232... * 65536 = 3754936.206...
 #define MOO_MATH_RAD_PER_DEG (fixed_t(1144))    // round((pi / 180) * 2^16): 0.017453292519943295... * 65536 = 1143.818...
@@ -52,11 +52,9 @@ static int math_abs(lua_State* L)
     return 1;
 }
 
-// moo: sin, cos, tan, atan2, atan, asin and acos on fixed (docs/DESIGN.md "math library"): one definition
-// serves both the library functions here and their bytecode fastcalls in lbuiltins.cpp, so both give the
-// same bits. tan returns false on a zero cosine so the library raises "division by zero" and the fastcall
-// falls back to it; asin and acos return false when |x| > 1 so the library raises "math.asin domain" /
-// "math.acos domain" and the fastcall falls back to it.
+// moo: the trig functions on fixed, shared with the fastcalls in lbuiltins.cpp so both give the same bits
+// (docs/DESIGN.md "math library"). false is an error the library raises and the fastcall falls back to: tan on a
+// zero cosine, asin and acos when |x| > 1.
 fixed_t moo_math_sin(fixed_t radians)
 {
     return fixSin(radians);
@@ -102,8 +100,7 @@ bool moo_math_acos(fixed_t x, fixed_t* out)
     return true;
 }
 
-// moo: fmod, modf, frexp, ldexp, deg, rad and lerp on the raw Q48.16 value (docs/DESIGN.md "math library"):
-// one shared definition serves both the library entry points here and their bytecode fastcalls in lbuiltins.cpp.
+// moo: fmod, modf, frexp, ldexp, deg, rad and lerp on the raw value, shared with the fastcalls
 bool moo_math_fmod(fixed_t a, fixed_t b, fixed_t* out)
 {
     if (b == 0)
@@ -176,7 +173,7 @@ fixed_t moo_math_lerp(fixed_t a, fixed_t b, fixed_t t)
     return t == MOO_NUMBER_ONE ? b : moo_numadd(a, moo_nummul(moo_numsub(b, a), t));
 }
 
-// moo: exp and the hyperbolic functions share fixed compositions (docs/DESIGN.md, "math library").
+// moo: exp and the hyperbolic functions, shared with the fastcalls.
 // Scaling uses fixMul, which rounds half up once; fixExp2 rounds its dropped bits half up and saturates.
 // sinh/cosh evaluate exp(+/-x)/2 before the saturating sum/difference. tanh uses
 // sign(x) * (1 - exp(-2|x|)) / (1 + exp(-2|x|)); its final fixDiv truncates toward zero.
@@ -209,7 +206,7 @@ fixed_t moo_math_tanh(fixed_t x)
     return x < 0 ? moo_numunm(result) : result;
 }
 
-// moo: log uses fixLog2 (docs/DESIGN.md, "math library"); log divides by rounded log2(e) with fixDiv
+// moo: log uses fixLog2; log divides by rounded log2(e) with fixDiv
 // (toward zero), log10 multiplies by rounded 1/log2(10) with fixMul (half up), and a custom base
 // divides the two fixed log2 results with fixDiv (toward zero). Domain refusals stay in the library caller.
 fixed_t moo_math_log10(fixed_t x)
@@ -240,7 +237,7 @@ static int math_sin(lua_State* L)
     return 1;
 }
 
-// moo: math.sinh shares the fixed half-exponent helper with its bytecode fastcall (docs/DESIGN.md, "math library").
+// moo: shared with the fastcall
 static int math_sinh(lua_State* L)
 {
     lua_pushnumber(L, moo_math_sinh(luaL_checknumber(L, 1)));
@@ -253,7 +250,7 @@ static int math_cos(lua_State* L)
     return 1;
 }
 
-// moo: math.cosh shares the fixed half-exponent helper with its bytecode fastcall (docs/DESIGN.md, "math library").
+// moo: shared with the fastcall
 static int math_cosh(lua_State* L)
 {
     lua_pushnumber(L, moo_math_cosh(luaL_checknumber(L, 1)));
@@ -269,7 +266,7 @@ static int math_tan(lua_State* L)
     return 1;
 }
 
-// moo: math.tanh shares the fixed stable ratio helper with its bytecode fastcall (docs/DESIGN.md, "math library").
+// moo: shared with the fastcall
 static int math_tanh(lua_State* L)
 {
     lua_pushnumber(L, moo_math_tanh(luaL_checknumber(L, 1)));
@@ -320,7 +317,7 @@ static int math_floor(lua_State* L)
     return 1;
 }
 
-// moo: fmod and modf on the raw Q48.16 value (docs/DESIGN.md "math library", "Division by zero")
+// moo: on the raw value
 static int math_fmod(lua_State* L)
 {
     fixed_t a = luaL_checknumber(L, 1);
@@ -341,9 +338,7 @@ static int math_modf(lua_State* L)
     return 2;
 }
 
-// moo: sqrt on fixed's fixSqrt, exact, rounded toward zero; negative is a named error
-// (docs/DESIGN.md, "math library": sqrt from fixSqrt). The seed question (fixSqrt's double seed
-// vs fixISqrt128High) is Glenn's; this card keeps fixSqrt as it is at the pin (docs/layer4/moo-l4-math-sqrt.md).
+// moo: fixed's fixSqrt, exact, rounded toward zero; negative is a named error (docs/layer4/moo-l4-math-sqrt.md)
 static int math_sqrt(lua_State* L)
 {
     lua_Number a = luaL_checknumber(L, 1);
@@ -358,8 +353,7 @@ static int math_pow(lua_State* L)
     fixed_t base = luaL_checknumber(L, 1);
     fixed_t exponent = luaL_checknumber(L, 2);
 
-    // moo: an integer-valued exponent is exact, rounded once (docs/DESIGN.md, "math library", "pow and ^"):
-    // moo_pow_int (Common/include/moo_pow.h) reports saturation and 0 ^ negative, which this raises.
+    // moo: an integer exponent is moo_pow_int, exact, rounded once; this raises its errors
     if (moo_numisinteger(exponent))
     {
         fixed_t out;
@@ -375,16 +369,15 @@ static int math_pow(lua_State* L)
         return 1;
     }
 
-    // moo: a fractional exponent is fixPow = fixExp2(exponent * fixLog2(base)) (docs/DESIGN.md, "pow
-    // and ^"). A negative base with a fractional exponent is the named error; 0 ^ positive fraction is 0
-    // (fixPow returns 0 for a base <= 0).
+    // moo: a fractional exponent is fixPow = fixExp2(exponent * fixLog2(base)); a negative base is the named
+    // error, and 0 ^ positive fraction is 0
     if (base < 0)
         luaL_error(L, "pow of a negative number to a fractional power");
     lua_pushnumber(L, fixPow(base, exponent));
     return 1;
 }
 
-// moo: log domain checks and fixed scaling are shared with the bytecode fastcall (docs/DESIGN.md, "math library").
+// moo: shared with the fastcall
 static int math_log(lua_State* L)
 {
     fixed_t x = luaL_checknumber(L, 1);
@@ -401,7 +394,7 @@ static int math_log(lua_State* L)
     return 1;
 }
 
-// moo: log10 uses the shared fixed log2 scaling helper (docs/DESIGN.md, "math library").
+// moo: shared with the fastcall
 static int math_log10(lua_State* L)
 {
     fixed_t x = luaL_checknumber(L, 1);
@@ -411,14 +404,14 @@ static int math_log10(lua_State* L)
     return 1;
 }
 
-// moo: exp uses the shared fixed exp2 scaling helper (docs/DESIGN.md, "math library").
+// moo: shared with the fastcall
 static int math_exp(lua_State* L)
 {
     lua_pushnumber(L, moo_math_exp(luaL_checknumber(L, 1)));
     return 1;
 }
 
-// moo: deg, rad, frexp and ldexp on the raw Q48.16 value (docs/DESIGN.md "math library", "Exact integers")
+// moo: on the raw value
 static int math_deg(lua_State* L)
 {
     lua_pushnumber(L, moo_math_deg(luaL_checknumber(L, 1)));
@@ -541,7 +534,7 @@ static const unsigned char kPerlinHash[257] = {
     127, 4,   150, 254, 138, 236, 205, 93,  222, 114, 67,  29,  24,  72,  243, 141, 128, 195, 78,  66,  215, 61,  156, 180, 151
 };
 
-// moo: Perlin noise uses the fixed Q48.16 operators in the order described by DESIGN.md "math library".
+// moo: Perlin noise on Q48.16, in the operation order docs/DESIGN.md "math library" gives
 static const int kPerlinGrad[16][3] = {
     {1, 1, 0}, {-1, 1, 0}, {1, -1, 0}, {-1, -1, 0},
     {1, 0, 1}, {-1, 0, 1}, {1, 0, -1}, {-1, 0, -1},
@@ -651,7 +644,7 @@ static int math_round(lua_State* L)
     return 1;
 }
 
-// moo: map, lerp, isnan, isinf and isfinite on fixed (docs/DESIGN.md "math library", "Division by zero")
+// moo: map, lerp, isnan, isinf and isfinite on fixed
 static int math_map(lua_State* L)
 {
     fixed_t x = luaL_checknumber(L, 1);
@@ -753,7 +746,7 @@ int luaopen_math(lua_State* L)
 
     luaL_register(L, LUA_MATHLIBNAME, mathlib);
 
-    // moo: exact Q48.16 constants; math.pi is nearest Q48.16 to pi, math.huge is MOO_NUMBER_MAX (docs/DESIGN.md "math library")
+    // moo: math.pi is the nearest Q48.16 to pi; math.huge is MOO_NUMBER_MAX
     lua_pushnumber(L, MOO_MATH_PI);
     lua_setfield(L, -2, "pi");
     lua_pushnumber(L, MOO_NUMBER_MAX);

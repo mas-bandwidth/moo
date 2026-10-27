@@ -100,16 +100,14 @@ enum lua_Type
     LUA_TVECTOR,
 #endif
 
-    // moo: vec3, an immutable GC object of three Q48.16 components; a TValue tag after every upstream GC type, so
+    // moo: vec3, quat and transform, immutable GC values of Q48.16 components; after every upstream GC type so
     // upstream tags keep their values (docs/layer3b/moo-v2-l3b-vec3-object.md, decision 1)
     LUA_TVEC3,
 
-    // moo: quat, an immutable GC object of a fixQuat (a Q48.16 vec3 and a scalar); it follows vec3 so upstream
-    // tags keep their values (docs/layer3b/moo-v2-l3b-vec3-object.md, decision 1)
+    // moo: quat
     LUA_TQUAT,
 
-    // moo: transform, an immutable GC object of a fixTransform (a Q48.16 vec3 position and a quat rotation); it
-    // follows quat so upstream tags keep their values (docs/layer3b/moo-v2-l3b-vec3-object.md, decision 1)
+    // moo: transform
     LUA_TTRANSFORM,
 
     // values below this line are used in GCObject tags but may never show up in TValue type tags
@@ -193,7 +191,7 @@ LUA_API int lua_lessthan(lua_State* L, int idx1, int idx2);
 LUA_API lua_Number lua_tonumberx(lua_State* L, int idx, int* isnum);
 LUA_API int lua_tointegerx(lua_State* L, int idx, int* isnum);
 LUA_API unsigned lua_tounsignedx(lua_State* L, int idx, int* isnum);
-// moo: no C API makes or reads a vector; LUA_TVECTOR stays only for upstream merges (layer 3, docs/DESIGN.md "vec3, quat and transform")
+// moo: no C API makes or reads a float vector; LUA_TVECTOR stays for upstream merges
 LUA_API int lua_toboolean(lua_State* L, int idx);
 LUA_API int64_t lua_tointeger64(lua_State* L, int idx, int* isinteger);
 LUA_API const char* lua_tolstring(lua_State* L, int idx, size_t* len);
@@ -226,7 +224,7 @@ void lua_pushnumber(lua_State* L, int n) = delete;
 LUA_API void lua_pushinteger(lua_State* L, int n);
 LUA_API void lua_pushinteger64(lua_State* L, int64_t n);
 LUA_API void lua_pushunsigned(lua_State* L, unsigned n);
-// moo: the vector push is removed, so a host that calls it fails to compile (layer 3, docs/DESIGN.md "vec3, quat and transform")
+// moo: lua_pushvector is removed with the float vector
 LUA_API void lua_pushlstring(lua_State* L, const char* s, size_t l);
 LUA_API void lua_pushstring(lua_State* L, const char* s);
 LUA_API const char* lua_pushvfstring(lua_State* L, const char* fmt, va_list argp);
@@ -537,14 +535,14 @@ LUA_API int lua_unref(lua_State* L, int ref);
 #define lua_isnil(L, n) (lua_type(L, (n)) == LUA_TNIL)
 #define lua_isboolean(L, n) (lua_type(L, (n)) == LUA_TBOOLEAN)
 #define lua_isinteger64(L, n) (lua_type(L, (n)) == LUA_TINTEGER)
-// moo: lua_isvector is removed with the vector C API (layer 3, docs/DESIGN.md "vec3, quat and transform")
+// moo: lua_isvector is removed with the float vector
 #define lua_isthread(L, n) (lua_type(L, (n)) == LUA_TTHREAD)
 #define lua_isbuffer(L, n) (lua_type(L, (n)) == LUA_TBUFFER)
 #define lua_isnone(L, n) (lua_type(L, (n)) == LUA_TNONE)
 #define lua_isnoneornil(L, n) (lua_type(L, (n)) <= LUA_TNIL)
 #define lua_isclass(L, n) (lua_type(L, (n)) == LUA_TCLASS)
 #define lua_isobject(L, n) (lua_type(L, (n)) == LUA_TOBJECT)
-// moo: a vec3 is a value tag the host can test for (layer 3b); moo_pushvec3/moo_tovec3 are card moo-v2-l3b-vec3-ops
+// moo: the vec3 C API is moo_pushvec3 and moo_tovec3 (lualib.h)
 #define lua_isvec3(L, n) (lua_type(L, (n)) == LUA_TVEC3)
 
 #define lua_pushliteral(L, s) lua_pushlstring(L, "" s, (sizeof(s) / sizeof(char)) - 1)

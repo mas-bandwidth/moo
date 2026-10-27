@@ -1,8 +1,8 @@
 // This file is part of moo, a fork of the Luau programming language; moo's changes are licensed under MIT License; see LICENSE-moo.txt for details
 //
-// moo's number literal parser (docs/DESIGN.md, "Literals"): a decimal literal is read as the exact rational number
-// it denotes and rounded once to the nearest Q48.16 value, ties to even. No libc: no strtod, no locale. Hexadecimal
-// (0x) and binary (0b) literals are integers, exact. Shared by the compiler's parser and, later, tonumber.
+// moo's number parser (docs/DESIGN.md "Literals"): a decimal is read as the exact rational it denotes and rounded
+// once to the nearest Q48.16, ties to even, with no strtod and no locale. 0x and 0b literals are exact integers.
+// The compiler's parser and tonumber both use it.
 #pragma once
 
 #include "moo_number.h"
@@ -228,8 +228,8 @@ inline int moo_numparse(const char* s, fixed_t* out)
         if (!den.muladd(10, 0))
             return MOO_PARSE_MALFORMED;
 
-    // q = num / den by long division one bit at a time; q has at most 64 bits or the value is out of range
-    // shift the denominator up to the numerator's size, then walk it down
+    // q = num / den by long division one bit at a time: shift the denominator up past the numerator, then walk it
+    // down. A quotient bit at 2^64 or above is out of range.
     Big rem = num;
     Big sh = den;
     int shift = 0;

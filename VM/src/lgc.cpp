@@ -308,22 +308,20 @@ static void reallymarkobject(global_State* g, GCObject* o)
         gray2black(o); // vectors are never gray
         return;
     }
-    // moo: a vec3 holds no references, so it turns black directly like a string or vector
-    // (docs/DESIGN.md "vec3, quat and transform (layer 3b)"; docs/layer3b/moo-v2-l3b-vec3-object.md, decision 6)
+    // moo: vec3, quat and transform hold no references, so they turn black directly like a string
+    // (docs/layer3b/moo-v2-l3b-vec3-object.md, decision 6)
     case LUA_TVEC3:
     {
         gray2black(o);
         return;
     }
-    // moo: a quat holds no references either, so it turns black directly (docs/DESIGN.md "vec3, quat and
-    // transform (layer 3b)"; docs/layer3b/moo-v2-l3b-quat-object.md, decision 6)
+    // moo: quat
     case LUA_TQUAT:
     {
         gray2black(o);
         return;
     }
-    // moo: a transform holds no references either (docs/DESIGN.md "vec3, quat and transform (layer 3b)";
-    // docs/layer3b/moo-v2-l3b-transform.md)
+    // moo: transform
     case LUA_TTRANSFORM:
     {
         gray2black(o);
@@ -690,21 +688,20 @@ static int isobjcleared(GCObject* o)
         stringmark(&o->ts); // strings are `values', so are never weak
         return 0;
     }
-    // moo: a vec3 is a value, like a string, and is never cleared from a weak table
-    // (docs/DESIGN.md "vec3, quat and transform (layer 3b)"; docs/layer3b/moo-v2-l3b-vec3-object.md, decision 4)
+    // moo: vec3, quat and transform are values, like a string, never cleared from a weak table
+    // (docs/layer3b/moo-v2-l3b-vec3-object.md, decision 4)
     if (o->gch.tt == LUA_TVEC3)
     {
         stringmark(&o->gch);
         return 0;
     }
-    // moo: a quat is a value too (docs/DESIGN.md "vec3, quat and transform (layer 3b)";
-    // docs/layer3b/moo-v2-l3b-quat-object.md, decision 4)
+    // moo: quat
     if (o->gch.tt == LUA_TQUAT)
     {
         stringmark(&o->gch);
         return 0;
     }
-    // moo: and so is a transform (docs/layer3b/moo-v2-l3b-transform.md)
+    // moo: transform
     if (o->gch.tt == LUA_TTRANSFORM)
     {
         stringmark(&o->gch);
@@ -793,8 +790,8 @@ static size_t cleartable(lua_State* L, GCObject* l)
             }
             else
             {
-                // moo: an emptied entry in a weak table must turn a collectable key into LUA_TDEADKEY before sweep
-                // frees its object, so value equality never reads a freed key (docs/layer3b/moo-v2-l3b-vec3-object.md, decision 4)
+                // moo: an emptied weak entry turns a collectable key into LUA_TDEADKEY before sweep frees its object, so value
+                // equality never reads a freed key (docs/layer3b/moo-v2-l3b-vec3-object.md, decision 4)
                 removeentry(n);
             }
         }
@@ -859,17 +856,15 @@ static void freeobj(lua_State* L, GCObject* o, lua_Page* page)
     case LUA_TOBJECT:
         luaR_freeobject(L, gco2object(o), page);
         break;
-    // moo: free a vec3 leaf object (docs/DESIGN.md "vec3, quat and transform (layer 3b)";
-    // docs/layer3b/moo-v2-l3b-vec3-object.md, decision 6)
+    // moo: vec3
     case LUA_TVEC3:
         luaM_freegcofixed(L, gco2vec3(o), sizeof(MooVec3), gco2vec3(o)->memcat, page);
         break;
-    // moo: free a quat leaf object (docs/DESIGN.md "vec3, quat and transform (layer 3b)";
-    // docs/layer3b/moo-v2-l3b-quat-object.md, decision 6)
+    // moo: quat
     case LUA_TQUAT:
         luaM_freegcofixed(L, gco2quat(o), sizeof(MooQuat), gco2quat(o)->memcat, page);
         break;
-    // moo: free a transform leaf object (docs/layer3b/moo-v2-l3b-transform.md)
+    // moo: transform
     case LUA_TTRANSFORM:
         luaM_freegcofixed(L, gco2transform(o), sizeof(MooTransform), gco2transform(o)->memcat, page);
         break;
@@ -878,10 +873,9 @@ static void freeobj(lua_State* L, GCObject* o, lua_Page* page)
     }
 }
 
-// moo: the destructor queue (docs/DETERMINISM.md, 13; modelled in tla/DestructorQueue.tla).
-// The sweep never runs a destructor: it queues a dead userdata that has one, and the queue runs at the end
-// of the same GC step, in creation-number order, freeing each block after its destructor. So destructors
-// run in an order that is a function of the program, not of the GC pages, and never in mid-sweep.
+// moo: the destructor queue (docs/DETERMINISM.md, 13; tla/DestructorQueue.tla). The sweep queues a dead userdata
+// that has a destructor; the queue runs at the end of the same GC step in creation order, freeing each block after
+// its destructor. So destructors run in an order that is a function of the program, never in mid-sweep.
 static bool queuedtor(lua_State* L, Udata* u, lua_Page* page)
 {
     if (!luaU_hasdtor(L, u))
@@ -1432,9 +1426,8 @@ static size_t getheaptrigger(global_State* g, size_t heapgoal)
     // adjust threshold based on a guess of how many bytes will be allocated between the cycle start and sweep phase
     // our goal is to begin the sweep when used memory has reached the heap goal
     //
-    // moo: Luau guessed (mark duration) x (allocation rate in bytes per second), from the clock, so when the next cycle
-    // started followed the machine's speed (docs/DETERMINISM.md, 4). moo's guess is the bytes the program allocated
-    // during the mark phase that just ended: a function of the program alone, with no clock and no 1 ms rule.
+    // moo: the guess is the bytes allocated during the mark phase that just ended, a function of the program alone;
+    // Luau's used the clock (docs/DETERMINISM.md, 4)
     int64_t expectedgrowth = int64_t(getheapgrowth(g->gcstats.atomicstarttotalsizebytes, g->gcstats.starttotalsizebytes));
     int64_t offset = getheaptriggererroroffset(g);
     int64_t heaptrigger = heapgoal - (expectedgrowth + offset);

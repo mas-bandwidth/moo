@@ -1,35 +1,23 @@
 // This file is part of moo, a fork of the Luau programming language; moo's changes are licensed under MIT License; see LICENSE-moo.txt for details
 //
-// moo's integer-exponent pow (docs/DESIGN.md, "math library", "pow and ^": integer-valued exponent):
-// a Q48.16 base raised to an integer exponent exactly, rounded once at the end to the nearest
-// Q48.16 value, ties to even, saturating (docs/DESIGN.md, "Overflow"); 0 ^ negative is division by
-// zero (docs/DESIGN.md, "Division by zero"). Integer arithmetic only, no float or double. Every pow
-// path calls moo_pow_int: luai_numpow and the ^ opcodes, math.pow and its fastcall, and the
-// compiler's constant folding (docs/layer4/moo-l4-pow-integer.md has the design and each caller's
-// steps).
+// moo's pow for an integer exponent: the exact power of a Q48.16 base, rounded once to the nearest Q48.16, ties to
+// even, saturating; 0 ^ negative is division by zero (docs/DESIGN.md "pow and ^"). Integer arithmetic only. Every
+// pow path calls it: luai_numpow and the ^ opcodes, math.pow and its fastcall, and the compiler's constant folding
+// (docs/layer4/moo-l4-pow-integer.md has the design and each caller's steps).
 //
-// The value. For raw base b = s * a (s the sign, a = |b|) and exponent n, the result is
-// V = 2^16 * (a / 2^16)^|n|, or 2^16 / (a / 2^16)^|n| for n < 0, with the sign s when n is odd, and
-// the answer is V rounded half to even. Two representations, both exact in what they claim:
+// For raw base b with a = |b| and exponent n the value is V = 2^16 * (a / 2^16)^|n|, or 2^16 / (a / 2^16)^|n| for
+// n < 0, negative when b < 0 and n is odd, rounded half to even. Two paths:
 //
-//   EXACT, for |n| <= MOO_POW_EXACT_MAX: a^|n| as an exact 256-bit integer D (fixed_int256.h). For
-//   n > 0, V = D / 2^(16(n-1)), a shift with the shifted-out bits deciding the rounding; for n < 0,
-//   V = 2^(16|n|+16) / D, one 256-bit division with the remainder deciding it. If D does not fit in
-//   256 bits, V is at least 2^64 (n > 0: saturates) or at most 2^-32 (n < 0: rounds to 0), so no
-//   case is left.
+//   exact, |n| <= MOO_POW_EXACT_MAX: D = a^|n| as a 256-bit integer. n > 0: V = D / 2^(16(n-1)), a shift; n < 0:
+//   V = 2^(16|n|+16) / D, one division. If D does not fit in 256 bits, V >= 2^64 (saturates) or V <= 2^-32
+//   (rounds to 0).
 //
-//   INTERVAL, for |n| > MOO_POW_EXACT_MAX: (a / 2^16)^|n| bracketed by two wide values lo <= P <= hi,
-//   each a normalized 128-bit mantissa with a tracked binary exponent (m * 2^e, m in [2^127, 2^128)),
-//   built by left-to-right binary exponentiation with every product rounded down for lo and up for
-//   hi. While no bit has been dropped (the sticky bit of every product so far is clear) lo == hi is
-//   the exact value, so exact results, ties included, are seen exactly. The two bounds are rounded
-//   once each; the answer is certain when they round to the same value. Outside the exact range only
-//   bases near 1 can give a result that neither saturates nor rounds to 0, so the inputs that reach
-//   the final rounding are a finite set, and MooPowIntCertainEverywhere (tests/moo/
-//   moo-l4-pow-integer-design.test.cpp) visits every one of them and finds the two bounds agreeing
-//   on each, so the single rounding is the correctly rounded value for every input. The loop stops
-//   early when a bound shows the result certainly saturates or certainly rounds to 0, which also
-//   keeps the tracked exponent small.
+//   interval, |n| > MOO_POW_EXACT_MAX: (a / 2^16)^|n| bracketed by lo <= P <= hi, each a 128-bit mantissa with a
+//   binary exponent, by binary exponentiation rounding lo down and hi up. While no bit has been dropped lo == hi
+//   is exact, so exact results and ties are seen exactly. The answer is certain when both bounds round to the same
+//   value. Only bases near 1 reach the final rounding, a finite set, and MooPowIntCertainEverywhere (tests/moo/
+//   moo-l4-pow-integer-design.test.cpp) checks every one of them is certain. The loop stops early once a bound
+//   shows the result saturates or rounds to 0, which also keeps the exponent small.
 #pragma once
 
 #include "moo_number.h"
@@ -37,12 +25,12 @@
 
 #include <stdint.h>
 
-// what moo_pow_int reports; the caller raises the named errors
+// moo_pow_int's status; the caller raises the errors
 #define MOO_POW_OK 0
-#define MOO_POW_SATURATED 1        // *out is MOO_NUMBER_MAX or MOO_NUMBER_MIN: "number overflow in '^'" in a checked build
-#define MOO_POW_DIVISION_BY_ZERO 2 // 0 ^ negative; *out is 0: "division by zero" in every build
+#define MOO_POW_SATURATED 1        // *out is MOO_NUMBER_MAX or MOO_NUMBER_MIN; "number overflow in '^'" when checked
+#define MOO_POW_DIVISION_BY_ZERO 2 // 0 ^ negative; *out is 0; "division by zero" in every build
 
-// the largest |n| computed exactly in 256 bits; above it the interval path runs
+// the largest |n| computed exactly in 256 bits
 #define MOO_POW_EXACT_MAX 13
 
 namespace moo_pow_detail
@@ -133,8 +121,7 @@ inline Wide reciprocal(Wide w, bool up)
 
 const uint64_t kSaturated = uint64_t(1) << 63; // any magnitude at or above 2^63 saturates
 
-// m * 2^e rounded to an integer, half to even (docs/DESIGN.md, "pow and ^": rounded once, ties to even), clamped
-// to kSaturated (m in [2^127, 2^128])
+// m * 2^e rounded to an integer, half to even, clamped to kSaturated (m in [2^127, 2^128])
 inline uint64_t roundWide(fixUInt128 m, int e)
 {
     if (e >= 0)
@@ -180,7 +167,7 @@ inline bool isBelow2to63(fixUInt256 v)
     return fixUInt128Eq(v.hi, FIX_UINT128_ZERO) && fixUInt128Hi(v.lo) == 0 && fixUInt128Lo(v.lo) < kSaturated;
 }
 
-// the rounded magnitude for 1 <= n <= MOO_POW_EXACT_MAX (docs/DESIGN.md, "pow and ^"), clamped to kSaturated
+// the rounded magnitude for 1 <= n <= MOO_POW_EXACT_MAX, clamped to kSaturated
 inline uint64_t exactMagnitude(uint64_t a, uint64_t n, bool negativeExponent)
 {
     fixUInt256 d;
@@ -215,9 +202,8 @@ inline uint64_t exactMagnitude(uint64_t a, uint64_t n, bool negativeExponent)
     return v;
 }
 
-// the rounded magnitude for n > MOO_POW_EXACT_MAX by the interval (docs/DESIGN.md, "pow and ^"), clamped to
-// kSaturated; *certain is true when both bounds round to the same value, which is then the answer.
-// 1 <= a, a != 2^16.
+// the rounded magnitude for n > MOO_POW_EXACT_MAX, clamped to kSaturated; *certain is true when both bounds round
+// to the same value (1 <= a, a != 2^16)
 inline uint64_t intervalMagnitude(uint64_t a, uint64_t n, bool negativeExponent, bool* certain)
 {
     int bits = 64 - fixCountLeadingZeros64(a);
@@ -251,8 +237,8 @@ inline uint64_t intervalMagnitude(uint64_t a, uint64_t n, bool negativeExponent,
             }
         }
 
-        // early exits: a bound shows the final value is certainly out of range or certainly below 1/2.
-        // lo >= 2^(lo.e + 127) and hi < 2^(hi.e + 128); the power only moves away from 1 from here.
+        // stop once a bound shows the result is out of range or below 1/2: lo >= 2^(lo.e + 127), hi < 2^(hi.e + 128),
+        // and the power only moves away from 1 from here
         if (above && lo.e + 127 >= (negativeExponent ? 18 : 48))
         {
             *certain = true;
@@ -279,14 +265,12 @@ inline uint64_t intervalMagnitude(uint64_t a, uint64_t n, bool negativeExponent,
         vhi = roundWide(rhi.m, rhi.e + 16);
     }
     *certain = vlo == vhi;
-    return vlo; // deterministic either way; MooPowIntCertainEverywhere shows the two always agree
+    return vlo; // MooPowIntCertainEverywhere shows vlo == vhi for every input that gets here
 }
 
 } // namespace moo_pow_detail
 
-// base ^ exponent for a raw Q48.16 base and an integer exponent (docs/DESIGN.md, "pow and ^"), with
-// *certain set as moo_pow_detail::intervalMagnitude says (true on every other path). The tests use it to
-// show the interval path always decides; every other caller calls moo_pow_int.
+// moo_pow_int, with *certain from the interval path (true on every other path). For the tests.
 inline int moo_pow_int_certain(fixed_t base, int64_t exponent, fixed_t* out, bool* certain)
 {
     using namespace moo_pow_detail;
@@ -299,11 +283,11 @@ inline int moo_pow_int_certain(fixed_t base, int64_t exponent, fixed_t* out, boo
     }
 
     bool negativeExponent = exponent < 0;
-    uint64_t n = negativeExponent ? uint64_t(0) - uint64_t(exponent) : uint64_t(exponent);
-    uint64_t a = base < 0 ? uint64_t(0) - uint64_t(base) : uint64_t(base);
+    uint64_t n = moo_numabs(exponent);
+    uint64_t a = moo_numabs(base);
     bool negative = base < 0 && (n & 1);
 
-    if (a == 0) // docs/DESIGN.md, "Division by zero": 0 ^ negative is the named error
+    if (a == 0) // 0 ^ negative is division by zero
     {
         *out = 0;
         return negativeExponent ? MOO_POW_DIVISION_BY_ZERO : MOO_POW_OK;
@@ -317,7 +301,7 @@ inline int moo_pow_int_certain(fixed_t base, int64_t exponent, fixed_t* out, boo
     else
         magnitude = intervalMagnitude(a, n, negativeExponent, certain);
 
-    if (magnitude >= kSaturated) // docs/DESIGN.md, "Overflow": the rounded value is beyond the domain
+    if (magnitude >= kSaturated)
     {
         *out = negative ? MOO_NUMBER_MIN : MOO_NUMBER_MAX;
         return MOO_POW_SATURATED;
@@ -326,11 +310,8 @@ inline int moo_pow_int_certain(fixed_t base, int64_t exponent, fixed_t* out, boo
     return MOO_POW_OK;
 }
 
-// base ^ exponent for a raw Q48.16 base and an integer exponent: the exact power rounded once, half to
-// even (docs/DESIGN.md, "pow and ^"). MOO_POW_OK with the value; MOO_POW_SATURATED with MOO_NUMBER_MAX or
-// MOO_NUMBER_MIN (the release value; a checked build raises "number overflow in '^'"); or
-// MOO_POW_DIVISION_BY_ZERO for 0 ^ negative (the caller raises "division by zero"). An exact edge
-// (MOO_NUMBER_MAX ^ 1) is not saturation.
+// base ^ exponent, the exact power rounded once, half to even. Returns a MOO_POW_ status with *out the release
+// value. An exact edge (MOO_NUMBER_MAX ^ 1) is not saturation.
 inline int moo_pow_int(fixed_t base, int64_t exponent, fixed_t* out)
 {
     bool certain;

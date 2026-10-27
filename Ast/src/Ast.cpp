@@ -160,9 +160,7 @@ void AstExprConstantBool::visit(AstVisitor* visitor)
     visitor->visit(this);
 }
 
-// moo: a node built by a tool from a double keeps that double as `value` and takes the nearest raw value to it, through
-// moo_numfromdoublevalue (saturating, NaN to 0, since tools pass infinity and NaN); only a parsed node has `value` as the
-// nearest double to an exact raw value (Ast.h, docs/DESIGN.md "Literals")
+// moo: a node a tool builds from a double keeps it and takes the nearest raw value, saturating, NaN to 0 (Ast.h)
 AstExprConstantNumber::AstExprConstantNumber(const Location& location, double value, ConstantNumberParseResult parseResult)
     : AstExpr(ClassIndex(), location)
     , value(value)

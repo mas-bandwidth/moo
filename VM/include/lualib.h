@@ -35,11 +35,10 @@ LUALIB_API int64_t luaL_optinteger64(lua_State* L, int nArg, int64_t def);
 LUALIB_API unsigned luaL_checkunsigned(lua_State* L, int numArg);
 LUALIB_API unsigned luaL_optunsigned(lua_State* L, int numArg, unsigned def);
 
-// moo: luaL_checkvector and luaL_optvector are removed with the vector C API (layer 3, docs/DESIGN.md "vec3, quat and transform")
+// moo: luaL_checkvector and luaL_optvector are removed with the float vector
 
-// moo: the vec3 C API (docs/DESIGN.md "vec3, quat and transform (layer 3b)"). The components are raw Q48.16
-// values, as lua_pushnumber takes them. moo_pushvec3 allocates one vec3; moo_tovec3 writes its three raw
-// components into out and returns 1, or returns 0 and writes nothing when idx is not a vec3. In lapi.cpp.
+// moo: the vec3 C API, raw Q48.16 components as lua_pushnumber takes them. moo_pushvec3 pushes a new vec3;
+// moo_tovec3 writes the components to out and returns 1, or returns 0 when idx is not a vec3.
 LUALIB_API void moo_pushvec3(lua_State* L, lua_Number x, lua_Number y, lua_Number z);
 LUALIB_API int moo_tovec3(lua_State* L, int idx, lua_Number out[3]);
 
@@ -162,18 +161,18 @@ LUALIB_API int luaopen_math(lua_State* L);
 LUALIB_API int luaopen_debug(lua_State* L);
 
 #define LUA_VECLIBNAME "vector"
-// moo: the float vector library is out (layer 3); the name stays defined so upstream merges stay mechanical.
+// moo: the float vector library is not built; the name stays for upstream merges
 
 #define LUA_INTLIBNAME "integer"
 LUALIB_API int luaopen_integer(lua_State* L);
 
-// moo: the vec3 library (docs/DESIGN.md "vec3, quat and transform (layer 3b)"), opened by luaL_openlibs.
+// moo: the vec3 library
 LUALIB_API int luaopen_vec3(lua_State* L);
 
-// moo: the quat library (docs/DESIGN.md "vec3, quat and transform (layer 3b)"), opened by luaL_openlibs.
+// moo: the quat library
 LUALIB_API int luaopen_quat(lua_State* L);
 
-// moo: the transform library (docs/DESIGN.md "vec3, quat and transform (layer 3b)"), opened by luaL_openlibs.
+// moo: the transform library
 LUALIB_API int luaopen_transform(lua_State* L);
 
 // open all builtin libraries

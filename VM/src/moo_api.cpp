@@ -21,17 +21,12 @@ int moo_fromdouble(double x, int64_t* out)
 
 int moo_fromfloat(float x, int64_t* out)
 {
-    return moo_fromdouble(double(x), out); // float to double is exact
+    return moo_numfromfloat(x, out);
 }
 
 double moo_todouble(int64_t n)
 {
-    // the one boundary rule out of the VM (docs/DESIGN.md, "Boundary"): the nearest binary64
-    // bits, ties to even, in integer arithmetic
-    uint64_t bits = moo_numtodoublebits(n);
-    double d;
-    memcpy(&d, &bits, sizeof(d));
-    return d;
+    return moo_numtodouble(n);
 }
 
 float moo_tofloat(int64_t n)

@@ -14,9 +14,9 @@
 #include "lbuiltins.h"
 #include "lnumutils.h"
 #include "lbytecode.h"
-#include "moo_vec3.h" // moo: vec3 equality is by value (docs/DESIGN.md "vec3, quat and transform (layer 3b)")
-#include "moo_quat.h" // moo: quat equality is by value (docs/DESIGN.md "vec3, quat and transform (layer 3b)")
-#include "moo_transform.h" // moo: transform equality is by value (docs/DESIGN.md "vec3, quat and transform (layer 3b)")
+#include "moo_vec3.h" // moo: vec3, quat and transform compare by value
+#include "moo_quat.h" // moo: quat
+#include "moo_transform.h" // moo: transform
 
 #include <string.h>
 
@@ -1410,22 +1410,21 @@ reentry:
                         // slow path after switch()
                         break;
 
-                    // moo: a vec3 compares its three raw components, never its address
-                    // (docs/DESIGN.md "vec3, quat and transform (layer 3b)", "Operations").
+                    // moo: a vec3 compares its raw components, never its address
                     case LUA_TVEC3:
                         pc += moo_vec3_equal(vec3value(ra), vec3value(rb)) ? LUAU_INSN_D(insn) : 1;
                         VM_ASSERT_PC(pc);
                         VM_NEXT();
                         break;
 
-                    // moo: a quat compares its four raw components, never its address
+                    // moo: so does a quat
                     case LUA_TQUAT:
                         pc += moo_quat_equal(quatvalue(ra), quatvalue(rb)) ? LUAU_INSN_D(insn) : 1;
                         VM_ASSERT_PC(pc);
                         VM_NEXT();
                         break;
 
-                    // moo: a transform compares its seven raw components, never its address
+                    // moo: and a transform
                     case LUA_TTRANSFORM:
                         pc += moo_transform_equal(transformvalue(ra), transformvalue(rb)) ? LUAU_INSN_D(insn) : 1;
                         VM_ASSERT_PC(pc);
@@ -1560,22 +1559,21 @@ reentry:
                         // slow path after switch()
                         break;
 
-                    // moo: a vec3 compares its three raw components, never its address (LOP_JUMPIFNOTEQ;
-                    // docs/DESIGN.md "vec3, quat and transform (layer 3b)", "Operations").
+                    // moo: a vec3 compares its raw components, never its address
                     case LUA_TVEC3:
                         pc += !moo_vec3_equal(vec3value(ra), vec3value(rb)) ? LUAU_INSN_D(insn) : 1;
                         VM_ASSERT_PC(pc);
                         VM_NEXT();
                         break;
 
-                    // moo: a quat compares its four raw components, never its address (LOP_JUMPIFNOTEQ)
+                    // moo: so does a quat
                     case LUA_TQUAT:
                         pc += !moo_quat_equal(quatvalue(ra), quatvalue(rb)) ? LUAU_INSN_D(insn) : 1;
                         VM_ASSERT_PC(pc);
                         VM_NEXT();
                         break;
 
-                    // moo: a transform compares its seven raw components, never its address (LOP_JUMPIFNOTEQ)
+                    // moo: and a transform
                     case LUA_TTRANSFORM:
                         pc += !moo_transform_equal(transformvalue(ra), transformvalue(rb)) ? LUAU_INSN_D(insn) : 1;
                         VM_ASSERT_PC(pc);
@@ -1761,9 +1759,8 @@ reentry:
                 VM_CASE_STKID rb = VM_REG(LUAU_INSN_B(insn));
                 VM_CASE_STKID rc = VM_REG(LUAU_INSN_C(insn));
 
-                // moo: vector operands are unreachable after the vector C API and library were removed; arithmetic now uses the fixed-number path or metamethods.
                 // fast-path
-                // moo: a checked build leaves it when the operation saturates (docs/DESIGN.md, "Overflow")
+                // moo: a checked build leaves it when the operation saturates
                 if (LUAU_LIKELY(ttisnumber(rb) && ttisnumber(rc) && luai_numnosat(add, nvalue(rb), nvalue(rc))))
                 {
                     setnvalue(ra, luai_numadd(nvalue(rb), nvalue(rc)));
@@ -1789,8 +1786,7 @@ reentry:
                     else
                     {
                         // slow-path, may invoke C/Lua via metamethods
-                        // moo: a vec3 takes the slow path, where luaV_doarithimpl applies the fixed vec3 operators
-                        // (docs/DESIGN.md "vec3, quat and transform (layer 3b)", "Operations")
+                        // moo: vec3 arithmetic is here, in luaV_doarithimpl
                         VM_PROTECT(luaV_doarithimpl<TM_ADD>(L, ra, rb, rc));
                         VM_NEXT();
                     }
@@ -1805,7 +1801,7 @@ reentry:
                 VM_CASE_STKID rc = VM_REG(LUAU_INSN_C(insn));
 
                 // fast-path
-                // moo: a checked build leaves it when the operation saturates (docs/DESIGN.md, "Overflow")
+                // moo: a checked build leaves it when the operation saturates
                 if (LUAU_LIKELY(ttisnumber(rb) && ttisnumber(rc) && luai_numnosat(sub, nvalue(rb), nvalue(rc))))
                 {
                     setnvalue(ra, luai_numsub(nvalue(rb), nvalue(rc)));
@@ -1831,8 +1827,7 @@ reentry:
                     else
                     {
                         // slow-path, may invoke C/Lua via metamethods
-                        // moo: a vec3 takes the slow path, where luaV_doarithimpl applies the fixed vec3 operators
-                        // (docs/DESIGN.md "vec3, quat and transform (layer 3b)", "Operations")
+                        // moo: vec3 arithmetic is here, in luaV_doarithimpl
                         VM_PROTECT(luaV_doarithimpl<TM_SUB>(L, ra, rb, rc));
                         VM_NEXT();
                     }
@@ -1847,7 +1842,7 @@ reentry:
                 VM_CASE_STKID rc = VM_REG(LUAU_INSN_C(insn));
 
                 // fast-path
-                // moo: a checked build leaves it when the operation saturates (docs/DESIGN.md, "Overflow")
+                // moo: a checked build leaves it when the operation saturates
                 if (LUAU_LIKELY(ttisnumber(rb) && ttisnumber(rc) && luai_numnosat(mul, nvalue(rb), nvalue(rc))))
                 {
                     setnvalue(ra, luai_nummul(nvalue(rb), nvalue(rc)));
@@ -1874,8 +1869,7 @@ reentry:
                     else
                     {
                         // slow-path, may invoke C/Lua via metamethods
-                        // moo: a vec3, quat or transform takes the slow path, where luaV_doarithimpl applies the fixed operators
-                        // (docs/DESIGN.md "vec3, quat and transform (layer 3b)", "Operations")
+                        // moo: vec3, quat and transform arithmetic is here, in luaV_doarithimpl
                         VM_PROTECT(luaV_doarithimpl<TM_MUL>(L, ra, rb, rc));
                         VM_NEXT();
                     }
@@ -1890,7 +1884,7 @@ reentry:
                 VM_CASE_STKID rc = VM_REG(LUAU_INSN_C(insn));
 
                 // fast-path
-                // moo: a checked build leaves it when the operation saturates (docs/DESIGN.md, "Overflow")
+                // moo: a checked build leaves it when the operation saturates
                 if (LUAU_LIKELY(ttisnumber(rb) && ttisnumber(rc) && nvalue(rc) != 0 && luai_numnosat(div, nvalue(rb), nvalue(rc))))
                 {
                     setnvalue(ra, luai_numdiv(nvalue(rb), nvalue(rc)));
@@ -1931,7 +1925,7 @@ reentry:
                 VM_CASE_STKID rc = VM_REG(LUAU_INSN_C(insn));
 
                 // fast-path
-                // moo: a checked build leaves it when the operation saturates (docs/DESIGN.md, "Overflow")
+                // moo: a checked build leaves it when the operation saturates
                 if (LUAU_LIKELY(ttisnumber(rb) && ttisnumber(rc) && nvalue(rc) != 0 && luai_numnosat(idiv, nvalue(rb), nvalue(rc))))
                 {
                     setnvalue(ra, luai_numidiv(nvalue(rb), nvalue(rc)));
@@ -2016,7 +2010,7 @@ reentry:
                 TValue* kv = VM_KV(LUAU_INSN_C(insn));
 
                 // fast-path
-                // moo: a checked build leaves it when the operation saturates (docs/DESIGN.md, "Overflow")
+                // moo: a checked build leaves it when the operation saturates
                 if (ttisnumber(rb) && luai_numnosat(add, nvalue(rb), nvalue(kv)))
                 {
                     setnvalue(ra, luai_numadd(nvalue(rb), nvalue(kv)));
@@ -2038,7 +2032,7 @@ reentry:
                 TValue* kv = VM_KV(LUAU_INSN_C(insn));
 
                 // fast-path
-                // moo: a checked build leaves it when the operation saturates (docs/DESIGN.md, "Overflow")
+                // moo: a checked build leaves it when the operation saturates
                 if (ttisnumber(rb) && luai_numnosat(sub, nvalue(rb), nvalue(kv)))
                 {
                     setnvalue(ra, luai_numsub(nvalue(rb), nvalue(kv)));
@@ -2060,7 +2054,7 @@ reentry:
                 TValue* kv = VM_KV(LUAU_INSN_C(insn));
 
                 // fast-path
-                // moo: a checked build leaves it when the operation saturates (docs/DESIGN.md, "Overflow")
+                // moo: a checked build leaves it when the operation saturates
                 if (LUAU_LIKELY(ttisnumber(rb) && luai_numnosat(mul, nvalue(rb), nvalue(kv))))
                 {
                     setnvalue(ra, luai_nummul(nvalue(rb), nvalue(kv)));
@@ -2100,7 +2094,7 @@ reentry:
                 TValue* kv = VM_KV(LUAU_INSN_C(insn));
 
                 // fast-path
-                // moo: a checked build leaves it when the operation saturates (docs/DESIGN.md, "Overflow")
+                // moo: a checked build leaves it when the operation saturates
                 if (LUAU_LIKELY(ttisnumber(rb) && nvalue(kv) != 0 && luai_numnosat(div, nvalue(rb), nvalue(kv))))
                 {
                     setnvalue(ra, luai_numdiv(nvalue(rb), nvalue(kv)));
@@ -2140,7 +2134,7 @@ reentry:
                 TValue* kv = VM_KV(LUAU_INSN_C(insn));
 
                 // fast-path
-                // moo: a checked build leaves it when the operation saturates (docs/DESIGN.md, "Overflow")
+                // moo: a checked build leaves it when the operation saturates
                 if (LUAU_LIKELY(ttisnumber(rb) && nvalue(kv) != 0 && luai_numnosat(idiv, nvalue(rb), nvalue(kv))))
                 {
                     setnvalue(ra, luai_numidiv(nvalue(rb), nvalue(kv)));
@@ -2318,8 +2312,7 @@ reentry:
                     else
                     {
                         // slow-path, may invoke C/Lua via metamethods
-                        // moo: a vec3 takes the slow path, where luaV_doarithimpl applies the fixed vec3 operators
-                        // (docs/DESIGN.md "vec3, quat and transform (layer 3b)", "Operations")
+                        // moo: vec3 arithmetic is here, in luaV_doarithimpl
                         VM_PROTECT(luaV_doarithimpl<TM_UNM>(L, ra, rb, rb));
                         VM_NEXT();
                     }
@@ -2443,8 +2436,8 @@ reentry:
                     luaV_prepareFORN(L, ra + 0, ra + 1, ra + 2);
                 }
 
-                // moo: the trip count is exact, computed here once (tla/NumericFor.tla); ra + 0, the limit, is replaced by the
-                // iterations left after this one, as raw bits, so the index never steps past the limit and never saturates
+                // moo: the trip count is exact, computed once (tla/NumericFor.tla). ra + 0, the limit, becomes the iterations
+                // left after this one, so the index never steps past the limit and never saturates
                 uint64_t trips = moo_numfortrips(nvalue(ra + 2), nvalue(ra + 0), nvalue(ra + 1));
                 if (trips != 0)
                     setnvalue(ra + 0, lua_Number(trips - 1));
@@ -3006,7 +2999,7 @@ reentry:
                 VM_CASE_STKID rc = VM_REG(LUAU_INSN_C(insn));
 
                 // fast-path
-                // moo: a checked build leaves it when the operation saturates (docs/DESIGN.md, "Overflow")
+                // moo: a checked build leaves it when the operation saturates
                 if (ttisnumber(rc) && luai_numnosat(sub, nvalue(kv), nvalue(rc)))
                 {
                     setnvalue(ra, luai_numsub(nvalue(kv), nvalue(rc)));
@@ -3028,7 +3021,7 @@ reentry:
                 VM_CASE_STKID rc = VM_REG(LUAU_INSN_C(insn));
 
                 // fast-path
-                // moo: a checked build leaves it when the operation saturates (docs/DESIGN.md, "Overflow")
+                // moo: a checked build leaves it when the operation saturates
                 if (LUAU_LIKELY(ttisnumber(rc) && nvalue(rc) != 0 && luai_numnosat(div, nvalue(kv), nvalue(rc))))
                 {
                     setnvalue(ra, luai_numdiv(nvalue(kv), nvalue(rc)));

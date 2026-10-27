@@ -9,9 +9,9 @@
 #include "lapi.h"
 #include "lgc.h"
 #include "lnumutils.h"
-#include "moo_vec3.h" // moo: tostring of a vec3 (docs/layer3b/moo-v2-l3b-vec3-object.md, decision 5)
-#include "moo_quat.h" // moo: tostring of a quat (docs/layer3b/moo-v2-l3b-quat-object.md)
-#include "moo_transform.h" // moo: tostring of a transform (docs/layer3b/moo-v2-l3b-transform.md)
+#include "moo_vec3.h" // moo: tostring of vec3, quat and transform
+#include "moo_quat.h" // moo: quat
+#include "moo_transform.h" // moo: transform
 
 #include <string.h>
 
@@ -231,7 +231,7 @@ int luaL_checkinteger(lua_State* L, int narg)
 {
     int isnum;
     int d = lua_tointegerx(L, narg, &isnum);
-    // moo: DESIGN.md "Exact integers": a number with fraction bits is the named error, not a type error.
+    // moo: a number with fraction bits is the named error, not a type error (docs/DESIGN.md "Exact integers")
     if (!isnum)
     {
         if (!lua_isnumber(L, narg))
@@ -262,7 +262,7 @@ unsigned luaL_checkunsigned(lua_State* L, int narg)
 {
     int isnum;
     unsigned d = lua_tounsignedx(L, narg, &isnum);
-    // moo: DESIGN.md "Exact integers": a fraction is the named error for unsigned arguments too.
+    // moo: for unsigned arguments too
     if (!isnum)
     {
         if (!lua_isnumber(L, narg))
@@ -277,7 +277,7 @@ unsigned luaL_optunsigned(lua_State* L, int narg, unsigned def)
     return luaL_opt(L, luaL_checkunsigned, narg, def);
 }
 
-// moo: luaL_checkvector and luaL_optvector are removed with the vector C API (layer 3, docs/DESIGN.md "vec3, quat and transform")
+// moo: luaL_checkvector and luaL_optvector are removed with the float vector
 
 int luaL_getmetafield(lua_State* L, int obj, const char* event)
 {
@@ -638,11 +638,11 @@ const char* luaL_tolstring(lua_State* L, int idx, size_t* len)
         lua_pushlstring(L, s, e - s);
         break;
     }
-    // moo: the LUA_TVECTOR case is removed; no vector can be made (layer 3, docs/DESIGN.md "vec3, quat and transform")
+    // moo: no LUA_TVECTOR case: no float vector can be made
     case LUA_TVEC3:
     {
-        // moo: a vec3 is a value and prints its components, vec3(x, y, z), never a creation number
-        // (docs/layer3b/moo-v2-l3b-vec3-object.md, decision 5; docs/DETERMINISM.md, 6)
+        // moo: a vec3 is a value and prints its components, never a creation number
+        // (docs/layer3b/moo-v2-l3b-vec3-object.md, decision 5)
         char s[MOO_VEC3_TOSTR_MAX];
         char* e = moo_vec3_tostring(s, vec3value(luaA_toobject(L, idx)));
         lua_pushlstring(L, s, e - s);
@@ -650,7 +650,7 @@ const char* luaL_tolstring(lua_State* L, int idx, size_t* len)
     }
     case LUA_TQUAT:
     {
-        // moo: a quat prints quat(x, y, z, s) the same way (docs/layer3b/moo-v2-l3b-quat-object.md)
+        // moo: so does a quat
         char s[MOO_QUAT_TOSTR_MAX];
         char* e = moo_quat_tostring(s, quatvalue(luaA_toobject(L, idx)));
         lua_pushlstring(L, s, e - s);
@@ -658,7 +658,7 @@ const char* luaL_tolstring(lua_State* L, int idx, size_t* len)
     }
     case LUA_TTRANSFORM:
     {
-        // moo: a transform prints transform(vec3(px, py, pz), quat(qx, qy, qz, qs)) (docs/layer3b/moo-v2-l3b-transform.md)
+        // moo: and a transform
         char s[MOO_TRANSFORM_TOSTR_MAX];
         char* e = moo_transform_tostring(s, transformvalue(luaA_toobject(L, idx)));
         lua_pushlstring(L, s, e - s);

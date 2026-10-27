@@ -23,7 +23,7 @@ struct Constant
         Type_Boolean,
         Type_Number,
         Type_Integer,
-        // moo: the float vector is removed; no Type_Vectorf / Type_Vectord constants (docs/DESIGN.md "vec3, quat and transform").
+        // moo: no Type_Vectorf / Type_Vectord: no float vector
         Type_String,
         Type_Table,
     };
@@ -34,7 +34,7 @@ struct Constant
     union
     {
         bool valueBoolean;
-        fixed_t valueNumber; // moo: the raw Q48.16 value (docs/DESIGN.md "Layer 3 as built", "The compiler")
+        fixed_t valueNumber; // moo: the raw Q48.16 value
         int64_t valueInteger64;
         size_t valueTable;                 // index pointing to constant table entry with table's constant properties
         const char* valueString = nullptr; // length stored in stringLength

@@ -12,7 +12,7 @@ static int vector_create(lua_State* L)
     // checking argument count to avoid accepting 'nil' as a valid value
     int count = lua_gettop(L);
 
-    // TEMPORARY: the float vector stays until moo-l3-libs-out; its components convert by the boundary rule
+    // moo: not built (Sources.cmake); its components convert by the boundary rule
     double x = moo_numtodouble(luaL_checknumber(L, 1));
     double y = moo_numtodouble(luaL_checknumber(L, 2));
     double z = count >= 3 ? moo_numtodouble(luaL_checknumber(L, 3)) : 0.0;

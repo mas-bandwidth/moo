@@ -31,9 +31,9 @@
 #include "lmem.h"
 #include "lnumutils.h"
 #include "ltm.h"
-#include "moo_vec3.h" // moo: vec3 key hashing and value equality (layer 3b, decision 4)
-#include "moo_quat.h" // moo: quat key hashing and value equality (layer 3b, vec3 note decision 4)
-#include "moo_transform.h" // moo: transform key hashing and value equality (layer 3b, vec3 note decision 4)
+#include "moo_vec3.h" // moo: vec3, quat and transform keys hash and compare by value
+#include "moo_quat.h" // moo: quat
+#include "moo_transform.h" // moo: transform
 
 #include <string.h>
 
@@ -162,9 +162,9 @@ static LuaNode* hashint(const LuaTable* t, int64_t n)
     return hashpow2(t, h2);
 }
 
-// moo: the raw Q48.16 component through hashint's MurmurHash64B finalizer, including its ALT_HASH_FUNCTION
-// switch (docs/layer3b/moo-v2-l3b-vec3-object.md, decision 4); returns the 32-bit half hashint returns before
-// hashpow2. The halves are taken arithmetically, never by memcpy, so it is byte-order independent.
+// moo: one raw component through hashint's finalizer, ALT_HASH_FUNCTION included, giving the 32 bits hashint
+// gives before hashpow2. The halves are taken arithmetically, so it is byte-order independent
+// (docs/layer3b/moo-v2-l3b-vec3-object.md, decision 4).
 static uint32_t moo_vec3_comp_hash(int64_t n)
 {
     uint32_t h1 = uint32_t(n);
@@ -187,9 +187,7 @@ static uint32_t moo_vec3_comp_hash(int64_t n)
     return h2;
 }
 
-// moo: the 32-bit table hash of the three raw components, before hashpow2, so two equal vec3 are one key
-// (docs/layer3b/moo-v2-l3b-vec3-object.md, decision 4). Deterministic by construction: it depends only on the
-// raw integers.
+// moo: the components combined with hashvec's primes, so equal vec3 are one key
 unsigned int moo_vec3_hash(const MooVec3* v)
 {
     uint32_t h = moo_vec3_comp_hash(v->x) * 73856093u
@@ -198,9 +196,7 @@ unsigned int moo_vec3_hash(const MooVec3* v)
     return h;
 }
 
-// moo: the 32-bit table hash of the four raw components, before hashpow2, so two equal quat are one key
-// (docs/layer3b/moo-v2-l3b-vec3-object.md, decision 4). Deterministic by construction: it depends only on the
-// raw integers. Each component goes through vec3's moo_vec3_comp_hash; the scalar uses hashvec's fourth-component prime.
+// moo: the same with hashvec's fourth prime for the scalar
 unsigned int moo_quat_hash(const MooQuat* q)
 {
     uint32_t h = moo_vec3_comp_hash(q->v.x) * 73856093u
@@ -210,10 +206,7 @@ unsigned int moo_quat_hash(const MooQuat* q)
     return h;
 }
 
-// moo: the 32-bit table hash of a transform's seven raw components, before hashpow2, so two equal transforms are
-// one key (docs/layer3b/moo-v2-l3b-vec3-object.md, decision 4): the position's vec3 hash and the rotation's quat
-// hash, each component through moo_vec3_comp_hash, combined with one more odd multiplier. Depends only on the raw
-// integers.
+// moo: the position's and the rotation's hashes, combined with one more odd multiplier
 unsigned int moo_transform_hash(const MooTransform* t)
 {
     uint32_t hp = moo_vec3_comp_hash(t->p.x) * 73856093u ^ moo_vec3_comp_hash(t->p.y) * 19349663u ^
@@ -297,11 +290,11 @@ static LuaNode* mainposition(const LuaTable* t, const TValue* key)
         return hashint(t, lvalue(key));
     case LUA_TVECTOR:
         return hashvec(t, vvalue(key));
-    case LUA_TVEC3: // moo: vec3 hashes by its three raw components (layer 3b, decision 4)
+    case LUA_TVEC3: // moo: vec3
         return hashpow2(t, moo_vec3_hash(vec3value(key)));
-    case LUA_TQUAT: // moo: quat hashes by its four raw components (layer 3b, vec3 note decision 4)
+    case LUA_TQUAT: // moo: quat
         return hashpow2(t, moo_quat_hash(quatvalue(key)));
-    case LUA_TTRANSFORM: // moo: transform hashes by its seven raw components (layer 3b, vec3 note decision 4)
+    case LUA_TTRANSFORM: // moo: transform
         return hashpow2(t, moo_transform_hash(transformvalue(key)));
     case LUA_TSTRING:
         return hashstr(t, tsvalue(key));
@@ -350,19 +343,19 @@ LUAU_FORCEINLINE LuaNode* mainpositiontagged<LUA_TVECTOR>(const LuaTable* t, con
     return hashvec(t, key);
 }
 
-template<> // moo: vec3 main position by its component hash (layer 3b, decision 4)
+template<> // moo: main position by value
 LUAU_FORCEINLINE LuaNode* mainpositiontagged<LUA_TVEC3>(const LuaTable* t, MooVec3* key)
 {
     return hashpow2(t, moo_vec3_hash(key));
 }
 
-template<> // moo: quat main position by its component hash (layer 3b, vec3 note decision 4)
+template<> // moo: quat
 LUAU_FORCEINLINE LuaNode* mainpositiontagged<LUA_TQUAT>(const LuaTable* t, MooQuat* key)
 {
     return hashpow2(t, moo_quat_hash(key));
 }
 
-template<> // moo: transform main position by its component hash (layer 3b, vec3 note decision 4)
+template<> // moo: transform
 LUAU_FORCEINLINE LuaNode* mainpositiontagged<LUA_TTRANSFORM>(const LuaTable* t, MooTransform* key)
 {
     return hashpow2(t, moo_transform_hash(key));
@@ -408,19 +401,19 @@ LUAU_FORCEINLINE int rawequalkeyvalue<LUA_TVECTOR>(const TKey* t1, const LUA_VEC
     return luai_veceq(vvalue(t1), key);
 }
 
-template<> // moo: vec3 key equality is by value (layer 3b, decision 3)
+template<> // moo: key equality by value
 LUAU_FORCEINLINE int rawequalkeyvalue<LUA_TVEC3>(const TKey* t1, MooVec3* key)
 {
     return moo_vec3_equal(vec3value(t1), key);
 }
 
-template<> // moo: quat key equality is by value (layer 3b, vec3 note decision 3)
+template<> // moo: quat
 LUAU_FORCEINLINE int rawequalkeyvalue<LUA_TQUAT>(const TKey* t1, MooQuat* key)
 {
     return moo_quat_equal(quatvalue(t1), key);
 }
 
-template<> // moo: transform key equality is by value (layer 3b, vec3 note decision 3)
+template<> // moo: transform
 LUAU_FORCEINLINE int rawequalkeyvalue<LUA_TTRANSFORM>(const TKey* t1, MooTransform* key)
 {
     return moo_transform_equal(transformvalue(t1), key);
@@ -1400,11 +1393,11 @@ const TValue* luaH_get(LuaTable* t, const TValue* key)
             return chainsearchtagged<LUA_TINTEGER>(t, lvalue(key), LUA_TINTEGER);
         case LUA_TVECTOR:
             return chainsearchtagged<LUA_TVECTOR>(t, (const LUA_VECTOR_TYPE*)vvalue(key), LUA_TVECTOR);
-        case LUA_TVEC3: // moo: vec3 key lookup by value (layer 3b, decision 4)
+        case LUA_TVEC3: // moo: lookup by value
             return chainsearchtagged<LUA_TVEC3>(t, vec3value(key), LUA_TVEC3);
-        case LUA_TQUAT: // moo: quat key lookup by value (layer 3b, vec3 note decision 4)
+        case LUA_TQUAT: // moo: quat
             return chainsearchtagged<LUA_TQUAT>(t, quatvalue(key), LUA_TQUAT);
-        case LUA_TTRANSFORM: // moo: transform key lookup by value (layer 3b, vec3 note decision 4)
+        case LUA_TTRANSFORM: // moo: transform
             return chainsearchtagged<LUA_TTRANSFORM>(t, transformvalue(key), LUA_TTRANSFORM);
         case LUA_TSTRING:
             return luaH_getstr(t, tsvalue(key));
@@ -1490,11 +1483,11 @@ TValue* luaH_newkey(lua_State* L, LuaTable* t, const TValue* key)
                 luaG_runerror(L, "table index contains NaN");
 
             return newkeytagged<LUA_TVECTOR, false>(L, t, key, (const LUA_VECTOR_TYPE*)vvalue(key), -1);
-        case LUA_TVEC3: // moo: vec3 key insert by value; a vec3 is never NaN, so no NaN refusal (layer 3b, decision 4)
+        case LUA_TVEC3: // moo: insert by value; Q48.16 has no NaN to refuse
             return newkeytagged<LUA_TVEC3, false>(L, t, key, vec3value(key), -1);
-        case LUA_TQUAT: // moo: quat key insert by value; Q48.16 has no NaN, so no NaN refusal (vec3 note decision 4)
+        case LUA_TQUAT: // moo: quat
             return newkeytagged<LUA_TQUAT, false>(L, t, key, quatvalue(key), -1);
-        case LUA_TTRANSFORM: // moo: transform key insert by value; Q48.16 has no NaN, so no NaN refusal (vec3 note decision 4)
+        case LUA_TTRANSFORM: // moo: transform
             return newkeytagged<LUA_TTRANSFORM, false>(L, t, key, transformvalue(key), -1);
         case LUA_TSTRING:
             return newkeytagged<LUA_TSTRING, false>(L, t, key, tsvalue(key), -1);

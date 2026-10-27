@@ -21,7 +21,7 @@
 #include <intrin.h>
 #endif
 
-// moo: no fastcall chosen by the CPU's features (the SSE4.1 floor, ceil and round); one code path everywhere
+// moo: no fastcall chosen by CPU features (the SSE4.1 floor, ceil and round): one code path everywhere
 #undef LUAU_TARGET_SSE41
 
 #ifdef LUAU_TARGET_SSE41
@@ -32,8 +32,7 @@
 #endif
 #endif
 
-// moo: the library-side trig and exp/log family on fixed (VM/src/lmathlib.cpp) are the shared definitions
-// (docs/DESIGN.md "math library"), so a fastcall and the library give the same bits.
+// moo: the math fastcalls call lmathlib.cpp's definitions, so a fastcall and the library give the same bits
 fixed_t moo_math_sin(fixed_t radians);
 fixed_t moo_math_cos(fixed_t radians);
 bool moo_math_tan(fixed_t radians, fixed_t* out);
@@ -151,7 +150,7 @@ static int luauF_ceil(lua_State* L, StkId res, TValue* arg0, int nresults, StkId
 }
 LUAU_FASTMATH_END
 
-// moo: cosh fastcall uses the library's shared fixed half-exponent helper (docs/DESIGN.md, "math library").
+// moo: shares the library's definition
 static int luauF_cosh(lua_State* L, StkId res, TValue* arg0, int nresults, StkId args, int nparams)
 {
     if (nparams >= 1 && nresults <= 1 && ttisnumber(arg0))
@@ -178,7 +177,7 @@ static int luauF_deg(lua_State* L, StkId res, TValue* arg0, int nresults, StkId 
 {
     if (nparams >= 1 && nresults <= 1 && ttisnumber(arg0))
     {
-        // moo: deg on fixed (docs/DESIGN.md "math library")
+        // moo: deg on the raw value
         setnvalue(res, moo_math_deg(nvalue(arg0)));
         return 1;
     }
@@ -186,7 +185,7 @@ static int luauF_deg(lua_State* L, StkId res, TValue* arg0, int nresults, StkId 
     return -1;
 }
 
-// moo: exp fastcall uses the library's shared fixed exp2 scaling helper (docs/DESIGN.md, "math library").
+// moo: shares the library's definition
 static int luauF_exp(lua_State* L, StkId res, TValue* arg0, int nresults, StkId args, int nparams)
 {
     if (nparams >= 1 && nresults <= 1 && ttisnumber(arg0))
@@ -216,7 +215,7 @@ static int luauF_fmod(lua_State* L, StkId res, TValue* arg0, int nresults, StkId
 {
     if (nparams >= 2 && nresults <= 1 && ttisnumber(arg0) && ttisnumber(args))
     {
-        // moo: fmod on the raw value; b == 0 returns -1 so math_fmod raises "division by zero" (docs/DESIGN.md "math library")
+        // moo: fmod on the raw value; b == 0 falls back so math_fmod raises "division by zero"
         fixed_t out;
         if (moo_math_fmod(nvalue(arg0), nvalue(args), &out))
         {
@@ -232,7 +231,7 @@ static int luauF_frexp(lua_State* L, StkId res, TValue* arg0, int nresults, StkI
 {
     if (nparams >= 1 && nresults <= 2 && ttisnumber(arg0))
     {
-        // moo: frexp on the raw value (docs/DESIGN.md "math library")
+        // moo: frexp on the raw value
         fixed_t m;
         int e;
         moo_math_frexp(nvalue(arg0), &m, &e);
@@ -246,7 +245,7 @@ static int luauF_frexp(lua_State* L, StkId res, TValue* arg0, int nresults, StkI
 
 static int luauF_ldexp(lua_State* L, StkId res, TValue* arg0, int nresults, StkId args, int nparams)
 {
-    // moo: ldexp on the raw value; refuse non-integer exponent so fallback raises (docs/DESIGN.md "math library", "Exact integers")
+    // moo: ldexp on the raw value; a non-integer exponent falls back to the library error
     if (nparams >= 2 && nresults <= 1 && ttisnumber(arg0) && ttisnumber(args) && luai_numisint(nvalue(args)))
     {
         int e;
@@ -258,7 +257,7 @@ static int luauF_ldexp(lua_State* L, StkId res, TValue* arg0, int nresults, StkI
     return -1;
 }
 
-// moo: log10 fastcall uses the library's shared fixed log2 scaling helper (docs/DESIGN.md, "math library").
+// moo: shares the library's definition
 static int luauF_log10(lua_State* L, StkId res, TValue* arg0, int nresults, StkId args, int nparams)
 {
     if (nparams >= 1 && nresults <= 1 && ttisnumber(arg0))
@@ -272,7 +271,7 @@ static int luauF_log10(lua_State* L, StkId res, TValue* arg0, int nresults, StkI
     return -1;
 }
 
-// moo: log fastcall shares the library's fixed domain and base handling (docs/DESIGN.md, "math library").
+// moo: shares the library's definition
 static int luauF_log(lua_State* L, StkId res, TValue* arg0, int nresults, StkId args, int nparams)
 {
     if (nparams >= 1 && nresults <= 1 && ttisnumber(arg0))
@@ -347,7 +346,7 @@ static int luauF_modf(lua_State* L, StkId res, TValue* arg0, int nresults, StkId
 {
     if (nparams >= 1 && nresults <= 2 && ttisnumber(arg0))
     {
-        // moo: modf on the raw value (docs/DESIGN.md "math library")
+        // moo: modf on the raw value
         fixed_t ip, fp;
         moo_math_modf(nvalue(arg0), &ip, &fp);
         setnvalue(res, ip);
@@ -365,9 +364,8 @@ static int luauF_pow(lua_State* L, StkId res, TValue* arg0, int nresults, StkId 
         fixed_t base = nvalue(arg0);
         fixed_t exponent = nvalue(args);
 
-        // moo: an integer-valued exponent is exact, rounded once (docs/DESIGN.md, "math library",
-        // "pow and ^"), through the same moo_pow_int as math_pow. The fastcall never raises: division by
-        // zero, and saturation in a checked build, return -1 so the library path raises the named error.
+        // moo: an integer exponent is moo_pow_int, as math_pow; division by zero, and saturation when checked, fall
+        // back so the library raises
         if (moo_numisinteger(exponent))
         {
             fixed_t out;
@@ -383,9 +381,7 @@ static int luauF_pow(lua_State* L, StkId res, TValue* arg0, int nresults, StkId 
             return 1;
         }
 
-        // moo: a fractional exponent is fixPow (docs/DESIGN.md, "pow and ^"). A negative base with a
-        // fractional exponent returns -1 so the library path raises the named error; 0 ^ positive fraction
-        // is 0 (fixPow returns 0 for a base <= 0).
+        // moo: a fractional exponent is fixPow; a negative base falls back so the library raises
         if (base < 0)
             return -1;
         setnvalue(res, fixPow(base, exponent));
@@ -399,7 +395,7 @@ static int luauF_rad(lua_State* L, StkId res, TValue* arg0, int nresults, StkId 
 {
     if (nparams >= 1 && nresults <= 1 && ttisnumber(arg0))
     {
-        // moo: rad on fixed (docs/DESIGN.md "math library")
+        // moo: rad on the raw value
         setnvalue(res, moo_math_rad(nvalue(arg0)));
         return 1;
     }
@@ -407,7 +403,7 @@ static int luauF_rad(lua_State* L, StkId res, TValue* arg0, int nresults, StkId 
     return -1;
 }
 
-// moo: sinh fastcall uses the library's shared fixed half-exponent helper (docs/DESIGN.md, "math library").
+// moo: shares the library's definition
 static int luauF_sinh(lua_State* L, StkId res, TValue* arg0, int nresults, StkId args, int nparams)
 {
     if (nparams >= 1 && nresults <= 1 && ttisnumber(arg0))
@@ -435,7 +431,7 @@ static int luauF_sqrt(lua_State* L, StkId res, TValue* arg0, int nresults, StkId
 {
     if (nparams >= 1 && nresults <= 1 && ttisnumber(arg0))
     {
-        // moo: sqrt on fixed's fixSqrt (docs/DESIGN.md, "math library"); negative falls back so math.sqrt raises the named error
+        // moo: fixSqrt; a negative argument falls back so math.sqrt raises
         lua_Number a1 = nvalue(arg0);
         if (a1 < 0)
             return -1;
@@ -447,7 +443,7 @@ static int luauF_sqrt(lua_State* L, StkId res, TValue* arg0, int nresults, StkId
 }
 LUAU_FASTMATH_END
 
-// moo: tanh fastcall uses the library's shared fixed stable ratio helper (docs/DESIGN.md, "math library").
+// moo: shares the library's definition
 static int luauF_tanh(lua_State* L, StkId res, TValue* arg0, int nresults, StkId args, int nparams)
 {
     if (nparams >= 1 && nresults <= 1 && ttisnumber(arg0))
@@ -481,7 +477,7 @@ static int luauF_arshift(lua_State* L, StkId res, TValue* arg0, int nresults, St
         lua_Number a1 = nvalue(arg0);
         lua_Number a2 = nvalue(args);
 
-        // moo: refuse non-integer arguments so fallback raises (see docs/DESIGN.md "Exact integers")
+        // moo: non-integer arguments fall back to the library error
         if (!luai_numisint(a1) || !luai_numisint(a2))
             return -1;
 
@@ -512,7 +508,7 @@ static int luauF_band(lua_State* L, StkId res, TValue* arg0, int nresults, StkId
         lua_Number a1 = nvalue(arg0);
         lua_Number a2 = nvalue(args);
 
-        // moo: refuse non-integer arguments so fallback raises (see docs/DESIGN.md "Exact integers")
+        // moo: non-integer arguments fall back to the library error
         if (!luai_numisint(a1) || !luai_numisint(a2))
             return -1;
 
@@ -549,7 +545,7 @@ static int luauF_bnot(lua_State* L, StkId res, TValue* arg0, int nresults, StkId
     {
         lua_Number a1 = nvalue(arg0);
 
-        // moo: refuse non-integer argument so fallback raises (see docs/DESIGN.md "Exact integers")
+        // moo: a non-integer argument falls back to the library error
         if (!luai_numisint(a1))
             return -1;
 
@@ -572,7 +568,7 @@ static int luauF_bor(lua_State* L, StkId res, TValue* arg0, int nresults, StkId 
         lua_Number a1 = nvalue(arg0);
         lua_Number a2 = nvalue(args);
 
-        // moo: refuse non-integer arguments so fallback raises (see docs/DESIGN.md "Exact integers")
+        // moo: non-integer arguments fall back to the library error
         if (!luai_numisint(a1) || !luai_numisint(a2))
             return -1;
 
@@ -610,7 +606,7 @@ static int luauF_bxor(lua_State* L, StkId res, TValue* arg0, int nresults, StkId
         lua_Number a1 = nvalue(arg0);
         lua_Number a2 = nvalue(args);
 
-        // moo: refuse non-integer arguments so fallback raises (see docs/DESIGN.md "Exact integers")
+        // moo: non-integer arguments fall back to the library error
         if (!luai_numisint(a1) || !luai_numisint(a2))
             return -1;
 
@@ -648,7 +644,7 @@ static int luauF_btest(lua_State* L, StkId res, TValue* arg0, int nresults, StkI
         lua_Number a1 = nvalue(arg0);
         lua_Number a2 = nvalue(args);
 
-        // moo: refuse non-integer arguments so fallback raises (see docs/DESIGN.md "Exact integers")
+        // moo: non-integer arguments fall back to the library error
         if (!luai_numisint(a1) || !luai_numisint(a2))
             return -1;
 
@@ -686,7 +682,7 @@ static int luauF_extract(lua_State* L, StkId res, TValue* arg0, int nresults, St
         lua_Number a1 = nvalue(arg0);
         lua_Number a2 = nvalue(args);
 
-        // moo: refuse non-integer arguments so fallback raises (see docs/DESIGN.md "Exact integers")
+        // moo: non-integer arguments fall back to the library error
         if (!luai_numisint(a1) || !luai_numisint(a2))
             return -1;
 
@@ -733,7 +729,7 @@ static int luauF_lrotate(lua_State* L, StkId res, TValue* arg0, int nresults, St
         lua_Number a1 = nvalue(arg0);
         lua_Number a2 = nvalue(args);
 
-        // moo: refuse non-integer arguments so fallback raises (see docs/DESIGN.md "Exact integers")
+        // moo: non-integer arguments fall back to the library error
         if (!luai_numisint(a1) || !luai_numisint(a2))
             return -1;
 
@@ -762,7 +758,7 @@ static int luauF_lshift(lua_State* L, StkId res, TValue* arg0, int nresults, Stk
         lua_Number a1 = nvalue(arg0);
         lua_Number a2 = nvalue(args);
 
-        // moo: refuse non-integer arguments so fallback raises (see docs/DESIGN.md "Exact integers")
+        // moo: non-integer arguments fall back to the library error
         if (!luai_numisint(a1) || !luai_numisint(a2))
             return -1;
 
@@ -792,7 +788,7 @@ static int luauF_replace(lua_State* L, StkId res, TValue* arg0, int nresults, St
         lua_Number a2 = nvalue(args);
         lua_Number a3 = nvalue(args + 1);
 
-        // moo: refuse non-integer arguments so fallback raises (see docs/DESIGN.md "Exact integers")
+        // moo: non-integer arguments fall back to the library error
         if (!luai_numisint(a1) || !luai_numisint(a2) || !luai_numisint(a3))
             return -1;
 
@@ -840,7 +836,7 @@ static int luauF_rrotate(lua_State* L, StkId res, TValue* arg0, int nresults, St
         lua_Number a1 = nvalue(arg0);
         lua_Number a2 = nvalue(args);
 
-        // moo: refuse non-integer arguments so fallback raises (see docs/DESIGN.md "Exact integers")
+        // moo: non-integer arguments fall back to the library error
         if (!luai_numisint(a1) || !luai_numisint(a2))
             return -1;
 
@@ -869,7 +865,7 @@ static int luauF_rshift(lua_State* L, StkId res, TValue* arg0, int nresults, Stk
         lua_Number a1 = nvalue(arg0);
         lua_Number a2 = nvalue(args);
 
-        // moo: refuse non-integer arguments so fallback raises (see docs/DESIGN.md "Exact integers")
+        // moo: non-integer arguments fall back to the library error
         if (!luai_numisint(a1) || !luai_numisint(a2))
             return -1;
 
@@ -907,7 +903,7 @@ static int luauF_type(lua_State* L, StkId res, TValue* arg0, int nresults, StkId
 
 static int luauF_byte(lua_State* L, StkId res, TValue* arg0, int nresults, StkId args, int nparams)
 {
-    // moo: refuse non-integer indices so fallback raises (see docs/DESIGN.md "Exact integers")
+    // moo: non-integer indices fall back to the library error
     if (nparams >= 2 && ttisstring(arg0) && ttisnumber(args) && luai_numisint(nvalue(args)))
     {
         if (nparams >= 3 && (!ttisnumber(args + 1) || !luai_numisint(nvalue(args + 1))))
@@ -950,7 +946,7 @@ static int luauF_char(lua_State* L, StkId res, TValue* arg0, int nresults, StkId
 
         if (nparams >= 1)
         {
-            // moo: refuse non-integer character codes so fallback raises (see docs/DESIGN.md "Exact integers")
+            // moo: non-integer character codes fall back to the library error
             if (!ttisnumber(arg0) || !luai_numisint(nvalue(arg0)))
                 return -1;
 
@@ -1012,7 +1008,7 @@ static int luauF_typeof(lua_State* L, StkId res, TValue* arg0, int nresults, Stk
 
 static int luauF_sub(lua_State* L, StkId res, TValue* arg0, int nresults, StkId args, int nparams)
 {
-    // moo: refuse non-integer bounds so fallback raises (see docs/DESIGN.md "Exact integers")
+    // moo: non-integer bounds fall back to the library error
     if (nparams >= 3 && nresults <= 1 && ttisstring(arg0) && ttisnumber(args) && ttisnumber(args + 1) && luai_numisint(nvalue(args)) && luai_numisint(nvalue(args + 1)))
     {
         TString* ts = tsvalue(arg0);
@@ -1108,7 +1104,7 @@ static int luauF_rawset(lua_State* L, StkId res, TValue* arg0, int nresults, Stk
         const TValue* key = args;
         if (ttisnil(key))
             return -1;
-        // moo: rawset validates only representable scalar keys; vector keys are no longer constructible.
+        // moo: no float vector key to check
         else if (ttisnumber(key) && luai_numisnan(nvalue(key)))
             return -1;
 
@@ -1151,7 +1147,7 @@ static int luauF_tunpack(lua_State* L, StkId res, TValue* arg0, int nresults, St
 
         if (nparams == 1)
             n = luaH_getn(t);
-        // moo: refuse non-integer end index so fallback raises (see docs/DESIGN.md "Exact integers")
+        // moo: a non-integer end index falls back to the library error
         else if (nparams == 3 && ttisnumber(args) && ttisnumber(args + 1) && nvalue(args) == MOO_NUMBER_ONE && luai_numisint(nvalue(args + 1)))
             n = int(moo_numclampint(moo_numtrunc(nvalue(args + 1))));
 
@@ -1168,15 +1164,14 @@ static int luauF_tunpack(lua_State* L, StkId res, TValue* arg0, int nresults, St
     return -1;
 }
 
-// moo: luauF_vector (vector.create) is deleted here: the float32 vector library is out in layer 3, and its LBF slot
-// answers luauF_missing (docs/DESIGN.md, "vec3, quat and transform").
+// moo: no luauF_vector: the float vector library is not built and its LBF slot answers luauF_missing
 static int luauF_countlz(lua_State* L, StkId res, TValue* arg0, int nresults, StkId args, int nparams)
 {
     if (nparams >= 1 && nresults <= 1 && ttisnumber(arg0))
     {
         lua_Number a1 = nvalue(arg0);
 
-        // moo: refuse non-integer argument so fallback raises (see docs/DESIGN.md "Exact integers")
+        // moo: a non-integer argument falls back to the library error
         if (!luai_numisint(a1))
             return -1;
 
@@ -1203,7 +1198,7 @@ static int luauF_countrz(lua_State* L, StkId res, TValue* arg0, int nresults, St
     {
         lua_Number a1 = nvalue(arg0);
 
-        // moo: refuse non-integer argument so fallback raises (see docs/DESIGN.md "Exact integers")
+        // moo: a non-integer argument falls back to the library error
         if (!luai_numisint(a1))
             return -1;
 
@@ -1230,7 +1225,7 @@ static int luauF_select(lua_State* L, StkId res, TValue* arg0, int nresults, Stk
     {
         int n = cast_int(L->base - L->ci->func) - L->ci->p->numparams - 1;
 
-        // moo: refuse non-integer index so fallback raises (see docs/DESIGN.md "Exact integers")
+        // moo: a non-integer index falls back to the library error
         if (ttisnumber(arg0) && luai_numisint(nvalue(arg0)))
         {
             int i = int(moo_numclampint(moo_numtrunc(nvalue(arg0))));
@@ -1282,7 +1277,7 @@ static int luauF_extractk(lua_State* L, StkId res, TValue* arg0, int nresults, S
         lua_Number a1 = nvalue(arg0);
         lua_Number a2 = nvalue(args);
 
-        // moo: refuse non-integer argument so fallback raises (see docs/DESIGN.md "Exact integers")
+        // moo: a non-integer argument falls back to the library error
         if (!luai_numisint(a1) || !luai_numisint(a2))
             return -1;
 
@@ -1440,7 +1435,7 @@ static int luauF_byteswap(lua_State* L, StkId res, TValue* arg0, int nresults, S
     {
         lua_Number a1 = nvalue(arg0);
 
-        // moo: refuse non-integer argument so fallback raises (see docs/DESIGN.md "Exact integers")
+        // moo: a non-integer argument falls back to the library error
         if (!luai_numisint(a1))
             return -1;
 
@@ -1463,7 +1458,7 @@ template<typename T>
 static int luauF_readinteger(lua_State* L, StkId res, TValue* arg0, int nresults, StkId args, int nparams)
 {
 #if !defined(LUAU_BIG_ENDIAN)
-    // moo: refuse non-integer offset so fallback raises (see docs/DESIGN.md "Exact integers")
+    // moo: a non-integer offset falls back to the library error
     if (nparams >= 2 && nresults <= 1 && ttisbuffer(arg0) && ttisnumber(args) && luai_numisint(nvalue(args)))
     {
         int offset;
@@ -1485,7 +1480,7 @@ template<typename T>
 static int luauF_writeinteger(lua_State* L, StkId res, TValue* arg0, int nresults, StkId args, int nparams)
 {
 #if !defined(LUAU_BIG_ENDIAN)
-    // moo: refuse non-integer offset and value so fallback raises (see docs/DESIGN.md "Exact integers")
+    // moo: a non-integer offset or value falls back to the library error
     if (nparams >= 3 && nresults <= 0 && ttisbuffer(arg0) && ttisnumber(args) && ttisnumber(args + 1) && luai_numisint(nvalue(args)) && luai_numisint(nvalue(args + 1)))
     {
         int offset;
@@ -1510,7 +1505,7 @@ template<typename T>
 static int luauF_readfp(lua_State* L, StkId res, TValue* arg0, int nresults, StkId args, int nparams)
 {
 #if !defined(LUAU_BIG_ENDIAN)
-    // moo: refuse non-integer offset so fallback raises (see docs/DESIGN.md "Exact integers")
+    // moo: a non-integer offset falls back to the library error
     if (nparams >= 2 && nresults <= 1 && ttisbuffer(arg0) && ttisnumber(args) && luai_numisint(nvalue(args)))
     {
         int offset;
@@ -1525,9 +1520,7 @@ static int luauF_readfp(lua_State* L, StkId res, TValue* arg0, int nresults, Stk
 #else
         memcpy(&val, (char*)bufvalue(arg0)->data + unsigned(offset), sizeof(T));
 #endif
-        // moo: the fastcall follows the exact float boundary rule (docs/DESIGN.md "Boundary", "Layer 3 as
-        // built"; DETERMINISM.md 18): a status other than OK returns -1 so the library path raises the named
-        // error; on success the same Q48.16 bits are stored.
+        // moo: the boundary rule, as buffer.readf32/readf64; any status but OK falls back so the library raises
         int64_t out = 0;
         if (moo_numfromdouble(double(val), &out) != 0)
             return -1;
@@ -1543,7 +1536,7 @@ template<typename T>
 static int luauF_writefp(lua_State* L, StkId res, TValue* arg0, int nresults, StkId args, int nparams)
 {
 #if !defined(LUAU_BIG_ENDIAN)
-    // moo: refuse non-integer offset so fallback raises (see docs/DESIGN.md "Exact integers")
+    // moo: a non-integer offset falls back to the library error
     if (nparams >= 3 && nresults <= 0 && ttisbuffer(arg0) && ttisnumber(args) && ttisnumber(args + 1) && luai_numisint(nvalue(args)))
     {
         int offset;
@@ -1551,9 +1544,7 @@ static int luauF_writefp(lua_State* L, StkId res, TValue* arg0, int nresults, St
         if (checkoutofbounds(offset, bufvalue(arg0)->len, sizeof(T)))
             return -1;
 
-        // moo: the fastcall follows the exact float boundary rule (docs/DESIGN.md "Boundary", "Layer 3 as
-        // built"; DETERMINISM.md 18): the same moo_numtofloatbits / moo_numtodoublebits as the library path,
-        // with no float or double arithmetic.
+        // moo: the boundary rule, as buffer.writef32/writef64
         fixed_t raw = nvalue(args + 1);
         T val;
         if (sizeof(T) == sizeof(float))
@@ -1579,14 +1570,12 @@ static int luauF_writefp(lua_State* L, StkId res, TValue* arg0, int nresults, St
     return -1;
 }
 
-// moo: the vector fastcall bodies (magnitude, normalize, cross, dot, floor, ceil, abs, sign, clamp, min, max, and
-// the vector lerp) are deleted here: the float32 vector library is out in layer 3, and each LBF slot answers
-// luauF_missing (docs/DESIGN.md, "vec3, quat and transform").
+// moo: no float vector fastcalls; each vector LBF slot answers luauF_missing
 static int luauF_lerp(lua_State* L, StkId res, TValue* arg0, int nresults, StkId args, int nparams)
 {
     if (nparams >= 3 && nresults <= 1 && ttisnumber(arg0) && ttisnumber(args) && ttisnumber(args + 1))
     {
-        // moo: lerp on fixed (docs/DESIGN.md "math library")
+        // moo: lerp on the raw value
         setnvalue(res, moo_math_lerp(nvalue(arg0), nvalue(args), nvalue(args + 1)));
         return 1;
     }
@@ -1594,7 +1583,7 @@ static int luauF_lerp(lua_State* L, StkId res, TValue* arg0, int nresults, StkId
     return -1;
 }
 
-// moo: the fastcall shares the fixed math.noise implementation with its library entry (DESIGN.md \"math library\").
+// moo: math.noise shares its definition with the library
 static int luauF_noise(lua_State* L, StkId res, TValue* arg0, int nresults, StkId args, int nparams)
 {
     if (nparams < 1 || nresults > 1 || !ttisnumber(arg0))
@@ -1623,7 +1612,7 @@ static int luauF_isnan(lua_State* L, StkId res, TValue* arg0, int nresults, StkI
 {
     if (nparams >= 1 && nresults <= 1 && ttisnumber(arg0))
     {
-        // moo: NaN does not exist, so math.isnan always returns false (docs/DESIGN.md "Division by zero")
+        // moo: there is no NaN
         setbvalue(res, 0);
         return 1;
     }
@@ -1635,7 +1624,7 @@ static int luauF_isinf(lua_State* L, StkId res, TValue* arg0, int nresults, StkI
 {
     if (nparams >= 1 && nresults <= 1 && ttisnumber(arg0))
     {
-        // moo: infinity does not exist, so math.isinf always returns false (docs/DESIGN.md "Division by zero")
+        // moo: there is no infinity
         setbvalue(res, 0);
         return 1;
     }
@@ -1647,7 +1636,7 @@ static int luauF_isfinite(lua_State* L, StkId res, TValue* arg0, int nresults, S
 {
     if (nparams >= 1 && nresults <= 1 && ttisnumber(arg0))
     {
-        // moo: every Q48.16 number is finite, so math.isfinite always returns true (docs/DESIGN.md "Division by zero")
+        // moo: every number is finite
         setbvalue(res, 1);
         return 1;
     }
@@ -2301,7 +2290,7 @@ static int luauF_integercreate(lua_State* L, StkId res, TValue* arg0, int nresul
     {
         lua_Number a1 = nvalue(arg0);
 
-        // moo: an integer-valued number gives its integer (see docs/DESIGN.md "Exact integers")
+        // moo: an integer-valued number gives its integer
         if (luai_numisint(a1))
         {
             setlvalue(res, moo_numtrunc(a1));
@@ -2318,7 +2307,7 @@ static int luauF_integercreate(lua_State* L, StkId res, TValue* arg0, int nresul
 static int luauF_bufferreadlong(lua_State* L, StkId res, TValue* arg0, int nresults, StkId args, int nparams)
 {
 #if !defined(LUAU_BIG_ENDIAN)
-    // moo: refuse non-integer offset so fallback raises (see docs/DESIGN.md "Exact integers")
+    // moo: a non-integer offset falls back to the library error
     if (nparams >= 2 && nresults <= 1 && ttisbuffer(arg0) && ttisnumber(args) && luai_numisint(nvalue(args)))
     {
         int offset;
@@ -2339,7 +2328,7 @@ static int luauF_bufferreadlong(lua_State* L, StkId res, TValue* arg0, int nresu
 static int luauF_bufferwritelong(lua_State* L, StkId res, TValue* arg0, int nresults, StkId args, int nparams)
 {
 #if !defined(LUAU_BIG_ENDIAN)
-    // moo: refuse non-integer offset so fallback raises (see docs/DESIGN.md "Exact integers")
+    // moo: a non-integer offset falls back to the library error
     if (nparams >= 3 && nresults <= 0 && ttisbuffer(arg0) && ttisnumber(args) && ttisinteger(args + 1) && luai_numisint(nvalue(args)))
     {
         int offset;
@@ -2512,7 +2501,7 @@ const luau_FastFunction luauF_table[256] = {
     luauF_tinsert,
     luauF_tunpack,
 
-    // moo: LBF_VECTOR answers no-fastcall; the slow path finds `vector` nil (layer 3, docs/DESIGN.md "vec3, quat and transform").
+    // moo: LBF_VECTOR has no fastcall; the slow path finds `vector` nil
     luauF_missing,
 
     luauF_countlz,
@@ -2546,8 +2535,7 @@ const luau_FastFunction luauF_table[256] = {
     luauF_readfp<double>,
     luauF_writefp<double>,
 
-    // moo: the eleven vector LBFs (magnitude, normalize, cross, dot, floor, ceil, abs, sign, clamp, min, max) answer
-    // no-fastcall; the slow path finds `vector` nil (layer 3, docs/DESIGN.md "vec3, quat and transform").
+    // moo: nor the other vector LBFs
     luauF_missing,
     luauF_missing,
     luauF_missing,
@@ -2562,7 +2550,7 @@ const luau_FastFunction luauF_table[256] = {
 
     luauF_lerp,
 
-    // moo: LBF_VECTOR_LERP answers no-fastcall; the slow path finds `vector` nil (layer 3).
+    // moo: nor LBF_VECTOR_LERP
     luauF_missing,
 
     luauF_isnan,

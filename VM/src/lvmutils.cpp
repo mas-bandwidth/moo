@@ -10,9 +10,9 @@
 #include "lgc.h"
 #include "ldo.h"
 #include "lnumutils.h"
-#include "moo_vec3.h" // moo: vec3 operators call fixed's vector functions (docs/DESIGN.md "vec3, quat and transform (layer 3b)")
-#include "moo_quat.h" // moo: quat operators call fixed's quaternion functions (docs/DESIGN.md "vec3, quat and transform (layer 3b)")
-#include "moo_transform.h" // moo: transform operators (docs/DESIGN.md "vec3, quat and transform (layer 3b)")
+#include "moo_vec3.h" // moo: vec3, quat and transform operators
+#include "moo_quat.h" // moo: quat
+#include "moo_transform.h" // moo: transform
 
 #include <string.h>
 
@@ -187,10 +187,8 @@ static LUAU_NOINLINE void callTM(lua_State* L, const TValue* f, const TValue* p1
     }
 }
 
-// moo: v.x, v.y and v.z read a vec3's components, and q.x, q.y, q.z and q.w a quat's (w is fixed's scalar s),
-// in either case (X, Y, Z, W, as Luau's vector), so Luau vector code carries over (docs/DESIGN.md "vec3, quat and
-// transform (layer 3b)", "Operations"). Any other key falls through to the index error; neither type has a
-// metatable or an __index.
+// moo: v.x, v.y, v.z read a vec3's components and q.x, q.y, q.z, q.w a quat's (w is fixed's s), upper case too,
+// as Luau's vector does. Any other key is the index error: neither type has a metatable.
 static bool moo_value_index(const TValue* t, const TValue* key, StkId val)
 {
     if (!ttisstring(key) || tsvalue(key)->len != 1)
@@ -234,10 +232,8 @@ static bool moo_value_index(const TValue* t, const TValue* key, StkId val)
     }
 }
 
-// moo: t.p reads a transform's position as a new vec3 and t.q its rotation as a new quat (fixed's field names, the
-// lower case only). Any other key falls through to the index error; a transform has no metatable and no __index
-// (docs/layer3b/moo-v2-l3b-transform.md, decision 3). The new object is allocated with no GC step here: the debt
-// is paid at the next check, as for any allocation inside an instruction.
+// moo: t.p and t.q read a transform's position and rotation as new objects (docs/layer3b/moo-v2-l3b-transform.md,
+// decision 3). No GC step here: the debt is paid at the next check, as for any allocation in an instruction.
 static bool moo_transform_index(lua_State* L, const MooTransform* t, const TValue* key, StkId val)
 {
     if (!ttisstring(key) || tsvalue(key)->len != 1)
@@ -346,9 +342,9 @@ void luaV_gettable(lua_State* L, const TValue* t, TValue* key, StkId val)
             return;
         }
         else if ((ttisvec3(t) || ttisquat(t)) && moo_value_index(t, key, val))
-            return; // moo: a vec3 or quat component (docs/DESIGN.md "vec3, quat and transform (layer 3b)")
+            return; // moo: transform
         else if (ttistransform(t) && moo_transform_index(L, transformvalue(t), key, val))
-            return; // moo: a transform's position or rotation (docs/layer3b/moo-v2-l3b-transform.md, decision 3)
+            return; // moo: transform
         else if (ttisnil(tm = luaT_gettmbyobj(L, t, TM_INDEX)))
             luaG_indexerror(L, t, key);
         if (ttisfunction(tm))
@@ -536,11 +532,11 @@ int luaV_equalval(lua_State* L, const TValue* t1, const TValue* t2)
         return bvalue(t1) == bvalue(t2); // true must be 1 !!
     case LUA_TLIGHTUSERDATA:
         return pvalue(t1) == pvalue(t2) && lightuserdatatag(t1) == lightuserdatatag(t2);
-    case LUA_TVEC3: // moo: == is the three raw components, never the address (docs/DESIGN.md "vec3, quat and transform (layer 3b)", "Operations")
+    case LUA_TVEC3: // moo: by value
         return moo_vec3_equal(vec3value(t1), vec3value(t2));
-    case LUA_TQUAT: // moo: == is the four raw components, never the address (docs/DESIGN.md "vec3, quat and transform (layer 3b)", "Operations")
+    case LUA_TQUAT: // moo: quat
         return moo_quat_equal(quatvalue(t1), quatvalue(t2));
-    case LUA_TTRANSFORM: // moo: == is the seven raw components, never the address (docs/DESIGN.md "vec3, quat and transform (layer 3b)", "Operations")
+    case LUA_TTRANSFORM: // moo: transform
         return moo_transform_equal(transformvalue(t1), transformvalue(t2));
     case LUA_TUSERDATA:
     {
@@ -636,32 +632,12 @@ void luaV_concat(lua_State* L, int total, int last)
     } while (total > 1); // repeat until only 1 result left
 }
 
-// moo: the payload of a vec3 as fixed's fixVec3, copied component for component; an operation never casts the
-// object's address (docs/DESIGN.md "vec3, quat and transform (layer 3b)", "Operations" and "Saturation, stated
-// precisely"). The same three helpers are the VM's one definition of vec3 arithmetic.
+// moo: vec3 arithmetic is fixed's, which under FIX_SATURATE saturates per component exactly as number does
 namespace
 {
 
-fixVec3 mooVec3Payload(const MooVec3* v)
-{
-    return FIX_LITERAL(fixVec3){v->x, v->y, v->z};
-}
-
-// moo: + and - are fixed's fixVecAdd/fixVecSub, which under FIX_SATURATE (moo's build) saturate per component into
-// [FIX_MIN, FIX_MAX] with fixAddSaturate/fixSubSaturate: the same rule, and the same bits, as moo_numadd/moo_numsub
-// for number (docs/DESIGN.md "vec3, quat and transform (layer 3b)", "Saturation, stated precisely").
-fixVec3 mooVec3Add(fixVec3 a, fixVec3 b)
-{
-    return fixVecAdd(a, b);
-}
-
-fixVec3 mooVec3Sub(fixVec3 a, fixVec3 b)
-{
-    return fixVecSub(a, b);
-}
-
 #if MOO_OVERFLOW_ERRORS
-// A checked build raises the same named error as number where release saturates (docs/DESIGN.md, "Overflow").
+// a checked build raises the same error as number where release saturates
 bool mooVec3AddSaturates(fixVec3 a, fixVec3 b)
 {
     return moo_numaddsaturates(a.x, b.x) || moo_numaddsaturates(a.y, b.y) || moo_numaddsaturates(a.z, b.z);
@@ -683,9 +659,8 @@ bool mooVec3MulScalarSaturates(fixed_t s, fixVec3 a)
 }
 #endif
 
-// Every vec3 operation allocates a new object (docs/DESIGN.md "vec3, quat and transform (layer 3b)"). The result is
-// stored before the GC check, as upstream's LOP_NEWTABLE does: a GC step can reallocate the stack (shrinkstack in
-// the propagate phase), so ra is not valid after luaC_checkGC.
+// every vec3 operation allocates a new object. The result is stored before the GC check, as LOP_NEWTABLE does: a GC
+// step can reallocate the stack (shrinkstack), so ra is not valid after luaC_checkGC.
 void mooVec3SetResult(lua_State* L, StkId ra, fixVec3 v)
 {
     MooVec3* out = moo_vec3_new(L, v.x, v.y, v.z);
@@ -701,52 +676,42 @@ void luaV_doarithimpl(lua_State* L, StkId ra, const TValue* rb, const TValue* rc
     TValue tempb, tempc;
     const TValue *b, *c;
 
-    // moo: vec3 operators (docs/DESIGN.md "vec3, quat and transform (layer 3b)", "Operations"). + - and unary -
-    // follow number's saturation and checked-build error; * calls fixVecMul/fixMulSV, whose fixMul is saturating
-    // in moo's build. A vec3 with any other operand falls through to the metamethod path, which raises the
-    // ordinary arithmetic error. Every result is a new object.
-    // moo: quat operators (docs/DESIGN.md "vec3, quat and transform (layer 3b)", "Operations"): quat * quat is
-    // fixMulQuat and quat * vec3 is fixRotateVector, fixed's compound functions verbatim (each component one
-    // 128-bit reduction, saturating under FIX_SATURATE; "Saturation, stated precisely"). Any other operator or
-    // operand falls through to the ordinary arithmetic error. Every result is a new object.
-    // moo: transform operators (docs/DESIGN.md "vec3, quat and transform (layer 3b)", "Operations";
-    // docs/layer3b/moo-v2-l3b-transform.md, decision 2): transform * transform composes (fixMulTransforms) and
-    // transform * vec3 transforms a point (fixTransformPoint), each with its position add saturating (moo_transform.h).
-    // Any other operator or operand falls through to the ordinary arithmetic error. Every result is a new object.
+    // moo: vec3, quat and transform operators are fixed's functions (docs/DESIGN.md "Operations"): vec3 + - * and
+    // unary -, vec3 * number, quat * quat (fixMulQuat), quat * vec3 (fixRotateVector), transform * transform
+    // (fixMulTransforms) and transform * vec3 (fixTransformPoint). Any other operand falls through to the ordinary
+    // arithmetic error. Every result is a new object (docs/layer3b/moo-v2-l3b-transform.md, decision 2).
     if (op == TM_MUL && ttistransform(rb) && (ttistransform(rc) || ttisvec3(rc)))
     {
         fixTransform a = moo_transform_payload(transformvalue(rb));
         if (ttistransform(rc))
         {
-            fixTransform r = moo_transform_mul(a, moo_transform_payload(transformvalue(rc)));
+            fixTransform r = fixMulTransforms(a, moo_transform_payload(transformvalue(rc)));
             MooTransform* out = moo_transform_new(L, r);
             settransformvalue(L, ra, out);
             luaC_checkGC(L); // after the store: ra is not valid after a GC step (mooVec3SetResult)
         }
         else
-            mooVec3SetResult(L, ra, moo_transform_point(a, mooVec3Payload(vec3value(rc))));
+            mooVec3SetResult(L, ra, fixTransformPoint(a, moo_vec3_payload(vec3value(rc))));
         return;
     }
     if (op == TM_MUL && ttisquat(rb) && (ttisquat(rc) || ttisvec3(rc)))
     {
-        const MooQuat* qb = quatvalue(rb);
-        fixQuat q = FIX_LITERAL(fixQuat){{qb->v.x, qb->v.y, qb->v.z}, qb->s};
+        fixQuat q = moo_quat_payload(quatvalue(rb));
         if (ttisquat(rc))
         {
-            const MooQuat* qc = quatvalue(rc);
-            fixQuat r = fixMulQuat(q, FIX_LITERAL(fixQuat){{qc->v.x, qc->v.y, qc->v.z}, qc->s});
+            fixQuat r = fixMulQuat(q, moo_quat_payload(quatvalue(rc)));
             MooQuat* out = moo_quat_new(L, r.v.x, r.v.y, r.v.z, r.s);
             setquatvalue(L, ra, out);
             luaC_checkGC(L); // after the store: ra is not valid after a GC step (mooVec3SetResult)
         }
         else
-            mooVec3SetResult(L, ra, fixRotateVector(q, mooVec3Payload(vec3value(rc))));
+            mooVec3SetResult(L, ra, fixRotateVector(q, moo_vec3_payload(vec3value(rc))));
         return;
     }
     if (ttisvec3(rb) || ttisvec3(rc))
     {
-        fixVec3 a = ttisvec3(rb) ? mooVec3Payload(vec3value(rb)) : FIX_LITERAL(fixVec3){0, 0, 0};
-        fixVec3 d = ttisvec3(rc) ? mooVec3Payload(vec3value(rc)) : FIX_LITERAL(fixVec3){0, 0, 0};
+        fixVec3 a = ttisvec3(rb) ? moo_vec3_payload(vec3value(rb)) : FIX_LITERAL(fixVec3){0, 0, 0};
+        fixVec3 d = ttisvec3(rc) ? moo_vec3_payload(vec3value(rc)) : FIX_LITERAL(fixVec3){0, 0, 0};
 
         if (ttisvec3(rb) && ttisvec3(rc))
         {
@@ -757,14 +722,14 @@ void luaV_doarithimpl(lua_State* L, StkId ra, const TValue* rb, const TValue* rc
                 if (mooVec3AddSaturates(a, d))
                     luaG_runerror(L, "number overflow in '+'");
 #endif
-                mooVec3SetResult(L, ra, mooVec3Add(a, d));
+                mooVec3SetResult(L, ra, fixVecAdd(a, d));
                 return;
             case TM_SUB:
 #if MOO_OVERFLOW_ERRORS
                 if (mooVec3SubSaturates(a, d))
                     luaG_runerror(L, "number overflow in '-'");
 #endif
-                mooVec3SetResult(L, ra, mooVec3Sub(a, d));
+                mooVec3SetResult(L, ra, fixVecSub(a, d));
                 return;
             case TM_MUL:
 #if MOO_OVERFLOW_ERRORS
@@ -805,12 +770,12 @@ void luaV_doarithimpl(lua_State* L, StkId ra, const TValue* rb, const TValue* rc
     {
         lua_Number nb = nvalue(b), nc = nvalue(c);
 
-        // moo: named, never infinity or NaN (docs/DESIGN.md, "Division by zero")
+        // moo: named, never infinity or NaN
         if ((op == TM_DIV || op == TM_IDIV || op == TM_MOD) && nc == 0)
             luaG_runerror(L, "division by zero");
 
 #if MOO_OVERFLOW_ERRORS
-        // moo: a checked build stops with the named error where release saturates (docs/DESIGN.md, "Overflow")
+        // moo: a checked build raises where release saturates
         if ((op == TM_ADD && luai_numaddsat(nb, nc)) || (op == TM_SUB && luai_numsubsat(nb, nc)) ||
             (op == TM_MUL && luai_nummulsat(nb, nc)) || (op == TM_DIV && luai_numdivsat(nb, nc)) ||
             (op == TM_IDIV && luai_numidivsat(nb, nc)))
@@ -909,7 +874,7 @@ LUAU_NOINLINE void luaV_prepareFORN(lua_State* L, StkId plimit, StkId pstep, Stk
         luaG_forerror(L, plimit, "limit");
     if (!ttisnumber(pstep) && !luaV_tonumber(pstep, pstep))
         luaG_forerror(L, pstep, "step");
-    // moo: a zero step would never end (docs/DESIGN.md, "Exact integers")
+    // moo: a zero step would never end
     if (nvalue(pstep) == 0)
         luaG_runerror(L, "'for' step is zero");
 }

@@ -205,7 +205,7 @@ static void validateobj(global_State* g, GCObject* o)
     case LUA_TVECTOR:
         break;
 
-    // moo: vec3, quat and transform are leaves with no references (docs/layer3b/moo-v2-l3b-vec3-object.md, decision 6)
+    // moo: vec3, quat and transform are leaves (docs/layer3b/moo-v2-l3b-vec3-object.md, decision 6)
     case LUA_TVEC3:
     case LUA_TQUAT:
     case LUA_TTRANSFORM:
@@ -838,7 +838,7 @@ static void enumtable(EnumContext* ctx, LuaTable* h)
                     else if (ttisnumber(&n.key))
                     {
                         char buf[40];
-                        char* end = moo_numtostr(buf, nvalue(&n.key)); // moo: host debug output, exact formatter
+                        char* end = moo_numtostr(buf, nvalue(&n.key)); // moo: exact, no printf
                         *end = 0;
                         enumedge(ctx, obj2gco(h), gcvalue(&n.val), buf);
                     }
@@ -1115,7 +1115,7 @@ static void enumobj(EnumContext* ctx, GCObject* o)
     case LUA_TVECTOR:
         return enumnode(ctx, o, sizeof(LuauVector), NULL);
 
-    // moo: vec3 and quat are fixed-size leaves (docs/layer3b/moo-v2-l3b-vec3-object.md, decision 6)
+    // moo: vec3, quat and transform are fixed-size leaves (docs/layer3b/moo-v2-l3b-vec3-object.md, decision 6)
     case LUA_TVEC3:
         return enumnode(ctx, o, sizeof(MooVec3), NULL);
     case LUA_TQUAT:

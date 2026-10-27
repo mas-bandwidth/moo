@@ -1930,7 +1930,7 @@ struct Compiler
         return Compile::isConstantFalse(constants, node);
     }
 
-    // moo: the float vector is removed; no expression folds to a vector constant (docs/DESIGN.md "vec3, quat and transform").
+    // moo: no float vector, so no expression folds to a vector constant
     bool isConstantVector(AstExpr* node)
     {
         (void)node;
@@ -2084,7 +2084,7 @@ struct Compiler
             cid = bytecode.addConstantInteger(c->valueInteger64);
             break;
 
-        // moo: the float vector is removed; the compiler never emits vector constants (docs/DESIGN.md "vec3, quat and transform").
+        // moo: no float vector constants
 
         case Constant::Type_String:
             cid = bytecode.addConstantString(sref(c->getString()));
@@ -3116,7 +3116,7 @@ struct Compiler
             }
             else
             {
-                // long number encoding: the raw Q48.16 value travels verbatim (docs/DESIGN.md "Layer 3 as built", "The compiler")
+                // long number encoding: the raw Q48.16 value travels verbatim
                 int32_t cid = bytecode.addConstantNumberRaw(v);
                 if (cid < 0)
                     CompileError::raise(node->location, "Exceeded constant limit; simplify the code to compile");
@@ -3138,7 +3138,7 @@ struct Compiler
         }
         break;
 
-        // moo: the float vector is removed; the compiler never emits vector constants (docs/DESIGN.md "vec3, quat and transform").
+        // moo: no float vector constants
 
         case Constant::Type_String:
         {
@@ -3185,7 +3185,7 @@ struct Compiler
         }
         else if (AstExprConstantNumber* expr = node->as<AstExprConstantNumber>())
         {
-            // moo: the AST carries the exact raw Q48.16 value the parser read (docs/DESIGN.md "Literals")
+            // moo: the exact raw Q48.16 value the parser read
             int32_t cid = bytecode.addConstantNumberRaw(expr->rawValue);
             if (cid < 0)
                 CompileError::raise(expr->location, "Exceeded constant limit; simplify the code to compile");
@@ -6075,7 +6075,7 @@ void setCompileConstantNumber(CompileConstant* constant, double n)
 {
     Compile::Constant* target = reinterpret_cast<Compile::Constant*>(constant);
 
-    // moo: the constant is the raw Q48.16 value; a host double converts once by the boundary rule (docs/DESIGN.md "Boundary")
+    // moo: a host double converts once by the boundary rule
     target->type = Compile::Constant::Type_Number;
     target->valueNumber = moo_numfromdoublevalue(n);
 }
@@ -6090,13 +6090,13 @@ void setCompileConstantInteger64(CompileConstant* constant, int64_t l)
 
 void setCompileConstantVector(CompileConstant* constant, float x, float y, float z, float w)
 {
-    // moo: the float vector is removed (docs/DESIGN.md "vec3, quat and transform"); leave the constant Type_Unknown.
+    // moo: no float vector; the constant stays Type_Unknown
     (void)constant, (void)x, (void)y, (void)z, (void)w;
 }
 
 void setCompileConstantVectord(CompileConstant* constant, double x, double y, double z, double w)
 {
-    // moo: the float vector is removed (docs/DESIGN.md "vec3, quat and transform"); leave the constant Type_Unknown.
+    // moo: no float vector; the constant stays Type_Unknown
     (void)constant, (void)x, (void)y, (void)z, (void)w;
 }
 

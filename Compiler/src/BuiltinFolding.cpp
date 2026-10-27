@@ -10,11 +10,8 @@ namespace Luau
 namespace Compile
 {
 
-// moo: builtins do not fold until the math library is rebuilt on fixed (docs/DESIGN.md, "math library"); the build
-// machine's libm and the run time's must not disagree, so a builtin call keeps its run-time definition. Number
-// constants are the raw Q48.16 value (docs/DESIGN.md "Layer 3 as built", "The compiler"), and there is no double
-// here to read. The upstream float/bit32 folding bodies are gone; what this file must keep is the seam the compiler
-// calls, and it answers "not a constant".
+// moo: builtin calls do not fold: each keeps its run-time definition, so a folded value can never differ from the
+// VM's. The upstream float and bit32 folding is gone; the seam the compiler calls answers "not a constant".
 Constant foldBuiltin(AstNameTable& stringTable, int bfid, const Constant* args, size_t count, bool vectorDoublePrecision)
 {
     (void)stringTable, (void)bfid, (void)args, (void)count, (void)vectorDoublePrecision;

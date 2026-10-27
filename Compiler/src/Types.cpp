@@ -839,7 +839,7 @@ struct TypeMapVisitor : AstVisitor
             case LBF_VECTOR_MAGNITUDE:
             case LBF_VECTOR_DOT:
             case LBF_MATH_LERP:
-            case LBF_MATH_NOISE: // moo: math.noise on fixed returns a number (DESIGN.md "math library")
+            case LBF_MATH_NOISE: // moo: math.noise returns a number
                 recordResolvedType(node, &builtinTypes.numberType);
                 break;
 
