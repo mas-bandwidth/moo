@@ -186,8 +186,8 @@ This section is the current statement of the layer. The per-card notes it was bu
   planted in the VM itself (`vec3.cross` as `fixCross(b, a)` in `VM/src/moo_vec3lib.cpp`, run by hand and reverted)
   turned `GeometryOracle` red, as `transform.point` with a plain add did before it.
 - **Against fixed3d.** fixed3d vendors the same `fixed`, and its `b3*` vector, quaternion and transform functions
-  forward to fixed's. `tools/moo-fixed3d-compare.sh` clones fixed3d at its pin (`071a3f6`, which vendors fixed
-  `4a70c64` like moo), refuses unless fixed3d's `fixed` headers are identical to `extern/fixed`, builds
+  forward to fixed's. `tools/moo-fixed3d-compare.sh` clones fixed3d at its pin (`ae0e52d`, which vendors fixed
+  `8dda4fc` like moo), refuses unless fixed3d's `fixed` headers are identical to `extern/fixed`, builds
   `tools/moo-fixed3d-compare/compare.cpp` with `BOX3D_FIXED_SATURATE` against moo's libraries and runs 2^16 cases per
   operation; any difference exits 1. The `full` job of `ci.yml` runs it on every pull request:
 
@@ -229,7 +229,7 @@ There is one number type. Its value is the raw signed 64-bit Q48.16 integer, `fi
 ## Semantics
 
 Arithmetic is the C library [`fixed`](https://github.com/mas-bandwidth/fixed), pinned at
-commit `4a70c64eaedf58cb6363ad7a3a48387d2ff15502`, the commit fixed3d vendors. moo vendors it
+commit `8dda4fcdae38a7fde0a63bd9ba8edc3f2f75ad1c` (fixed #66), the commit fixed3d vendors. moo vendors it
 the same way fixed3d does: a generated copy under `extern/fixed`, written by a revendor script,
 with a CI check that fails on drift. A change to the arithmetic is made upstream in `fixed`
 and arrives here by moving the pin.
@@ -266,6 +266,11 @@ exact result at the edge (`MAX * 1`) is not overflow. The compiler does not fold
 that saturates in a checked build. Saturation is the release behaviour, so the same program never
 gives different *values* in checked and release builds; it either gives the same value or stops
 with the named error in a checked build.
+
+Bytecode is identical within one build mode. A checked build's compiler leaves a saturating constant
+operation to the VM instead of folding it, so for that code its bytecode differs from a release build's by
+design; the compiler-determinism pins are per mode (`tests/determinism/bytecode.txt` and
+`bytecode-checked.txt`, DETERMINISM.md 25).
 
 `MOO_OVERFLOW_ERRORS=AUTO` (the default) is decided per translation unit from `NDEBUG` and
 `LUAU_ENABLE_ASSERT`, so an embedder that builds the compiler and the VM with different `NDEBUG`

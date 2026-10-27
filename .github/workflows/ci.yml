@@ -9,7 +9,7 @@
 # shifting allocation states and against tests/determinism/bytecode.txt, and tools/moo-check-compile.py runs moo-compile
 # in separate processes, directories and locales against the same pins.
 # Pull requests also run Moo.Test and Conformance in a checked build (MOO_OVERFLOW_ERRORS=ON), with
-# gcc and warnings as errors, on macOS and on Windows (MSVC), each with sccache like the jobs above.
+# gcc and warnings as errors, on macOS and on Windows (MSVC, /WX), each with sccache like the jobs above.
 name: ci
 
 on:
@@ -267,7 +267,7 @@ jobs:
 
       - name: configure
         run: >
-          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DLUAU_WERROR=OFF
+          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DLUAU_WERROR=ON
           -DCMAKE_C_COMPILER=cl -DCMAKE_CXX_COMPILER=cl
           -DCMAKE_C_COMPILER_LAUNCHER=${{ steps.cache.outputs.launcher }} -DCMAKE_CXX_COMPILER_LAUNCHER=${{ steps.cache.outputs.launcher }}
           -DCMAKE_POLICY_DEFAULT_CMP0141=NEW -DCMAKE_MSVC_DEBUG_INFORMATION_FORMAT=Embedded

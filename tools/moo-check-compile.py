@@ -15,12 +15,14 @@ usage: tools/moo-check-compile.py <moo-compile> [--root <checkout>] [--pins <fil
                                   [--wrap "<command>"] [--wrap-error N]
   --pins defaults to tests/determinism/bytecode.txt; a checked build (MOO_OVERFLOW_ERRORS=ON) passes
   tests/determinism/bytecode-checked.txt, since its compiler leaves a saturating fold to the VM.
-Exit 0 when every output matches its pin; 1 otherwise, naming each mismatch.
+A compile error's pin is error-<FNV-1a 64 of its error lines without the file name>.
+Exit 0 when every output matches its pin; 1 otherwise, naming each mismatch, and 1 for a pin file with no pins.
 """
 
 import argparse
 import concurrent.futures
 import os
+import re
 import shlex
 import subprocess
 import sys
@@ -34,6 +36,22 @@ def fnv1a(data):
     for c in data:
         h = ((h ^ c) * 0x100000001B3) & 0xFFFFFFFFFFFFFFFF
     return "%016x" % h
+
+
+# moo-compile's error lines, "<file>(<line>,<column>): <type>: <message>", without the file name, as
+# tests/moo/compile_determinism.test.cpp hashes them
+ERROR_LINE = re.compile(r"\(\d+,\d+\): (SyntaxError|CompileError): .*")
+
+
+def error_pin(stderr):
+    lines = []
+    for line in stderr.decode("utf-8", "replace").replace("\r\n", "\n").split("\n"):
+        m = ERROR_LINE.search(line)
+        if m:
+            lines.append(m.group(0) + "\n")
+    if not lines:
+        return "error-unrecognized"
+    return "error-" + fnv1a("".join(lines).encode("utf-8"))
 
 
 def read_pins(path):
@@ -60,7 +78,11 @@ def main():
 
     compiler = os.path.realpath(args.compiler)
     tests = os.path.join(os.path.realpath(args.root), "tests")
-    pins = read_pins(args.pins or os.path.join(tests, "determinism", "bytecode.txt"))
+    pin_file = args.pins or os.path.join(tests, "determinism", "bytecode.txt")
+    pins = read_pins(pin_file)
+    if not pins:
+        print("moo-check-compile: %s has no pins" % pin_file)
+        return 1
     wrap = shlex.split(args.wrap)
 
     with tempfile.TemporaryDirectory(prefix="moo check compile ") as tmp:
@@ -86,9 +108,9 @@ def main():
             where = "%s -O%d -g%d (cwd %s, LC_ALL=%s, path %s)" % (name, o, g, cwd, locale, path)
             if wrap and proc.returncode == args.wrap_error:
                 return "%s: memory error\n%s" % (where, proc.stderr.decode("utf-8", "replace")[-4000:])
-            got = "error" if proc.returncode != 0 else fnv1a(proc.stdout)
+            got = error_pin(proc.stderr) if proc.returncode != 0 else fnv1a(proc.stdout)
             if got != pin:
-                detail = proc.stderr.decode("utf-8", "replace").strip()[-400:] if got == "error" else ""
+                detail = proc.stderr.decode("utf-8", "replace").strip()[-400:] if got.startswith("error") else ""
                 return "%s: %s, pinned %s%s" % (where, got, pin, ("\n  " + detail) if detail else "")
             return None
 

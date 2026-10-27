@@ -61,6 +61,7 @@ edits them, except where a row above records the seam.
 | `Compiler/src/ConstantFolding.h` | a folded number constant is `fixed_t` and there is no vector constant type (DESIGN.md "Layer 3 as built", "The compiler", "vec3, quat and transform"). |
 | `Compiler/src/CostModel.cpp` | the loop trip count reads the raw Q48.16 bounds with `moo_number.h`, with no double, and admits the same integer bounds as upstream (DESIGN.md "Literals", "Layer 3 as built"). |
 | `Compiler/src/CostModel.h` | `getTripCount` takes raw Q48.16 bounds (`fixed_t`), not doubles (DESIGN.md "Layer 3 as built"). |
+| `Compiler/src/TableShape.cpp` | the array-size hint reads a constant index and the `for` bounds as raw Q48.16 values, not the doubles beside them; the hints, and so the bytecode, are unchanged (DESIGN.md "Layer 3 as built"). |
 | `Compiler/src/Types.cpp` | `math.noise`, now a fixed fastcall (`LBF_MATH_NOISE`), resolves to the number type like the other math builtins (DESIGN.md "math library"). |
 
 ### Ast

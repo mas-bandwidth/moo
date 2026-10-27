@@ -132,7 +132,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: configure
-        run: cmake -S . -B build -A x64 ${{ matrix.toolset }} -DLUAU_WERROR=OFF
+        run: cmake -S . -B build -A x64 ${{ matrix.toolset }} -DLUAU_WERROR=ON
 
       - name: build
         run: cmake --build build --config RelWithDebInfo --parallel 4 --target Moo.Test Luau.Conformance Luau.UnitTest Luau.Compile.CLI

@@ -1,5 +1,27 @@
 # moo changelog
 
+## Unreleased
+
+### Fixed
+
+- `extern/fixed` moves to fixed `8dda4fc` (fixed #66): every unsigned negation is spelled
+  `(T)0 - x`, so MSVC builds it without C4146, and the Windows `INT128_MIN / 1` divide is defined.
+  The arithmetic is unchanged everywhere else: the math oracle and the determinism pins hold.
+  `tools/moo-fixed3d-compare.sh` pins fixed3d `ae0e52d` (fixed3d #111), which vendors the same
+  fixed.
+- The compiler's table-size hint (`TableShape.cpp`) reads constant indices and `for` bounds as raw
+  Q48.16 values; the compiler has no double on a moo number path. The bytecode is unchanged: every
+  compile-determinism pin holds, release and checked.
+
+### CI
+
+- The per-PR Windows job builds with `-DLUAU_WERROR=ON` (MSVC `/WX`), and so do the nightly's
+  `windows-msvc` and `windows-clang-cl` jobs.
+- The compile-determinism pins hash a failing compile's error text (`error-<hash>`, not `error`),
+  and the corpus has a script the compiler, not the parser, refuses. `moo-check-compile.py` fails on
+  a pin file with no pins. DESIGN.md and DETERMINISM.md say bytecode is identical within one build
+  mode: a checked build does not fold saturating constants.
+
 ## v1.2.0 — 2026-10-27
 
 Cut from 31ce1d4d9b6ce663fc109c6ba4ff61dce8db3b7f. 4 pull requests since v1.0.2.

@@ -1,6 +1,8 @@
 // This file is part of the Luau programming language and is licensed under MIT License; see LICENSE.txt for details
 #include "TableShape.h"
 
+#include "moo_number.h"
+
 namespace Luau
 {
 namespace Compile
@@ -77,7 +79,8 @@ struct ShapeVisitor : AstVisitor
         {
             TableShape& shape = shapes[*table];
 
-            if (number->value == double(shape.arraySize + 1))
+            // moo: the raw Q48.16 value, not the double beside it
+            if (number->rawValue == moo_numfromint(int64_t(shape.arraySize) + 1))
                 shape.arraySize += 1;
         }
         else if (AstExprLocal* iter = index->as<AstExprLocal>())
@@ -138,8 +141,10 @@ struct ShapeVisitor : AstVisitor
         AstExprConstantNumber* from = node->from->as<AstExprConstantNumber>();
         AstExprConstantNumber* to = node->to->as<AstExprConstantNumber>();
 
-        if (from && to && from->value == 1.0 && to->value >= 1.0 && to->value <= double(kMaxLoopBound) && !node->step)
-            loops[node->var] = unsigned(to->value);
+        // moo: the raw Q48.16 bounds, not the doubles beside them
+        if (from && to && !node->step && from->rawValue == MOO_NUMBER_ONE && to->rawValue >= MOO_NUMBER_ONE &&
+            to->rawValue <= moo_numfromint(kMaxLoopBound))
+            loops[node->var] = unsigned(moo_numtrunc(to->rawValue));
 
         return true;
     }
