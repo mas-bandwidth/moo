@@ -12,6 +12,7 @@
 #include "MooHost.h"
 #include "Luau/Sccp.h"
 #include "Luau/BytecodeGraph.h"
+#include "../../Compiler/src/CostModel.h"
 
 #include <cstdint>
 #include <cstdio>
@@ -320,6 +321,53 @@ TEST_CASE("CompilerFoldLeavesNonNumberOperandsToTheVM")
     CHECK(mooRun(L, "return '2' < '10'") == "false");
 
     lua_close(L);
+}
+
+// The loop unroller's trip count reads the raw Q48.16 bounds, with no double, and equals the VM's count
+// (moo_numfortrips, LOP_FORNPREP) for every bound it admits: integers in [-32767, 32767].
+TEST_CASE("CompilerUnrollTripCountIsTheVMs")
+{
+    const int64_t bounds[] = {-32767, -10, -3, -1, 0, 1, 2, 3, 7, 10, 32767};
+    const int64_t steps[] = {-32767, -3, -2, -1, 1, 2, 3, 32767};
+    for (int64_t from : bounds)
+        for (int64_t to : bounds)
+            for (int64_t step : steps)
+            {
+                fixed_t f = moo_numfromint(from), t = moo_numfromint(to), s = moo_numfromint(step);
+                INFO("for i = " << from << ", " << to << ", " << step);
+                CHECK_EQ(int64_t(Luau::Compile::getTripCount(f, t, s)), int64_t(moo_numfortrips(f, t, s)));
+            }
+
+    // refused: a zero step, a fraction, a bound past 32767, a raw value past 2^53
+    const fixed_t one = moo_numfromint(1);
+    CHECK_EQ(Luau::Compile::getTripCount(one, moo_numfromint(10), 0), -1);
+    CHECK_EQ(Luau::Compile::getTripCount(one + MOO_NUMBER_ONE / 2, moo_numfromint(10), one), -1);
+    CHECK_EQ(Luau::Compile::getTripCount(one, moo_numfromint(32768), one), -1);
+    CHECK_EQ(Luau::Compile::getTripCount(one, (int64_t(1) << 53) + 1, one), -1);
+}
+
+// An unrolled loop (-O2) returns the same bits as the loop the VM runs (-O0).
+TEST_CASE("CompilerUnrolledLoopEqualsTheVM")
+{
+    MooState s;
+    const char* source = "local t = {} for i = -3, 9, 4 do t[#t + 1] = i * 0.1 + i end return t[1] + t[2] * 3 + t[3] * 5 + t[4] * 7";
+
+    int64_t raws[2] = {};
+    for (int level = 0; level <= 2; level += 2)
+    {
+        lua_CompileOptions options = {};
+        options.optimizationLevel = level;
+        size_t size = 0;
+        char* bytecode = luau_compile(source, strlen(source), &options, &size);
+        int status = luau_load(s.L, "=moo", bytecode, size, 0);
+        free(bytecode);
+        if (status == 0)
+            status = lua_pcall(s.L, 0, 1, 0);
+        REQUIRE(status == 0);
+        raws[level / 2] = int64_t(lua_tonumber(s.L, -1));
+        lua_pop(s.L, 1);
+    }
+    CHECK_EQ(raws[0], raws[1]);
 }
 
 TEST_SUITE_END();

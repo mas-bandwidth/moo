@@ -4227,9 +4227,7 @@ struct Compiler
 
         int tripCount =
             (fromc.type == Constant::Type_Number && toc.type == Constant::Type_Number && stepc.type == Constant::Type_Number)
-                ? getTripCount(
-                      moo_numtodouble(fromc.valueNumber), moo_numtodouble(toc.valueNumber), moo_numtodouble(stepc.valueNumber)
-                  )
+                ? getTripCount(fromc.valueNumber, toc.valueNumber, stepc.valueNumber)
                 : -1;
 
         if (tripCount < 0)
@@ -4277,11 +4275,11 @@ struct Compiler
 
         bytecode.addDebugRemark("loop unroll succeeded (iterations %d, cost %d, profit %.2fx)", tripCount, unrolledCost, double(unrollProfit) / 100);
 
-        compileUnrolledFor(stat, tripCount, moo_numtodouble(fromc.valueNumber), moo_numtodouble(stepc.valueNumber));
+        compileUnrolledFor(stat, tripCount, fromc.valueNumber, stepc.valueNumber);
         return true;
     }
 
-    void compileUnrolledFor(AstStatFor* stat, int tripCount, double from, double step)
+    void compileUnrolledFor(AstStatFor* stat, int tripCount, fixed_t from, fixed_t step)
     {
         AstLocal* var = stat->var;
 
@@ -4298,7 +4296,8 @@ struct Compiler
         {
             // we need to re-fold constants in the loop body with the new value; this reuses computed constant values elsewhere in the tree
             locstants[var].type = Constant::Type_Number;
-            locstants[var].valueNumber = moo_numfromdoublevalue(from + iv * step);
+            // moo: from + iv * step in moo_number.h, exact for the integer bounds getTripCount admits, as the VM's index
+            locstants[var].valueNumber = moo_numadd(from, moo_nummul(moo_numfromint(iv), step));
 
             if (iv == 0)
                 foldConstants(

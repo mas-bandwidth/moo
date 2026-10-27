@@ -22,6 +22,9 @@ concurrency:
 
 env:
   SCCACHE_GHA_ENABLED: "true"
+  # a cache outage never fails a job: the probe step (tools/moo-ci-sccache.sh) drops the launcher when the server
+  # cannot start, and a server lost mid-build falls back to the compiler
+  SCCACHE_IGNORE_SERVER_IO_ERROR: "1"
 
 jobs:
   push-gate:
@@ -34,6 +37,12 @@ jobs:
 
       - name: sccache
         uses: mozilla-actions/sccache-action@v0.0.9
+        continue-on-error: true
+
+      - name: sccache probe
+        id: cache
+        shell: bash
+        run: tools/moo-ci-sccache.sh
 
       - name: every upstream change is in docs/PATCHES.md
         run: tools/moo-check-patches.sh
@@ -51,7 +60,7 @@ jobs:
         run: >
           cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DLUAU_WERROR=ON
           -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++
-          -DCMAKE_C_COMPILER_LAUNCHER=sccache -DCMAKE_CXX_COMPILER_LAUNCHER=sccache
+          -DCMAKE_C_COMPILER_LAUNCHER=${{ steps.cache.outputs.launcher }} -DCMAKE_CXX_COMPILER_LAUNCHER=${{ steps.cache.outputs.launcher }}
 
       - name: build
         run: cmake --build build --target Moo.Test Luau.VM
@@ -63,7 +72,8 @@ jobs:
         run: tools/moo-check-no-clock.sh build/libLuau.VM.a
 
       - name: sccache stats
-        if: always()
+        if: always() && steps.cache.outputs.launcher == 'sccache'
+        continue-on-error: true
         run: sccache --show-stats
 
   full:
@@ -75,12 +85,18 @@ jobs:
 
       - name: sccache
         uses: mozilla-actions/sccache-action@v0.0.9
+        continue-on-error: true
+
+      - name: sccache probe
+        id: cache
+        shell: bash
+        run: tools/moo-ci-sccache.sh
 
       - name: configure
         run: >
           cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DLUAU_WERROR=ON
           -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++
-          -DCMAKE_C_COMPILER_LAUNCHER=sccache -DCMAKE_CXX_COMPILER_LAUNCHER=sccache
+          -DCMAKE_C_COMPILER_LAUNCHER=${{ steps.cache.outputs.launcher }} -DCMAKE_CXX_COMPILER_LAUNCHER=${{ steps.cache.outputs.launcher }}
 
       - name: build
         run: cmake --build build --target Luau.Conformance Luau.UnitTest Luau.CLI.Test Luau.Repl.CLI Luau.Analyze.CLI Luau.Compile.CLI
@@ -119,12 +135,18 @@ jobs:
 
       - name: sccache
         uses: mozilla-actions/sccache-action@v0.0.9
+        continue-on-error: true
+
+      - name: sccache probe
+        id: cache
+        shell: bash
+        run: tools/moo-ci-sccache.sh
 
       - name: configure
         run: >
           cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DLUAU_WERROR=ON -DMOO_OVERFLOW_ERRORS=ON
           -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++
-          -DCMAKE_C_COMPILER_LAUNCHER=sccache -DCMAKE_CXX_COMPILER_LAUNCHER=sccache
+          -DCMAKE_C_COMPILER_LAUNCHER=${{ steps.cache.outputs.launcher }} -DCMAKE_CXX_COMPILER_LAUNCHER=${{ steps.cache.outputs.launcher }}
 
       - name: build
         run: cmake --build build --target Moo.Test Luau.Conformance
@@ -145,12 +167,18 @@ jobs:
 
       - name: sccache
         uses: mozilla-actions/sccache-action@v0.0.9
+        continue-on-error: true
+
+      - name: sccache probe
+        id: cache
+        shell: bash
+        run: tools/moo-ci-sccache.sh
 
       - name: configure
         run: >
           cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DLUAU_WERROR=ON
           -DCMAKE_C_COMPILER=gcc -DCMAKE_CXX_COMPILER=g++
-          -DCMAKE_C_COMPILER_LAUNCHER=sccache -DCMAKE_CXX_COMPILER_LAUNCHER=sccache
+          -DCMAKE_C_COMPILER_LAUNCHER=${{ steps.cache.outputs.launcher }} -DCMAKE_CXX_COMPILER_LAUNCHER=${{ steps.cache.outputs.launcher }}
 
       - name: build
         run: cmake --build build --target Moo.Test Luau.Conformance
@@ -161,7 +189,7 @@ jobs:
       - name: conformance
         run: build/Luau.Conformance
 
-  # nightly.yml's macos-arm64, cut to Moo.Test and Conformance
+  # nightly.yml's macos-arm64, cut to Moo.Test and Conformance; a linker warning is an error (-fatal_warnings)
   macos:
     if: github.event_name != 'push'
     runs-on: macos-latest
@@ -171,12 +199,18 @@ jobs:
 
       - name: sccache
         uses: mozilla-actions/sccache-action@v0.0.9
+        continue-on-error: true
+
+      - name: sccache probe
+        id: cache
+        shell: bash
+        run: tools/moo-ci-sccache.sh
 
       - name: configure
         run: >
           cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DLUAU_WERROR=ON
-          -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++
-          -DCMAKE_C_COMPILER_LAUNCHER=sccache -DCMAKE_CXX_COMPILER_LAUNCHER=sccache
+          -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -DCMAKE_EXE_LINKER_FLAGS=-Wl,-fatal_warnings
+          -DCMAKE_C_COMPILER_LAUNCHER=${{ steps.cache.outputs.launcher }} -DCMAKE_CXX_COMPILER_LAUNCHER=${{ steps.cache.outputs.launcher }}
 
       - name: build
         run: cmake --build build --target Moo.Test Luau.Conformance
@@ -188,7 +222,8 @@ jobs:
         run: build/Luau.Conformance
 
       - name: sccache stats
-        if: always()
+        if: always() && steps.cache.outputs.launcher == 'sccache'
+        continue-on-error: true
         run: sccache --show-stats
 
   # nightly.yml's windows-msvc, cut to Moo.Test and Conformance; Ninja in the MSVC environment so sccache can cache
@@ -205,12 +240,18 @@ jobs:
 
       - name: sccache
         uses: mozilla-actions/sccache-action@v0.0.9
+        continue-on-error: true
+
+      - name: sccache probe
+        id: cache
+        shell: bash
+        run: tools/moo-ci-sccache.sh
 
       - name: configure
         run: >
           cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DLUAU_WERROR=OFF
           -DCMAKE_C_COMPILER=cl -DCMAKE_CXX_COMPILER=cl
-          -DCMAKE_C_COMPILER_LAUNCHER=sccache -DCMAKE_CXX_COMPILER_LAUNCHER=sccache
+          -DCMAKE_C_COMPILER_LAUNCHER=${{ steps.cache.outputs.launcher }} -DCMAKE_CXX_COMPILER_LAUNCHER=${{ steps.cache.outputs.launcher }}
           -DCMAKE_POLICY_DEFAULT_CMP0141=NEW -DCMAKE_MSVC_DEBUG_INFORMATION_FORMAT=Embedded
 
       - name: build
@@ -223,5 +264,6 @@ jobs:
         run: build/Luau.Conformance.exe
 
       - name: sccache stats
-        if: always()
+        if: always() && steps.cache.outputs.launcher == 'sccache'
+        continue-on-error: true
         run: sccache --show-stats

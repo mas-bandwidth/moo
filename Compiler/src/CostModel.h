@@ -4,6 +4,8 @@
 #include "Luau/Ast.h"
 #include "Luau/DenseHash.h"
 
+#include "moo_number.h"
+
 namespace Luau
 {
 namespace Compile
@@ -26,7 +28,8 @@ uint64_t modelCost(AstNode* root, AstLocal* const* vars, size_t varCount);
 int computeCost(uint64_t model, const bool* varsConst, size_t varCount);
 
 // get loop trip count or -1 if we can't compute it precisely
-int getTripCount(double from, double to, double step);
+// moo: the bounds are raw Q48.16 values (moo_number.h), with no double in the path
+int getTripCount(fixed_t from, fixed_t to, fixed_t step);
 
 } // namespace Compile
 } // namespace Luau

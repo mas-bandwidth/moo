@@ -56,10 +56,11 @@ edits them, except where a row above records the seam.
 |---|---|
 | `Compiler/src/BuiltinFolding.cpp` | no builtin folds until the math library is rebuilt on fixed; `math.pi` and `math.huge` come from the VM at run time, and vector folding is removed (DESIGN.md "math library", "vec3, quat and transform"). |
 | `Compiler/src/Builtins.cpp` | `math.noise` compiles to the fixed shared-path fastcall and all `vector` builtins map to none (DESIGN.md "math library", "vec3, quat and transform"). |
-| `Compiler/src/Compiler.cpp` | number constants come from the AST's raw Q48.16 value and no expression emits a vector constant (DESIGN.md "Literals", "Layer 3 as built", "vec3, quat and transform"). |
+| `Compiler/src/Compiler.cpp` | number constants come from the AST's raw Q48.16 value, an unrolled loop's index is computed with `moo_number.h`, and no expression emits a vector constant (DESIGN.md "Literals", "Layer 3 as built", "vec3, quat and transform"). |
 | `Compiler/src/ConstantFolding.cpp` | folding uses `moo_number.h`, refuses to fold a saturating result in a checked build, and folds integer `^` through `moo_pow_int` (DESIGN.md "Overflow", "math library", "Literals"); an arithmetic or ordering operator on a non-number constant is left to the VM (DESIGN.md "Layer 3 as built"). |
 | `Compiler/src/ConstantFolding.h` | a folded number constant is `fixed_t` and there is no vector constant type (DESIGN.md "Layer 3 as built", "The compiler", "vec3, quat and transform"). |
-| `Compiler/src/CostModel.cpp` | the cost model converts a raw constant to a double only for its estimate, by the boundary rule (DESIGN.md "Boundary"). |
+| `Compiler/src/CostModel.cpp` | the loop trip count reads the raw Q48.16 bounds with `moo_number.h`, with no double, and admits the same integer bounds as upstream (DESIGN.md "Literals", "Layer 3 as built"). |
+| `Compiler/src/CostModel.h` | `getTripCount` takes raw Q48.16 bounds (`fixed_t`), not doubles (DESIGN.md "Layer 3 as built"). |
 | `Compiler/src/Types.cpp` | `math.noise`, now a fixed fastcall (`LBF_MATH_NOISE`), resolves to the number type like the other math builtins (DESIGN.md "math library"). |
 
 ### Ast
@@ -112,7 +113,7 @@ edits them, except where a row above records the seam.
 
 | file | why |
 |---|---|
-| `CMakeLists.txt` | native codegen and the JIT inliner are off, FMA contraction is off, the vendored fixed library is built saturating, Moo.Test globs the per-subject test files in tests/moo, and the Windows test binaries get a 2 MB stack in every optimized configuration (DESIGN.md "Native codegen", "Upstream merges", "Overflow", "Tests"); gcc builds `Ast/src/Confusables.cpp` with `-Wno-bidi-chars`, since its bidi characters are confusable data, and `Analysis/src/BuiltinTypeFunctions.cpp` with `-Wno-free-nonheap-object`, a gcc 13 false positive, so `-DLUAU_WERROR=ON` builds with gcc (DESIGN.md "Tests"). |
+| `CMakeLists.txt` | native codegen and the JIT inliner are off, FMA contraction is off, the vendored fixed library is built saturating, Moo.Test globs the per-subject test files in tests/moo, the Windows test binaries get a 2 MB stack in every optimized configuration, and policy CMP0156 and trimmed test link lists put each static library on an Apple or Windows link line once (DESIGN.md "Native codegen", "Upstream merges", "Overflow", "Tests"); gcc builds `Ast/src/Confusables.cpp` with `-Wno-bidi-chars`, since its bidi characters are confusable data, and `Analysis/src/BuiltinTypeFunctions.cpp` with `-Wno-free-nonheap-object`, a gcc 13 false positive, so `-DLUAU_WERROR=ON` builds with gcc (DESIGN.md "Tests"). |
 | `Makefile` | the same codegen/inliner exclusion, `-ffp-contract=off`, the fixed library include and the vector source leaving the build (DESIGN.md "Native codegen", "vec3, quat and transform"). |
 | `Sources.cmake` | the vector library, codegen and the JIT inliner leave the source lists, and the fixed sources are added (DESIGN.md "Native codegen", "vec3, quat and transform"); the vec3 library source is added (DESIGN.md "Layer 3b as built"); and the quat library source (DESIGN.md "Layer 3b as built"), and the transform library source (DESIGN.md "Layer 3b as built"); `tests/MooAnalyzer.test.cpp` joins the unit tests (DESIGN.md "Layer 3b as built"). |
 
@@ -191,5 +192,5 @@ own code, tests, notes or vendored `fixed` sources.
 - `tests/determinism/` (the determinism programs and `expected.txt`)
 - `tests/moo/` (one test file per subject, the oracle C file and `vectors/`)
 - `tla/` (`NumericFor.tla`, `DestructorQueue.tla` and their models)
-- `tools/` (`moo-check-patches.sh`, `moo-check-no-clock.sh`, `moo-check-skips.sh`, `moo-tlc.sh`, `moo-math-oracle/`, `revendor-fixed.sh`)
+- `tools/` (`moo-check-patches.sh`, `moo-check-no-clock.sh`, `moo-check-skips.sh`, `moo-ci-sccache.sh`, `moo-tlc.sh`, `moo-math-oracle/`, `revendor-fixed.sh`)
 - `LICENSE-moo.txt`

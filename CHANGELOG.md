@@ -1,5 +1,26 @@
 # moo changelog
 
+## Unreleased
+
+### Fixed
+
+- The compiler's loop unroller computes the trip count and each unrolled index with `moo_number.h` on
+  the raw Q48.16 value; no double reaches a moo number in the compiler or the bytecode passes. The
+  unrolled code is unchanged: the bounds it admits are integers within 32767, where the double path
+  was exact. SCCP's unreachable `asNumber` fallback returns raw 0, not `0.0` (MSVC C4244).
+- The determinism suite hashes a number as its raw Q48.16 bits, not that integer converted to a
+  double (MSVC C4244); the seven state hashes are re-pinned and every effects hash held.
+
+### CI
+
+- Each static library is on a macOS link line once (CMake policy CMP0156; the test targets link
+  `Luau.Bytecode` through `Luau.Compiler`), and the macOS job fails on any linker warning
+  (`-Wl,-fatal_warnings`).
+- A compiler cache outage no longer fails a job: `tools/moo-ci-sccache.sh` builds without sccache
+  when its server cannot start (as when the GitHub Actions cache answered HTTP 503), and
+  `SCCACHE_IGNORE_SERVER_IO_ERROR=1` covers a server lost mid-build. Compile and test failures
+  still fail the job.
+
 ## v1.0.2 — 2026-10-27
 
 Cut from c562d2e574fe4de1a647a8e4a719ab319f969749. 3 pull requests since v1.0.1.

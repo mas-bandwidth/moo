@@ -6,6 +6,12 @@ endif()
 
 cmake_minimum_required(VERSION 3.10)
 
+# moo: each static library is on a link line once where the linker searches every archive (Apple, Windows), so ld
+# does not warn "ignoring duplicate libraries"; GNU ld keeps the repeats it needs (CMake 3.29+)
+if(POLICY CMP0156)
+    cmake_policy(SET CMP0156 NEW)
+endif()
+
 option(LUAU_BUILD_CLI "Build CLI" ON)
 option(LUAU_BUILD_TESTS "Build tests" ON)
 option(LUAU_BUILD_WEB "Build Web module" OFF)
@@ -369,12 +375,12 @@ if(LUAU_BUILD_TESTS)
     target_compile_options(Luau.UnitTest PRIVATE ${LUAU_OPTIONS})
     target_compile_definitions(Luau.UnitTest PRIVATE DOCTEST_CONFIG_DOUBLE_STRINGIFY DOCTEST_CONFIG_USE_STD_HEADERS)
     target_include_directories(Luau.UnitTest PRIVATE extern)
-    target_link_libraries(Luau.UnitTest PRIVATE Luau.Analysis Luau.Bytecode Luau.Compiler Luau.CodeGen)
+    target_link_libraries(Luau.UnitTest PRIVATE Luau.Analysis Luau.CodeGen Luau.Compiler) # moo: Luau.Bytecode comes PUBLIC through Luau.Compiler
 
     target_compile_options(Luau.Conformance PRIVATE ${LUAU_OPTIONS})
     target_compile_definitions(Luau.Conformance PRIVATE DOCTEST_CONFIG_DOUBLE_STRINGIFY DOCTEST_CONFIG_USE_STD_HEADERS)
     target_include_directories(Luau.Conformance PRIVATE extern VM/src)
-    target_link_libraries(Luau.Conformance PRIVATE Luau.Analysis Luau.Bytecode Luau.Inliner Luau.Compiler Luau.CodeGen Luau.VM)
+    target_link_libraries(Luau.Conformance PRIVATE Luau.Analysis Luau.Inliner Luau.CodeGen Luau.Compiler Luau.VM) # moo: Luau.Bytecode comes PUBLIC through Luau.Compiler
     if(CMAKE_SYSTEM_NAME MATCHES "Android|iOS")
         set(LUAU_CONFORMANCE_SOURCE_DIR "Client/Luau/tests/conformance")
     else ()

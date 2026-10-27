@@ -13,10 +13,12 @@
 # moo: math.luau re-pinned when ^ began raising math.pow's errors: each power is logged through pcall, and a power above
 # 2^46, which saturates in release and raises in a checked build, is logged as "large" (docs/DESIGN.md "pow and ^").
 # moo: math.luau re-pinned when 0 ^ negative fraction became "division by zero": its effects hash moved.
-coroutines.luau 5cb7f17a10d68cc4 6fad6a2c9bf8a173
-gcchurn.luau 971f095d77280529 99a32dc86877a486
-library.luau b37b92ae87f532ba d8e5f88d20c961f8
-objectkeys.luau 1067f47a944c9471 673230ee8047eeaa
-coroutines2.luau 45af4a6f2428da59 5359668bdc22dc58
-errors.luau f7037948e0d4bea2 be21c103205a5f40
-math.luau 37d86b3ef9b026e5 76035fcbe60fe1fe
+# moo: the state hashes re-pinned when a number began hashing as its raw Q48.16 bits, not that integer as a
+# double (every bit, and no implicit conversion); every effects hash held.
+coroutines.luau 5cb7f17a10d68cc4 f1ec71c0166cf7a1
+gcchurn.luau 971f095d77280529 f030bdcb1911c6f8
+library.luau b37b92ae87f532ba 7578e826effec762
+objectkeys.luau 1067f47a944c9471 bd1d9d3a27610c44
+coroutines2.luau 45af4a6f2428da59 a47963afd3b4fa82
+errors.luau f7037948e0d4bea2 be31caef4d3f8766
+math.luau 37d86b3ef9b026e5 90ffb92debe420b4
