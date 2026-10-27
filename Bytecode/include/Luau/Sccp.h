@@ -48,9 +48,37 @@ bool bcCompare(T a, T b, BcCondition cond)
 // moo: number folding uses moo_number.h exactly as Compiler/src/ConstantFolding.cpp's mooFold does, so a folded
 // constant and the same computation at run time are the same bits (docs/DESIGN.md "Layer 3 as built"). The operands
 // are raw Q48.16 values. Division, floor division and remainder by zero are never folded: the VM raises "division
-// by zero" at run time. ^ is not folded here; the compiler folds it (docs/DESIGN.md "pow and ^").
+// by zero" at run time. ^ is not folded here; the compiler folds it (docs/DESIGN.md "pow and ^"). In a checked build
+// (MOO_OVERFLOW_ERRORS) a result that saturates is not folded either, so the VM raises "number overflow" (docs/DESIGN.md
+// "Overflow").
+#if MOO_OVERFLOW_ERRORS
+inline bool evaluateNumberBinaryOpSaturates(fixed_t a, fixed_t b, LuauOpcode op)
+{
+    switch (op)
+    {
+    case LuauOpcode::LOP_ADD:
+        return moo_numaddsaturates(a, b);
+    case LuauOpcode::LOP_SUB:
+        return moo_numsubsaturates(a, b);
+    case LuauOpcode::LOP_MUL:
+        return moo_nummulsaturates(a, b);
+    case LuauOpcode::LOP_DIV:
+        return moo_numdivsaturates(a, b);
+    case LuauOpcode::LOP_IDIV:
+        return moo_numidivsaturates(a, b);
+    default:
+        return false;
+    }
+}
+#endif
+
 inline std::optional<fixed_t> evaluateNumberBinaryOp(fixed_t a, fixed_t b, LuauOpcode op)
 {
+#if MOO_OVERFLOW_ERRORS
+    if (evaluateNumberBinaryOpSaturates(a, b, op))
+        return std::nullopt;
+#endif
+
     switch (op)
     {
     case LuauOpcode::LOP_ADD:

@@ -70,7 +70,7 @@ inline bool moo_numisinteger(fixed_t a)
     return (a & (MOO_NUMBER_ONE - 1)) == 0;
 }
 
-// i clamped to the int range
+// i clamped to the int32 range
 inline int64_t moo_numclampint(int64_t i)
 {
     return i < INT32_MIN ? INT32_MIN : (i > INT32_MAX ? INT32_MAX : i);
