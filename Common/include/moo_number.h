@@ -21,8 +21,9 @@
 #define MOO_NUMBER_INT_MAX (MOO_NUMBER_MAX >> MOO_NUMBER_FRACTION_BITS)
 
 // MOO_OVERFLOW_ERRORS 1: the VM raises "number overflow in '<op>'" where release saturates, and the compiler does
-// not fold that operation (docs/DESIGN.md "Overflow"). Set by CMake MOO_OVERFLOW_ERRORS or make overflow=on/off;
-// otherwise on exactly when LUAU_ASSERT is.
+// not fold that operation (docs/DESIGN.md "Overflow"). The exception is ^, which saturates silently in every build;
+// only math.pow raises. Set by CMake MOO_OVERFLOW_ERRORS or make overflow=on/off; otherwise on exactly when
+// LUAU_ASSERT is.
 #if !defined(MOO_OVERFLOW_ERRORS)
 #if !defined(NDEBUG) || defined(LUAU_ENABLE_ASSERT)
 #define MOO_OVERFLOW_ERRORS 1
@@ -57,7 +58,8 @@ inline int64_t moo_numfloorquot(fixed_t a, fixed_t b)
     return q;
 }
 
-// a * b rounded half up at 128 bits, before saturation: fixMul's product on fixed's int128 seam
+// a * b rounded half up at 128 bits, before saturation: fixMul's product on fixed's int128 seam, for
+// moo_nummulsaturates
 inline fixInt128 moo_nummulwide(fixed_t a, fixed_t b)
 {
     return fixInt128Shr(fixInt128Add(fixInt128MulI64(a, b), fixInt128FromI64(FIX_HALF)), FIX_FRACTION_BITS);
@@ -103,15 +105,10 @@ inline fixed_t moo_numunm(fixed_t a)
     return a == INT64_MIN ? MOO_NUMBER_MAX : -a;
 }
 
-// a * b, round half up, saturating: the same value as fixed's fixMul under FIX_SATURATE
+// a * b: fixed's fixMul, round half up, saturating (FIX_SATURATE); vec3 * shares it through fixVecMul
 inline fixed_t moo_nummul(fixed_t a, fixed_t b)
 {
-    fixInt128 r = moo_nummulwide(a, b);
-    if (fixInt128Gt(r, fixInt128FromI64(MOO_NUMBER_MAX)))
-        return MOO_NUMBER_MAX;
-    if (fixInt128Lt(r, fixInt128FromI64(MOO_NUMBER_MIN)))
-        return MOO_NUMBER_MIN;
-    return fixed_t(fixInt128ToI64(r));
+    return fixMul(a, b);
 }
 
 // a / b, b != 0: fixed's fixDiv, truncates toward zero, saturating
@@ -137,7 +134,8 @@ inline fixed_t moo_nummod(fixed_t a, fixed_t b)
 
 // Saturation tests for checked arithmetic: each is true exactly when the operation of the same name clamps, that
 // is when its exact result (for * the rounded one) is outside the domain. An exact result at MOO_NUMBER_MAX or
-// MOO_NUMBER_MIN is not saturation. Unary - and % never saturate. ^ reports saturation through moo_pow_int.
+// MOO_NUMBER_MIN is not saturation. Unary - and % never saturate. ^ has no test: the operator never raises, and
+// math.pow reads moo_pow_int's status.
 
 inline bool moo_numaddsaturates(fixed_t a, fixed_t b)
 {

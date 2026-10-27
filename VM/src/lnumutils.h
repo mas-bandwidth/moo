@@ -18,9 +18,10 @@
 #define luai_numsub(a, b) moo_numsub(a, b)
 #define luai_nummul(a, b) moo_nummul(a, b)
 #define luai_numdiv(a, b) moo_numdiv(a, b)
-// moo: an integer exponent is moo_pow_int, exact, rounded once; the callers raise its statuses. A fractional
-// exponent is fixPow = fixExp2(exponent * fixLog2(base)), 0 for a base <= 0; a negative base is the caller's
-// error "pow of a negative number to a fractional power" (docs/DESIGN.md "pow and ^").
+// moo: the ^ operator. An integer exponent is moo_pow_int, exact, rounded once; its status is discarded, so 0 ^
+// negative gives 0 and a saturated power gives MOO_NUMBER_MAX or MOO_NUMBER_MIN with no error, even when checked.
+// A fractional exponent is fixPow = fixExp2(exponent * fixLog2(base)), 0 for a base <= 0, negative included.
+// Only math.pow and its fastcall raise (lmathlib.cpp).
 inline fixed_t moo_numpow(fixed_t a, fixed_t b)
 {
     if (moo_numisinteger(b))
@@ -36,7 +37,7 @@ inline fixed_t moo_numpow(fixed_t a, fixed_t b)
 
 // moo: with MOO_OVERFLOW_ERRORS an operation that would saturate leaves the fast path (luai_numnosat is false)
 // and luaV_doarithimpl raises "number overflow in '<op>'". In release luai_numnosat is true and evaluates
-// nothing. ^ is checked through moo_pow_int's status instead (docs/DESIGN.md "Overflow").
+// nothing. ^ is never checked: it saturates silently (moo_numpow above).
 #if MOO_OVERFLOW_ERRORS
 #define luai_numaddsat(a, b) moo_numaddsaturates(a, b)
 #define luai_numsubsat(a, b) moo_numsubsaturates(a, b)

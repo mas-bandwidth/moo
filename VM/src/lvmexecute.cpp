@@ -1786,7 +1786,7 @@ reentry:
                     else
                     {
                         // slow-path, may invoke C/Lua via metamethods
-                        // moo: vec3 arithmetic is here, in luaV_doarithimpl
+                        // moo: a vec3 takes the slow path to luaV_doarithimpl
                         VM_PROTECT(luaV_doarithimpl<TM_ADD>(L, ra, rb, rc));
                         VM_NEXT();
                     }
@@ -1827,7 +1827,7 @@ reentry:
                     else
                     {
                         // slow-path, may invoke C/Lua via metamethods
-                        // moo: vec3 arithmetic is here, in luaV_doarithimpl
+                        // moo: a vec3 takes the slow path to luaV_doarithimpl
                         VM_PROTECT(luaV_doarithimpl<TM_SUB>(L, ra, rb, rc));
                         VM_NEXT();
                     }
@@ -1869,7 +1869,7 @@ reentry:
                     else
                     {
                         // slow-path, may invoke C/Lua via metamethods
-                        // moo: vec3, quat and transform arithmetic is here, in luaV_doarithimpl
+                        // moo: a vec3, quat or transform takes the slow path to luaV_doarithimpl
                         VM_PROTECT(luaV_doarithimpl<TM_MUL>(L, ra, rb, rc));
                         VM_NEXT();
                     }
@@ -2312,7 +2312,7 @@ reentry:
                     else
                     {
                         // slow-path, may invoke C/Lua via metamethods
-                        // moo: vec3 arithmetic is here, in luaV_doarithimpl
+                        // moo: a vec3 takes the slow path to luaV_doarithimpl
                         VM_PROTECT(luaV_doarithimpl<TM_UNM>(L, ra, rb, rb));
                         VM_NEXT();
                     }

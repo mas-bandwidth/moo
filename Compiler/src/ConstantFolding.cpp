@@ -100,7 +100,7 @@ static void mooFold(Constant& result, AstExprBinary::Op op, const Constant& la, 
     case AstExprBinary::Pow:
     {
         // moo: ^ with an integer exponent folds through moo_pow_int, the run time's bits. A fractional exponent, 0 ^
-        // negative and a saturated power are left to run time, which raises the errors.
+        // negative and a saturated power are left to run time, which computes the same value and raises nothing.
         if (!moo_numisinteger(b))
             break;
         fixed_t r = 0;

@@ -342,7 +342,7 @@ void luaV_gettable(lua_State* L, const TValue* t, TValue* key, StkId val)
             return;
         }
         else if ((ttisvec3(t) || ttisquat(t)) && moo_value_index(t, key, val))
-            return; // moo: transform
+            return; // moo: vec3 and quat components
         else if (ttistransform(t) && moo_transform_index(L, transformvalue(t), key, val))
             return; // moo: transform
         else if (ttisnil(tm = luaT_gettmbyobj(L, t, TM_INDEX)))

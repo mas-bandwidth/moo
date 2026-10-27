@@ -1,8 +1,9 @@
 // This file is part of moo, a fork of the Luau programming language; moo's changes are licensed under MIT License; see LICENSE-moo.txt for details
 //
 // moo's pow for an integer exponent: the exact power of a Q48.16 base, rounded once to the nearest Q48.16, ties to
-// even, saturating; 0 ^ negative is division by zero (docs/DESIGN.md "pow and ^"). Integer arithmetic only. Every
-// pow path calls it: luai_numpow and the ^ opcodes, math.pow and its fastcall, and the compiler's constant folding
+// even, saturating, with a status for saturation and 0 ^ negative (docs/DESIGN.md "pow and ^"). Integer arithmetic
+// only. Every pow path computes with it: the ^ operator (luai_numpow, LOP_POW/LOP_POWK, luaV_doarithimpl) and the
+// compiler's constant folding, which discard the status, and math.pow and its fastcall, which raise on it
 // (docs/layer4/moo-l4-pow-integer.md has the design and each caller's steps).
 //
 // For raw base b with a = |b| and exponent n the value is V = 2^16 * (a / 2^16)^|n|, or 2^16 / (a / 2^16)^|n| for
@@ -25,10 +26,10 @@
 
 #include <stdint.h>
 
-// moo_pow_int's status; the caller raises the errors
+// moo_pow_int's status. Only math.pow and its fastcall raise on it; the ^ operator keeps *out and raises nothing.
 #define MOO_POW_OK 0
-#define MOO_POW_SATURATED 1        // *out is MOO_NUMBER_MAX or MOO_NUMBER_MIN; "number overflow in '^'" when checked
-#define MOO_POW_DIVISION_BY_ZERO 2 // 0 ^ negative; *out is 0; "division by zero" in every build
+#define MOO_POW_SATURATED 1        // *out is MOO_NUMBER_MAX or MOO_NUMBER_MIN; math.pow: "number overflow" when checked
+#define MOO_POW_DIVISION_BY_ZERO 2 // 0 ^ negative; *out is 0; math.pow: "division by zero" in every build
 
 // the largest |n| computed exactly in 256 bits
 #define MOO_POW_EXACT_MAX 13
