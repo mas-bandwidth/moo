@@ -4,12 +4,12 @@
 # representation of numbers and the hashing of number keys.
 # moo: re-pinned when layer 3 removed the vector and integer libraries: their startup objects shifted every creation number.
 # moo: re-pinned when layer 3b added the vec3 tag: its type-name string "vec3" shifted every creation number by one
-# (docs/layer3b/moo-v2-l3b-vec3-object.md, decision 1, item 3).
+# (docs/history/layer3b/moo-v2-l3b-vec3-object.md, decision 1, item 3).
 # moo: re-pinned when the vec3 library was added to luaL_openlibs: its table and function names shift every
-# creation number (docs/layer3b/moo-v2-l3b-vec3-ops.md).
+# creation number (docs/history/layer3b/moo-v2-l3b-vec3-ops.md).
 # moo: re-pinned when layer 3b added the quat tag and the quat library: the "quat" type-name string,
 # the library table and its function names shift every creation number, and global_State grows by two tag
-# slots (docs/layer3b/moo-v2-l3b-quat.md).
+# slots (docs/history/layer3b/moo-v2-l3b-quat.md).
 coroutines.luau 5cb7f17a10d68cc4 6fad6a2c9bf8a173
 gcchurn.luau 971f095d77280529 99a32dc86877a486
 library.luau b37b92ae87f532ba d8e5f88d20c961f8

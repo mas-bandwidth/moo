@@ -22,7 +22,7 @@ BYTECODE_SOURCES=$(wildcard Bytecode/src/*.cpp)
 BYTECODE_OBJECTS=$(BYTECODE_SOURCES:%=$(BUILD)/%.o)
 BYTECODE_TARGET=$(BUILD)/libluaubytecode.a
 
-# moo: the JIT inliner is excluded until it is rebuilt on fixed point (docs/DESIGN.md, "Native codegen")
+# moo: the JIT inliner folds numbers as doubles, so it is excluded (docs/DESIGN.md, "Native codegen")
 JITINLINER_SOURCES=Inliner/src/moo_jitinliner_off.cpp
 JITINLINER_OBJECTS=$(JITINLINER_SOURCES:%=$(BUILD)/%.o)
 JITINLINER_TARGET=$(BUILD)/libluaujitinliner.a
@@ -39,7 +39,7 @@ ANALYSIS_SOURCES=$(wildcard Analysis/src/*.cpp)
 ANALYSIS_OBJECTS=$(ANALYSIS_SOURCES:%=$(BUILD)/%.o)
 ANALYSIS_TARGET=$(BUILD)/libluauanalysis.a
 
-# moo: native code generation is excluded until it is rebuilt on fixed point (docs/DESIGN.md, "Native codegen")
+# moo: native code generation computes on doubles, so it is excluded (docs/DESIGN.md, "Native codegen")
 CODEGEN_SOURCES=CodeGen/src/moo_codegen_off.cpp
 CODEGEN_OBJECTS=$(CODEGEN_SOURCES:%=$(BUILD)/%.o)
 CODEGEN_TARGET=$(BUILD)/libluaucodegen.a

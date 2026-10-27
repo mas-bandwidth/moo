@@ -15,17 +15,17 @@ option(LUAU_EXTERN_C "Use extern C for all APIs" OFF)
 option(LUAU_BUILD_SHARED "Build as a shared library" OFF)
 
 # Compile time options for Luau features
-# moo: native code generation computes on doubles, and moo's number is fixed point. It is excluded
-# from the build until a later layer rebuilds it on the fixed type (docs/DESIGN.md, "Native codegen").
-option(MOO_CODEGEN "Build native code generation (not available in moo yet)" OFF)
+# moo: native code generation computes on doubles, and moo's number is fixed point, so it is excluded
+# from the build (docs/DESIGN.md, "Native codegen").
+option(MOO_CODEGEN "Build native code generation (excluded from moo)" OFF)
 if(MOO_CODEGEN)
-    message(FATAL_ERROR "MOO_CODEGEN: native code generation is excluded from moo until it is rebuilt on fixed point (docs/DESIGN.md)")
+    message(FATAL_ERROR "MOO_CODEGEN: native code generation computes on doubles and is excluded from moo (docs/DESIGN.md, \"Native codegen\")")
 endif()
 
 # moo: the JIT bytecode inliner folds numbers as doubles at run time, so it is excluded the same way
-option(MOO_JIT_INLINER "Build the JIT bytecode inliner (not available in moo yet)" OFF)
+option(MOO_JIT_INLINER "Build the JIT bytecode inliner (excluded from moo)" OFF)
 if(MOO_JIT_INLINER)
-    message(FATAL_ERROR "MOO_JIT_INLINER: the JIT inliner is excluded from moo until it is rebuilt on fixed point (docs/DESIGN.md)")
+    message(FATAL_ERROR "MOO_JIT_INLINER: the JIT inliner folds numbers as doubles and is excluded from moo (docs/DESIGN.md, \"Native codegen\")")
 endif()
 
 option(LUAU_VECTOR_DOUBLE "Use 64-bit doubles for vector components" OFF)
@@ -375,8 +375,8 @@ if(LUAU_BUILD_TESTS)
     target_compile_definitions(Luau.Conformance PRIVATE LUAU_CONFORMANCE_SOURCE_DIR="${LUAU_CONFORMANCE_SOURCE_DIR}")
 
     # moo: its own tests and the determinism suite, on the VM and the compiler alone (the push gate)
-    # moo: each layer 3 card adds its own tests/moo/*.test.cpp, and a *.c oracle compiled as C may call
-    # extern/fixed's C (docs/layer3/README.md)
+    # moo: one tests/moo/<subject>.test.cpp per subject, and the oracle in tests/moo/*.c, compiled as C, which calls
+    # extern/fixed's C
     file(GLOB MOO_TEST_SOURCES CONFIGURE_DEPENDS
         "${CMAKE_CURRENT_SOURCE_DIR}/tests/moo/*.test.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/tests/moo/*.c")

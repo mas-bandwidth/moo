@@ -43,7 +43,7 @@ test in `tests/Moo.test.cpp`. This table is the state of `main`:
 | 6 | `tostring` shows an address | **fixed**: `table: #123`; light userdata prints `userdata: light`; `moo_objectseq` gives the number to the host |
 | 13 | weak tables and destructors | **fixed**: the sweep queues a dead userdata that has a destructor; the queue runs at the end of the same GC step in creation-number order (and at `lua_close`, after everything else is freed). Modelled in `tla/DestructorQueue.tla`; weak entries clear deterministically once 1 and 4 are fixed |
 | 2 | number keys hash by IEEE bits | **fixed**: numbers hash by their raw Q48.16 value |
-| 7 | platform libm | **fixed**: `+ - * / // %` are fixed's integer arithmetic, and the compiler folds with the same functions, checked bit-exact against fixed's C on every path by the `moo-oracle` suite; the math library and `^` are computed on fixed with no libm, and the double bridge is removed (layer 4, `docs/layer4/moo-l4-bridge-removed.md`) |
+| 7 | platform libm | **fixed**: `+ - * / // %` are fixed's integer arithmetic, and the compiler folds with the same functions, checked bit-exact against fixed's C on every path by the `oracle` suite; the math library and `^` are computed on fixed with no libm, and the double bridge is removed (layer 4; `tools/moo-check-bridges.sh` reports 0 bridge calls) |
 | 11 | out-of-range float-to-int casts | **fixed**: every number-to-integer conversion requires an integer-valued number (`moo_numisinteger` / `luai_numisint`, raising `number has no integer representation` in library calls and falling back in fastcalls) and saturates at the C integer range (`moo_number.h`) |
 | 8 | number formatting and parsing through libc | **fixed**: one exact formatter (`moo_format.h`) and one exact parser (`moo_parse.h`), no `printf`, `strtod` or locale |
 | 9 | `os` and time | **fixed**: the `os` library is deleted (`VM/src/loslib.cpp`) |
@@ -95,7 +95,7 @@ The last full nightly-workflow matrix the coordinator dispatched was
 2026-10-18 23:21:11Z at head `291f70d6a80c9ecc9a1999fcd84bf82688978fe1`, on the layer 5 branch
 before this tree's re-pin; TLC and the math-oracle job passed. Linux gcc, Linux clang, macOS arm64 and
 Windows clang-cl built and ran `Moo.Test` and reported no determinism-hash mismatch. Windows MSVC
-failed to build at `tests/moo/moo-l4-math-exact-ops.test.cpp` (C2059), before its tests ran. The
+failed to build at `tests/moo/math.test.cpp` (C2059), before its tests ran. The
 sanitizer configuration is not in the scheduled matrix and remains pending. Because the pinned
 hashes moved after that run, the table records `same` only where this card re-ran the suite on the
 Linux bench (gcc 15.2 and clang 21.1) and `pending nightly` elsewhere. The earlier scheduled
@@ -108,7 +108,7 @@ again when the vec3 library joined `luaL_openlibs`, when layer 3b added the quat
 transform tag and library: each type-name string, library table and function name is a startup object, so every
 creation number shifts, and each tag grows `global_State` by two tag slots (one in `mt[]`, one in `ttname[]`, 16
 bytes), which moves GC pacing. The mechanism (creation number, not address) is unchanged. The old and new values of
-each re-pin are in `docs/layer3b/` (`moo-v2-l3b-vec3-object.md`, `moo-v2-l3b-vec3-ops.md`, `moo-v2-l3b-quat.md`,
+each re-pin are history: the git history of `tests/determinism/expected.txt`, and the card notes in `docs/history/layer3b/` (`moo-v2-l3b-vec3-object.md`, `moo-v2-l3b-vec3-ops.md`, `moo-v2-l3b-quat.md`,
 `moo-v2-l3b-transform.md`). The vec3 library and quat re-pins were identical on clang 18 and gcc 13; the transform
 note does not name its compilers. The platform columns are the nightly workflow's jobs, dispatched on the transform branch at
 `e896313c` ([run 39777445857](https://github.com/mas-bandwidth/moo/actions/runs/39777445857), 2026-10-22): each
@@ -124,7 +124,7 @@ passes (113 cases). `Luau.UnitTest` has one pre-existing failure, `fold_constant
 unchanged by this docs-only card and fails the same way at BASE.
 
 `MOO_DETERMINISM_PRINT=1` prints the table's lines. The nightly runs it on Linux gcc, Linux clang,
-macOS arm64 and Windows MSVC and clang-cl, and runs the `moo-oracle` suite at `MOO_ORACLE_N=2^24`
+macOS arm64 and Windows MSVC and clang-cl, and runs the `oracle` suite at `MOO_ORACLE_N=2^24`
 on all four; CI runs it on Linux clang on every push.
 
 When tostring became the shortest exact round trip, `strconv.luau`'s cases that expect a double's digits were marked.
@@ -408,7 +408,7 @@ deterministic function of the table's history, and the determinism suite pins it
 **Fixed in layer 3:** the float vector type is removed. The library, the bytecode constant and
 the C API (`lua_pushvector`, `lua_tovector`, `lua_isvector`, `luaL_checkvector`) are removed
 first; `LUA_TVECTOR` stays unused in the tag enum for upstream merges; vec3, quat and transform get
-new tags after `LUA_TOBJECT` (`docs/layer3b/moo-v2-l3b-vec3-object.md`): `LUA_TVEC3` 14,
+new tags after `LUA_TOBJECT` (DESIGN.md "Layer 3b as built"): `LUA_TVEC3` 14,
 `LUA_TQUAT` 15 and `LUA_TTRANSFORM` 16, and `TKey::tt` is 5 bits so `LUA_TDEADKEY` 17 fits. Layer 3b brings `vec3`,
 `quat` and `transform` back with full Q48.16 components (DESIGN.md, "vec3, quat and transform").
 
@@ -429,7 +429,7 @@ No FPU is involved.
   `VM/src/lvmload.cpp:520`.
 
 **Fix:** a moo bytecode version whose number constant is the raw int64 Q48.16 value. The VM
-refuses Luau bytecode by version, by name. Built in layer 3 (`moo-l3-bytecode-version`): moo
+refuses Luau bytecode by version, by name. Built in layer 3 (DESIGN.md "Layer 3 as built", "The moo bytecode version"): moo
 bytecode version 1; `VM/src/lvmload.cpp` reads the raw value and refuses Luau bytecode by name.
 
 ### 20. Error messages and tracebacks
@@ -454,8 +454,8 @@ inputs.
 
 So coroutines are deterministic once everything they compute is. The adversarial programs in the
 determinism suite are `coroutines` and `coroutines2` (`tests/determinism/coroutines2.luau`),
-and the conformance script and C++ cases in `tests/conformance/moo/l3/moo-l5-coroutine-programs.luau`
-and `tests/moo/moo-l5-coroutine-programs.test.cpp` pin the transitions at the C API boundary. The
+and the conformance script and C++ cases in `tests/conformance/moo/spec/coroutines.luau`
+and `tests/moo/coroutines.test.cpp` pin the transitions at the C API boundary. The
 TLA+ model of the resume/yield/close/error states is `tla/Coroutines.tla`: one running thread on top of the
 resume chain, the normal threads exactly the rest of it, no thread on it twice, every refusal named as
 `lua_costatus` reports the status, and dead is final; TLC checks it on three coroutines (`tla/CASES.tsv`), and two
@@ -485,6 +485,6 @@ opened (Luau already ships `lualibs_NOINTEGER`, `VM/src/linit.cpp:28`).
 was the boundary-rounded double, not the VM's Q48.16 result, and could differ from run-time
 arithmetic or saturate wrongly.
 
-**Fix:** built in layer 3 (`moo-l3-bytecode-graph-fixed`): Sccp folds on the raw Q48.16 value
+**Fix:** built in layer 3 (`Bytecode/include/Luau/Sccp.h` `evaluateNumberBinaryOp`): Sccp folds on the raw Q48.16 value
 with the same `moo_number.h` operations the compiler and VM use; division and `%` by zero and
 `^` are never folded.

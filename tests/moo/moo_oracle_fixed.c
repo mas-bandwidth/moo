@@ -1,6 +1,6 @@
 // This file is part of moo, a fork of the Luau programming language; moo's changes are licensed under MIT License; see LICENSE-moo.txt for details
 //
-// The oracle of the moo-oracle suite (tests/moo/moo-l3-oracle-harness.test.cpp): fixed's own C, compiled as C in its
+// The oracle of the moo-oracle suite (tests/moo/oracle.test.cpp): fixed's own C, compiled as C in its
 // own translation unit with FIX_SATURATE as moo builds it (CMakeLists.txt, Moo.Fixed), and called through extern "C".
 // `*` and `/` are fixMul and fixDiv themselves. The operations moo defines on top of fixed (docs/DESIGN.md
 // "Semantics": saturating + - and unary -, floor division, floor remainder, comparisons) are written again here from

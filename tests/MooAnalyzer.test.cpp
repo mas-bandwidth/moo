@@ -1,9 +1,9 @@
 // This file is part of moo, a fork of the Luau programming language; moo's changes are licensed under MIT License; see LICENSE-moo.txt for details
 //
 // moo: vec3, quat and transform as analyzer builtin types (Analysis/src/EmbeddedBuiltinDefinitions.cpp,
-// kBuiltinDefinitionMooValueTypesSrc; docs/layer3b/moo-v2-l3b-analyzer-types.md). The analyzer accepts every
+// kBuiltinDefinitionMooValueTypesSrc; docs/history/layer3b/moo-v2-l3b-analyzer-types.md). The analyzer accepts every
 // component, operator and library function the VM implements, and reports each one the VM refuses. The VM side of
-// the same program is tests/conformance/moo/l3/moo-v2-l3b-analyzer-types.luau (Moo.Test), and
+// the same program is tests/conformance/moo/spec/analyzer.luau (Moo.Test), and
 // tests/conformance/types.luau checks that the VM's globals and these definitions name the same functions.
 #include "Fixture.h"
 
@@ -49,7 +49,7 @@ local _ = {c, d, n, z, g, w, h, p, qq, k, same, names}
     LUAU_REQUIRE_NO_ERRORS(result);
 }
 
-// Each operation the VM refuses (tests/moo/moo-v2-l3b-*.test.cpp, the Refusals cases) is a type error here, and
+// Each operation the VM refuses (tests/moo/vec3.test.cpp, quat.test.cpp and transform.test.cpp, the Refusals cases) is a type error here, and
 // quat.slerp, which the VM refuses by name until fixed has a slerp, is absent.
 TEST_CASE_FIXTURE(BuiltinsFixture, "moo_value_types_report_what_the_vm_refuses")
 {

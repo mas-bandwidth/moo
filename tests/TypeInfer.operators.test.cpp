@@ -1794,7 +1794,7 @@ TEST_CASE_FIXTURE(BuiltinsFixture, "overload_concat")
     LUAU_CHECK_NO_ERRORS(result);
 }
 
-// moo: skipped because moo rejects integer literals (docs/DESIGN.md "integer", docs/layer3/moo-l3-ast-raw-literals.md)
+// moo: skipped because moo rejects integer literals (docs/DESIGN.md "integer", docs/history/layer3/moo-l3-ast-raw-literals.md)
 TEST_CASE_FIXTURE(BuiltinsFixture, "negated_integer_literal_is_a_constant" * doctest::skip())
 {
     DOES_NOT_PASS_OLD_SOLVER_GUARD();
@@ -1810,7 +1810,7 @@ TEST_CASE_FIXTURE(BuiltinsFixture, "negated_integer_literal_is_a_constant" * doc
     CHECK("integer" == toString(requireType("a")));
 }
 
-// moo: skipped because moo rejects integer literals (docs/DESIGN.md "integer", docs/layer3/moo-l3-ast-raw-literals.md)
+// moo: skipped because moo rejects integer literals (docs/DESIGN.md "integer", docs/history/layer3/moo-l3-ast-raw-literals.md)
 TEST_CASE_FIXTURE(BuiltinsFixture, "negating_a_non_literal_integer_is_an_error" * doctest::skip())
 {
     DOES_NOT_PASS_OLD_SOLVER_GUARD();

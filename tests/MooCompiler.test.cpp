@@ -42,7 +42,7 @@ TEST_CASE("MooFoldArithIsFixedPoint")
 
     // 2/3 is fixDiv's truncation, 43690/65536, not the double nearest 2/3
     std::string twothirds = mooCompile0("return 2 / 3");
-    // moo: the dump prints moo_format.h's shortest round trip of 43690 raw, so "0.66666" (docs/layer3/moo-l3-bytecode-version.md)
+    // moo: the dump prints moo_format.h's shortest round trip of 43690 raw, so "0.66666" (docs/history/layer3/moo-l3-bytecode-version.md)
     CHECK_MESSAGE(has(twothirds, "[0.66666]"), twothirds);
 
     // 0.1 + 0.2 is 6554 + 13107 raw units
@@ -55,7 +55,7 @@ TEST_CASE("MooFoldArithIsFixedPoint")
     CHECK(has(mooCompile0("return 1 / 0"), "DIV"));
 
     // moo: `10 ^ 2` is an integer power, so it folds to 100 through moo_pow_int; it was POWK (not folded)
-    // before this card, which changes that case (docs/layer4/moo-l4-pow-integer-fold.md)
+    // before this card, which changes that case (docs/history/layer4/moo-l4-pow-integer-fold.md)
     CHECK(has(mooCompile0("return 10 ^ 2"), "LOADN R0 100"));
 }
 
@@ -66,7 +66,7 @@ TEST_CASE("MooBuiltinsDoNotFold")
     CHECK(has(mooCompile0("return string.char(65)"), "FASTCALL"));
     CHECK(has(mooCompile0("return math.pi"), "GETIMPORT"));
     CHECK(has(mooCompile0("return math.huge"), "GETIMPORT"));
-    // moo: vector is not a compiler builtin; vector.create is imported as an unknown global (DESIGN.md "Analyzer"; docs/layer3/moo-l3-vector-compiler-out.md).
+    // moo: vector is not a compiler builtin; vector.create is imported as an unknown global (DESIGN.md "Analyzer"; docs/history/layer3/moo-l3-vector-compiler-out.md).
     CHECK(has(mooCompile0("return vector.create(1, 2, 3)"), "GETIMPORT"));
 }
 

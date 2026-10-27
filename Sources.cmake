@@ -61,7 +61,7 @@ target_sources(Luau.Bytecode PRIVATE
 )
 
 # Luau.Inliner Sources
-# moo: the JIT bytecode inliner folds numbers as doubles at run time; it is excluded until it is rebuilt on fixed point
+# moo: the JIT bytecode inliner folds numbers as doubles at run time, so it is excluded
 # (MOO_JIT_INLINER, docs/DESIGN.md "Native codegen"). moo_jitinliner_off.cpp answers its API by doing nothing.
 if(MOO_JIT_INLINER)
 target_sources(Luau.Inliner PRIVATE
@@ -118,7 +118,7 @@ target_sources(Luau.Config PRIVATE
 )
 
 # Luau.CodeGen Sources
-# moo: native code generation is excluded from the build until it is rebuilt on fixed point
+# moo: native code generation computes on doubles, so it is excluded from the build
 # (MOO_CODEGEN, docs/DESIGN.md "Native codegen"). Its public headers stay, because the CLI and the
 # tests name its types; moo_codegen_off.cpp answers every entry point with "not supported".
 if(MOO_CODEGEN)
@@ -421,9 +421,9 @@ target_sources(Luau.VM PRIVATE
     VM/src/lmathlib.cpp
     VM/src/moo_api.cpp
     VM/src/moo_layout.cpp
-    VM/src/moo_vec3lib.cpp # moo: the fixed vec3 library (docs/DESIGN.md "vec3, quat and transform (layer 3b)")
-    VM/src/moo_quatlib.cpp # moo: the fixed quat library (docs/DESIGN.md "vec3, quat and transform (layer 3b)")
-    VM/src/moo_transformlib.cpp # moo: the fixed transform library (docs/DESIGN.md "vec3, quat and transform (layer 3b)")
+    VM/src/moo_vec3lib.cpp # moo: the fixed vec3 library (docs/DESIGN.md "vec3, quat and transform")
+    VM/src/moo_quatlib.cpp # moo: the fixed quat library (docs/DESIGN.md "vec3, quat and transform")
+    VM/src/moo_transformlib.cpp # moo: the fixed transform library (docs/DESIGN.md "vec3, quat and transform")
     VM/src/lmem.cpp
     VM/src/lnumprint.cpp
     VM/src/lobject.cpp
@@ -534,7 +534,7 @@ if(TARGET Luau.UnitTest)
         tests/ExternTypeFixture.h
         tests/Compiler.test.cpp
         tests/MooCompiler.test.cpp
-        tests/MooAnalyzer.test.cpp # moo: vec3, quat and transform as analyzer builtin types (docs/layer3b/moo-v2-l3b-analyzer-types.md)
+        tests/MooAnalyzer.test.cpp # moo: vec3, quat and transform as analyzer builtin types (docs/history/layer3b/moo-v2-l3b-analyzer-types.md)
         tests/Config.test.cpp
         tests/ConstraintSolver.test.cpp
         tests/ControlFlowGraph.test.cpp

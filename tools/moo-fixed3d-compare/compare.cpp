@@ -1,6 +1,6 @@
 // This file is part of moo, a fork of the Luau programming language; moo's changes are licensed under MIT License; see LICENSE-moo.txt for details
 //
-// moo: layer 3b's closing gate, item (2) (docs/DESIGN.md "Conformance (layer 3b)"; docs/layer3b/moo-v2-l3b-conformance.md):
+// moo: layer 3b's closing gate, item (2) (docs/DESIGN.md "Conformance (layer 3b)"; docs/history/layer3b/moo-v2-l3b-conformance.md):
 // moo's vec3, quat and transform against fixed3d's own b3* functions, built with BOX3D_FIXED_SATURATE, on the same
 // operands, 2^16 cases per operation. fixed3d's b3* are inline forwarders to its vendored fixed, which
 // tools/moo-fixed3d-compare.sh checks is identical to moo's extern/fixed, so every case must agree bit for bit; the

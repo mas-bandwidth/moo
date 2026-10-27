@@ -1,14 +1,14 @@
 #!/bin/sh
-# moo: the temporary double bridge is allowed only where layer 4 will replace it (docs/DESIGN.md,
-# "Layers": math and ^ are layer 4). It lists every remaining moo_numbridgetodouble /
-# moo_numbridgefromdouble call and every TEMPORARY marker in VM/, Compiler/, Common/, Ast/ and
-# Bytecode/. Any hit outside the allowlist is a finding: exit 1, naming each. Never widen the
-# allowlist to make a run green; a hit belongs to the card that removes it.
+# moo: no temporary double bridge remains (docs/DESIGN.md, "Layer 3 as built", "TEMPORARY bridges").
+# This script holds that: it lists every moo_numbridgetodouble / moo_numbridgefromdouble call and
+# every TEMPORARY marker in VM/, Compiler/, Common/, Ast/ and Bytecode/, and today every count is 0.
+# A hit outside the allowlist is a finding: exit 1, naming each. Never widen the allowlist to make a
+# run green.
 #
-# The allowlist is exactly the math library and ^:
-#   VM/src/lmathlib.cpp      the math library's libm functions
-#   VM/src/lbuiltins.cpp     the math fastcalls (a hit inside a luauF_vector* body is a finding;
-#                            those belong to the vector card, not to math)
+# The allowlist is the set of places the bridge was last allowed, the math library and ^, all now
+# empty:
+#   VM/src/lmathlib.cpp      the math library
+#   VM/src/lbuiltins.cpp     the math fastcalls (a hit inside a luauF_vector* body is a finding)
 #   VM/src/lnumutils.h       the line defining luai_numpow
 #   VM/src/lgcdebug.cpp      host debug output
 # A definition is not a call: in Common/include/moo_number.h a line that begins with "inline"
@@ -17,12 +17,10 @@
 # A TEMPORARY marker beside an allowlisted bridge line is allowed with it.
 #
 # The scan population is the built sources. A .cpp translation unit is scanned only when
-# Sources.cmake names it (the CMake build this card's DONE-WHEN runs); every header is scanned,
-# because a header reaches the build through an includer. A translation unit that left the build
-# stays in the tree unbuilt and cannot hold a remaining bridge in the product: VM/src/lveclib.cpp
-# left with the float vector library (Sources.cmake; docs/DESIGN.md, "vec3, quat and transform";
-# docs/layer3/moo-l3-vector-vm-out.md). This is not an allowlist entry: the allowlist below is
-# still exactly the math library and ^.
+# Sources.cmake names it; every header is scanned, because a header reaches the build through an
+# includer. A translation unit that is out of the build stays in the tree unbuilt and cannot hold
+# a bridge in the product: VM/src/lveclib.cpp, the removed float vector library (Sources.cmake;
+# docs/DESIGN.md, "vec3, quat and transform"). This is not an allowlist entry.
 #
 # usage: tools/moo-check-bridges.sh [root]
 #   root defaults to the checkout this script is in.

@@ -115,7 +115,8 @@ Luau's own suites run, with every case moo skips or moves marked with its `moo:`
 moo's own tests are `Moo.Test`: the determinism suite (`tests/Determinism.test.cpp`, whose
 state and effect hashes are pinned in `tests/determinism/expected.txt`), the fixed-point
 operators, literals and formatting (`tests/Moo.test.cpp`, `tests/MooNumber.test.cpp`), and one
-file per change under `tests/moo/`, including the oracles that check numbers, the math library
+file per subject under `tests/moo/` (`number`, `pow`, `math`, `vec3`, `bytecode`, ...), each with its
+expected-behaviour script in `tests/conformance/moo/spec/`, including the oracles that check numbers, the math library
 and `vec3`/`quat`/`transform` bit for bit against `fixed`'s C.
 
 CI (`.github/workflows/`):

@@ -173,7 +173,7 @@ struct BytecodeInlinerFixture
     {
         std::string bytecode = bcb.getBytecode();
         const char* data = bytecode.data();
-        size_t offset = 3; // moo: skip the 3-byte moo header (moo version, Luau version, types version); docs/layer3/moo-l3-bytecode-version.md
+        size_t offset = 3; // moo: skip the 3-byte moo header (moo version, Luau version, types version); docs/history/layer3/moo-l3-bytecode-version.md
         std::vector<std::string> result;
         uint32_t stringsCount = readVarInt(data, offset);
         for (uint32_t i = 0; i < stringsCount; i++)
@@ -1076,7 +1076,7 @@ TEST_CASE_FIXTURE(BytecodeInlinerFixture, "fold_constants_div_by_zero")
     );
 
     // moo: 10 / 0 is never folded (Bytecode/include/Luau/Sccp.h evaluateNumberBinaryOp); the DIV stays so the VM raises
-    // "division by zero" at run time (DESIGN.md "Division by zero", docs/layer3/moo-l3-bytecode-graph-fixed.md)
+    // "division by zero" at run time (DESIGN.md "Division by zero", docs/history/layer3/moo-l3-bytecode-graph-fixed.md)
     REQUIRE_EQ(
         "\n" + result,
         R"(
