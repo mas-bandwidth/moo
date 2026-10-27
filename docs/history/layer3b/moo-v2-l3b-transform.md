@@ -1,7 +1,5 @@
 # moo-v2-l3b-transform
 
-> History note: this card is a record of how transform was built. The wrappers it names (`moo_transform_mul`, `moo_transform_point`, `moo_transform_invpoint`) and their `moo_numadd`/`moo_numsub` add are gone: the library now calls `fixMulTransforms`, `fixInvertTransform`, `fixTransformPoint`, `fixInvTransformPoint`, `fixVecAdd` and `fixVecSub` directly, and `fixVecAdd` under `FIX_SATURATE` gives the same bits. The current statement is `docs/DESIGN.md` "vec3, quat and transform".
-
 The transform object, operators and library of layer 3b (`docs/DESIGN.md` "vec3, quat and transform (layer 3b)",
 "Operations"). Roadmap row "transform object and operations" (cards `moo-v2-l3b-transform-object` and
 `moo-v2-l3b-transform`, done together in one PR, as quat's were). Stacked on the quat PR (#34).

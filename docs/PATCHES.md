@@ -112,7 +112,7 @@ edits them, except where a row above records the seam.
 
 | file | why |
 |---|---|
-| `CMakeLists.txt` | native codegen and the JIT inliner are off, FMA contraction is off, the vendored fixed library is built saturating, Moo.Test globs each layer's own test files, and the Windows test binaries get a 2 MB stack in every optimized configuration (DESIGN.md "Native codegen", "Upstream merges", "Overflow"). |
+| `CMakeLists.txt` | native codegen and the JIT inliner are off, FMA contraction is off, the vendored fixed library is built saturating, Moo.Test globs the per-subject test files in tests/moo, and the Windows test binaries get a 2 MB stack in every optimized configuration (DESIGN.md "Native codegen", "Upstream merges", "Overflow", "Tests"). |
 | `Makefile` | the same codegen/inliner exclusion, `-ffp-contract=off`, the fixed library include and the vector source leaving the build (DESIGN.md "Native codegen", "vec3, quat and transform"). |
 | `Sources.cmake` | the vector library, codegen and the JIT inliner leave the source lists, and the fixed sources are added (DESIGN.md "Native codegen", "vec3, quat and transform"); the vec3 library source is added (DESIGN.md "Layer 3b as built"); and the quat library source (DESIGN.md "Layer 3b as built"), and the transform library source (DESIGN.md "Layer 3b as built"); `tests/MooAnalyzer.test.cpp` joins the unit tests (DESIGN.md "Layer 3b as built"). |
 
