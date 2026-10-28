@@ -1,5 +1,42 @@
 # moo changelog
 
+## Unreleased
+
+Expression-temporary reuse for vec3, quat and transform: the last open row of the roadmap. An
+arithmetic op whose operand is a temporary another arithmetic op of the same expression produced
+writes its result into that object instead of allocating one, so `acc + a*s - b + b*2` makes two
+objects where it made five. Results are bit-identical; only allocation changes. Compiled bytecode
+changes: moo bytecode version 2, and every compile pin is re-pinned. Version 1 bytecode still loads.
+
+### Added
+
+- Eight opcodes after upstream's last, `ADDTB`/`ADDTC`, `SUBTB`/`SUBTC`, `MULTB`/`MULTC`, `MULKTB`
+  and `MINUST`: the compiler emits them at `-O1` and `-O2` for `+`, `-`, `*` and unary `-` (and
+  `+=`, `-=`, `*=`) when the left (B) or right (C) operand is an expression temporary
+  (`Compiler/src/MooTempReuse.h`); `-O0` emits none. Numbers take the same fast path as before.
+- The VM writes a vec3, quat or transform result into the temporary's object when it is of the
+  result's type and was created after the fence (`global_State::mootempfence`), which moves to the
+  creation counter after every metamethod call, interrupt, debug hook, destructor run, allocation
+  callback and resume, so nothing the program or the host could have seen is ever written
+  (`VM/src/moo_tempreuse.h`). `sizeof(global_State)` is unchanged. A cold review found the
+  allocation callback missing from that list, with a host that keeps a temporary from inside it;
+  it is in the list and in the tests.
+- `tla/TempReuse.tla` models the fence, with three plants that each break `NoVisibleMutation`;
+  `tests/moo/tempreuse.test.cpp` and `tests/conformance/moo/spec/tempreuse.luau` pin the counts,
+  every opcode, every fence site, every must-not-reuse form and 1024 seeded programs bit-identical
+  at `-O0`, `-O1` and `-O2` (51608 objects at `-O0`, 27882 at `-O1`).
+- `bench/moo/tempreuse.py`: on the studio (M3 Ultra, an indication), `expr` 0.110 s to 0.066 s,
+  particles 0.130 s to 0.093 s, quat and transform chains 0.302 s to 0.249 s, the number control
+  unchanged.
+
+### Changed
+
+- moo bytecode version 2 (`LBC_MOO_VERSION_TARGET`); an unknown version is
+  `moo bytecode version mismatch (expected [1..2], got N)`.
+- `tests/determinism/bytecode.txt` and `bytecode-checked.txt` are re-pinned: every compile's first
+  byte is the new version, and chained arithmetic compiles to the marked opcodes. The determinism
+  suite's hashes (`tests/determinism/expected.txt`) hold.
+
 ## v1.2.1 — 2026-10-28
 
 Cut from 7c0ff3e83d8e7f4a71f4b06c9530862197271d41. 3 pull requests since v1.2.0.

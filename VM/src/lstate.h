@@ -274,6 +274,9 @@ typedef struct global_State
 
     GCStats gcstats;
     uint32_t lastprotoid;
+    // moo: objects created before this are never overwritten in place (moo_tempreuse.h); in the tail padding after
+    // lastprotoid, so sizeof(global_State), and with it the initial totalbytes, is unchanged
+    uint64_t mootempfence;
 
 #ifdef LUAI_GCMETRICS
     GCMetrics gcmetrics;

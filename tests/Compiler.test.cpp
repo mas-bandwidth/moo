@@ -3033,7 +3033,8 @@ RETURN R3 1
     );
 
     // sometimes we need to compute a boolean; this uses LOADB with an offset
-    // moo: the constant prints as the shortest decimal that reads back to its raw Q48.16 value (moo_format.h)
+    // moo: the constant prints as the shortest decimal that reads back to its raw Q48.16 value (moo_format.h); the sum
+    // whose right operand is the temporary product is ADDTC (DESIGN.md "Expression-temporary reuse")
     CHECK_EQ(
         "\n" + compileFunction(
                    R"(
@@ -3050,7 +3051,7 @@ SUBRK R3 K0 [0.5] R4
 JUMPIFNOTLT R3 R0 L1
 LOADK R4 K0 [0.5]
 MULK R5 R1 K1 [0.4]
-ADD R3 R4 R5
+ADDTC R3 R4 R5
 JUMPIFLT R0 R3 L0
 LOADB R2 0 +1
 L0: LOADB R2 1
@@ -3059,7 +3060,8 @@ L1: RETURN R2 1
     );
 
     // sometimes we need to compute a boolean; this uses LOADB with an offset for the last op, note that first op is compiled better
-    // moo: the constant prints as the shortest decimal that reads back to its raw Q48.16 value (moo_format.h)
+    // moo: the constant prints as the shortest decimal that reads back to its raw Q48.16 value (moo_format.h); the sum
+    // whose right operand is the temporary product is ADDTC (DESIGN.md "Expression-temporary reuse")
     CHECK_EQ(
         "\n" + compileFunction(
                    R"(
@@ -3076,7 +3078,7 @@ SUBRK R3 K0 [0.5] R4
 JUMPIFLT R0 R3 L1
 LOADK R4 K0 [0.5]
 MULK R5 R1 K1 [0.4]
-ADD R3 R4 R5
+ADDTC R3 R4 R5
 JUMPIFLT R3 R0 L0
 LOADB R2 0 +1
 L0: LOADB R2 1
@@ -3187,22 +3189,23 @@ end
 )",
                    0
                ),
-        // moo: math.noise compiles to the shared fixed FASTCALL (DESIGN.md "math library")
+        // moo: math.noise compiles to the shared fixed FASTCALL (DESIGN.md "math library"); a sum or difference whose
+        // operand is an arithmetic temporary is marked ADDTB/ADDTC/SUBTC (DESIGN.md "Expression-temporary reuse")
         R"(
 ORK R6 R3 K0 [0]
 ORK R7 R4 K1 [1]
 JUMPIF R5 L1
 DIV R13 R0 R7
 MULK R14 R6 K3 [17]
-ADD R12 R13 R14
+ADDTC R12 R13 R14
 GETIMPORT R13 5 [masterSeed]
-ADD R11 R12 R13
+ADDTB R11 R12 R13
 DIV R13 R1 R7
 GETIMPORT R14 5 [masterSeed]
 SUB R12 R13 R14
 DIV R14 R2 R7
 MUL R15 R6 R6
-SUB R13 R14 R15
+SUBTC R13 R14 R15
 FASTCALL 133 L0
 GETIMPORT R10 8 [math.noise]
 CALL R10 3 1
@@ -3211,15 +3214,15 @@ ADDK R8 R9 K2 [0.5]
 RETURN R8 1
 L1: DIV R11 R0 R7
 MULK R12 R6 K3 [17]
-ADD R10 R11 R12
+ADDTC R10 R11 R12
 GETIMPORT R11 5 [masterSeed]
-ADD R9 R10 R11
+ADDTB R9 R10 R11
 DIV R11 R1 R7
 GETIMPORT R12 5 [masterSeed]
 SUB R10 R11 R12
 DIV R12 R2 R7
 MUL R13 R6 R6
-SUB R11 R12 R13
+SUBTC R11 R12 R13
 FASTCALL 133 L2
 GETIMPORT R8 8 [math.noise]
 CALL R8 3 -1

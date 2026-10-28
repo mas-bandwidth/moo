@@ -2076,6 +2076,31 @@ void BytecodeBuilder::validateInstructions() const
         }
         break;
 
+        // moo: expression-temporary reuse (Bytecode.h, docs/DESIGN.md "Expression-temporary reuse"): the temporary is
+        // a register of its own, never the other operand
+        case LOP_ADDTB:
+        case LOP_ADDTC:
+        case LOP_SUBTB:
+        case LOP_SUBTC:
+        case LOP_MULTB:
+        case LOP_MULTC:
+            VREG(LUAU_INSN_A(insn));
+            VREG(LUAU_INSN_B(insn));
+            VREG(LUAU_INSN_C(insn));
+            LUAU_ASSERT(LUAU_INSN_B(insn) != LUAU_INSN_C(insn));
+            break;
+
+        case LOP_MULKTB:
+            VREG(LUAU_INSN_A(insn));
+            VREG(LUAU_INSN_B(insn));
+            VCONST(LUAU_INSN_C(insn), Number);
+            break;
+
+        case LOP_MINUST:
+            VREG(LUAU_INSN_A(insn));
+            VREG(LUAU_INSN_B(insn));
+            break;
+
         default:
             LUAU_ASSERT(!"Unsupported opcode");
         }
@@ -3094,6 +3119,41 @@ void BytecodeBuilder::dumpInstruction(const uint32_t* code, std::string& result,
         dumpConstant(result, *code, false);
         result.append("]\n");
         code++;
+        break;
+
+    // moo: expression-temporary reuse (Bytecode.h, docs/DESIGN.md "Expression-temporary reuse")
+    case LOP_ADDTB:
+        formatAppend(result, "ADDTB R%d R%d R%d\n", LUAU_INSN_A(insn), LUAU_INSN_B(insn), LUAU_INSN_C(insn));
+        break;
+
+    case LOP_ADDTC:
+        formatAppend(result, "ADDTC R%d R%d R%d\n", LUAU_INSN_A(insn), LUAU_INSN_B(insn), LUAU_INSN_C(insn));
+        break;
+
+    case LOP_SUBTB:
+        formatAppend(result, "SUBTB R%d R%d R%d\n", LUAU_INSN_A(insn), LUAU_INSN_B(insn), LUAU_INSN_C(insn));
+        break;
+
+    case LOP_SUBTC:
+        formatAppend(result, "SUBTC R%d R%d R%d\n", LUAU_INSN_A(insn), LUAU_INSN_B(insn), LUAU_INSN_C(insn));
+        break;
+
+    case LOP_MULTB:
+        formatAppend(result, "MULTB R%d R%d R%d\n", LUAU_INSN_A(insn), LUAU_INSN_B(insn), LUAU_INSN_C(insn));
+        break;
+
+    case LOP_MULTC:
+        formatAppend(result, "MULTC R%d R%d R%d\n", LUAU_INSN_A(insn), LUAU_INSN_B(insn), LUAU_INSN_C(insn));
+        break;
+
+    case LOP_MULKTB:
+        formatAppend(result, "MULKTB R%d R%d K%d [", LUAU_INSN_A(insn), LUAU_INSN_B(insn), LUAU_INSN_C(insn));
+        dumpConstant(result, LUAU_INSN_C(insn), false);
+        result.append("]\n");
+        break;
+
+    case LOP_MINUST:
+        formatAppend(result, "MINUST R%d R%d\n", LUAU_INSN_A(insn), LUAU_INSN_B(insn));
         break;
 
     default:

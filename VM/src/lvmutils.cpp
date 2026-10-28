@@ -13,6 +13,7 @@
 #include "moo_vec3.h"      // moo: vec3, quat and transform operators
 #include "moo_quat.h"      // moo: quat
 #include "moo_transform.h" // moo: transform
+#include "moo_tempreuse.h" // moo: expression-temporary reuse
 
 #include <string.h>
 
@@ -134,6 +135,8 @@ static StkId callTMres(lua_State* L, StkId res, const TValue* f, const TValue* p
         L->top += 3;
         luaD_call(L, L->top - 3, 1);
     }
+
+    moo_tempfence(L); // moo: whatever the metamethod returns or kept is never overwritten in place (moo_tempreuse.h)
 
     res = restorestack(L, result);
     L->top--;
@@ -839,6 +842,148 @@ template void luaV_doarithimpl<TM_MOD>(lua_State* L, StkId ra, const TValue* rb,
 template void luaV_doarithimpl<TM_POW>(lua_State* L, StkId ra, const TValue* rb, const TValue* rc);
 template void luaV_doarithimpl<TM_UNM>(lua_State* L, StkId ra, const TValue* rb, const TValue* rc);
 
+// moo: expression-temporary reuse (moo_tempreuse.h; docs/DESIGN.md "Expression-temporary reuse"; tla/TempReuse.tla).
+// rt is the operand register the compiler marked. The operation is luaV_doarithimpl's, case for case, with the same
+// fixed function and the same checked-build error; only where the result goes differs: into the object in rt when
+// it is of the result's type and at or above the fence, which allocates nothing (so no GC check). Every other case,
+// including every metamethod and every error, is luaV_doarithimpl itself.
+namespace
+{
+
+// the object in rt when the result, of type tt, may be written into it: the type matches, it was created at or after
+// the fence, and in the memory category a new object would get (a host may switch categories between two ops)
+GCObject* mooTempObject(lua_State* L, const TValue* rt, int tt)
+{
+    if (ttype(rt) != tt)
+        return NULL;
+
+    GCObject* o = gcvalue(rt);
+    return o->gch.gcseq >= L->global->mootempfence && o->gch.memcat == L->activememcat ? o : NULL;
+}
+
+void mooVec3Write(lua_State* L, StkId ra, const TValue* rt, GCObject* o, fixVec3 v)
+{
+    o->v3.x = v.x;
+    o->v3.y = v.y;
+    o->v3.z = v.z;
+    setobj2s(L, ra, rt);
+}
+
+} // namespace
+
+template<TMS op>
+void luaV_doarithtemp(lua_State* L, StkId ra, const TValue* rb, const TValue* rc, const TValue* rt)
+{
+    if (op == TM_MUL && ttistransform(rb) && (ttistransform(rc) || ttisvec3(rc)))
+    {
+        fixTransform a = moo_transform_payload(transformvalue(rb));
+        if (ttistransform(rc))
+        {
+            if (GCObject* o = mooTempObject(L, rt, LUA_TTRANSFORM))
+            {
+                fixTransform r = fixMulTransforms(a, moo_transform_payload(transformvalue(rc)));
+                o->tf.p = r.p;
+                o->tf.q = r.q;
+                setobj2s(L, ra, rt);
+                return;
+            }
+        }
+        else if (GCObject* o = mooTempObject(L, rt, LUA_TVEC3))
+        {
+            mooVec3Write(L, ra, rt, o, fixTransformPoint(a, moo_vec3_payload(vec3value(rc))));
+            return;
+        }
+    }
+    else if (op == TM_MUL && ttisquat(rb) && (ttisquat(rc) || ttisvec3(rc)))
+    {
+        fixQuat q = moo_quat_payload(quatvalue(rb));
+        if (ttisquat(rc))
+        {
+            if (GCObject* o = mooTempObject(L, rt, LUA_TQUAT))
+            {
+                fixQuat r = fixMulQuat(q, moo_quat_payload(quatvalue(rc)));
+                o->q.v = r.v;
+                o->q.s = r.s;
+                setobj2s(L, ra, rt);
+                return;
+            }
+        }
+        else if (GCObject* o = mooTempObject(L, rt, LUA_TVEC3))
+        {
+            mooVec3Write(L, ra, rt, o, fixRotateVector(q, moo_vec3_payload(vec3value(rc))));
+            return;
+        }
+    }
+    else if (ttisvec3(rb) || ttisvec3(rc))
+    {
+        if (GCObject* o = mooTempObject(L, rt, LUA_TVEC3))
+        {
+            fixVec3 a = ttisvec3(rb) ? moo_vec3_payload(vec3value(rb)) : FIX_LITERAL(fixVec3){0, 0, 0};
+            fixVec3 d = ttisvec3(rc) ? moo_vec3_payload(vec3value(rc)) : FIX_LITERAL(fixVec3){0, 0, 0};
+
+            if (ttisvec3(rb) && ttisvec3(rc))
+            {
+                switch (op)
+                {
+                case TM_ADD:
+#if MOO_OVERFLOW_ERRORS
+                    if (mooVec3AddSaturates(a, d))
+                        luaG_runerror(L, "number overflow in '+'");
+#endif
+                    mooVec3Write(L, ra, rt, o, fixVecAdd(a, d));
+                    return;
+                case TM_SUB:
+#if MOO_OVERFLOW_ERRORS
+                    if (mooVec3SubSaturates(a, d))
+                        luaG_runerror(L, "number overflow in '-'");
+#endif
+                    mooVec3Write(L, ra, rt, o, fixVecSub(a, d));
+                    return;
+                case TM_MUL:
+#if MOO_OVERFLOW_ERRORS
+                    if (mooVec3MulSaturates(a, d))
+                        luaG_runerror(L, "number overflow in '*'");
+#endif
+                    mooVec3Write(L, ra, rt, o, fixVecMul(a, d));
+                    return;
+                case TM_UNM:
+                    mooVec3Write(L, ra, rt, o, fixVecNeg(a));
+                    return;
+                default:
+                    break;
+                }
+            }
+            else if (op == TM_MUL && ttisvec3(rb) && ttisnumber(rc))
+            {
+                fixed_t s = nvalue(rc);
+#if MOO_OVERFLOW_ERRORS
+                if (mooVec3MulScalarSaturates(s, a))
+                    luaG_runerror(L, "number overflow in '*'");
+#endif
+                mooVec3Write(L, ra, rt, o, fixMulSV(s, a));
+                return;
+            }
+            else if (op == TM_MUL && ttisnumber(rb) && ttisvec3(rc))
+            {
+                fixed_t s = nvalue(rb);
+#if MOO_OVERFLOW_ERRORS
+                if (mooVec3MulScalarSaturates(s, d))
+                    luaG_runerror(L, "number overflow in '*'");
+#endif
+                mooVec3Write(L, ra, rt, o, fixMulSV(s, d));
+                return;
+            }
+        }
+    }
+
+    luaV_doarithimpl<op>(L, ra, rb, rc);
+}
+
+template void luaV_doarithtemp<TM_ADD>(lua_State* L, StkId ra, const TValue* rb, const TValue* rc, const TValue* rt);
+template void luaV_doarithtemp<TM_SUB>(lua_State* L, StkId ra, const TValue* rb, const TValue* rc, const TValue* rt);
+template void luaV_doarithtemp<TM_MUL>(lua_State* L, StkId ra, const TValue* rb, const TValue* rc, const TValue* rt);
+template void luaV_doarithtemp<TM_UNM>(lua_State* L, StkId ra, const TValue* rb, const TValue* rc, const TValue* rt);
+
 void luaV_dolen(lua_State* L, StkId ra, const TValue* rb)
 {
     const TValue* tm = NULL;
@@ -941,6 +1086,8 @@ LUAU_NOINLINE void luaV_callTM(lua_State* L, int nparams, int res)
     L->top = cip->top;
 
     --L->nCcalls;
+
+    moo_tempfence(L); // moo: whatever the metamethod returns or kept is never overwritten in place (moo_tempreuse.h)
 }
 
 LUAU_NOINLINE void luaV_tryfuncTM(lua_State* L, StkId func)

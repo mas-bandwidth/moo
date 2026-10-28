@@ -25,20 +25,20 @@ edits them, except where a row above records the seam.
 | `VM/src/lbuiltins.cpp` | fastcalls compute on fixed, use the library's shared trig/exp/log definitions, and the SSE4.1 floor/ceil/round choice is gone; the vector fastcalls are replaced with `luauF_missing` (DESIGN.md "Layer 3 as built", "math library", "vec3, quat and transform"). |
 | `VM/src/lclass.cpp` | class member offsets are read and written as raw Q48.16 values through the moo integer conversions (DESIGN.md "Layer 3 as built", "Exact integers"). |
 | `VM/src/lcommon.h` | integer-to-number conversion is one saturating Q48.16 helper (DESIGN.md "Layer 3 as built", "Exact integers"). |
-| `VM/src/ldo.cpp` | the finalizer count is pushed as a number through the moo cast, not a double (DESIGN.md "Layer 3 as built", "Exact integers"). |
-| `VM/src/lgc.cpp` | GC pacing reads no clock and dead userdata destructors run from a queue in creation order at the end of the step (DETERMINISM.md, 4 and 13); a quat is a leaf like a vec3 (DESIGN.md "Layer 3b as built"), and so is a transform (DESIGN.md "Layer 3b as built"). |
+| `VM/src/ldo.cpp` | the finalizer count is pushed as a number through the moo cast, not a double (DESIGN.md "Layer 3 as built", "Exact integers"); `lua_resume` and `lua_resumeerror` move the expression-temporary fence (DESIGN.md "Expression-temporary reuse"). |
+| `VM/src/lgc.cpp` | GC pacing reads no clock and dead userdata destructors run from a queue in creation order at the end of the step (DETERMINISM.md, 4 and 13); a quat is a leaf like a vec3 (DESIGN.md "Layer 3b as built"), and so is a transform (DESIGN.md "Layer 3b as built"); the GC interrupt and the destructor queue move the expression-temporary fence (DESIGN.md "Expression-temporary reuse"). |
 | `VM/src/lgc.h` | the object header carries a creation number, so object keys hash by it and `tostring` can print it (DETERMINISM.md, 1 and 6). |
 | `VM/src/lgcdebug.cpp` | the heap dump prints numbers with moo's exact formatter instead of the libc double printer (DETERMINISM.md, 8); vec3 and quat are leaves in the validate, dump and enumerate walks (DESIGN.md "Layer 3b as built"), and transform (DESIGN.md "Layer 3b as built"). |
 | `VM/src/linit.cpp` | `luaL_openlibs` always uses the table without the integer library, opens no vector library, and the vector sandbox freeze is removed (DESIGN.md "integer", "vec3, quat and transform"); `luaL_openlibs` opens the fixed `vec3` library (DESIGN.md "Layer 3b as built"); and the fixed `quat` library (DESIGN.md "Layer 3b as built"); and the fixed `transform` library (DESIGN.md "Layer 3b as built"). |
 | `VM/src/lintlib.cpp` | the integer library converts through the exact-integer and saturating Q48.16 rules (DESIGN.md "Exact integers", "Layer 3 as built"). |
 | `VM/src/lmathlib.cpp` | `math` is rebuilt on `fixed` with no libm: exact Q48.16 constants and the fixed compositions for trig, exp/log, pow and the rest (DESIGN.md "math library"). |
-| `VM/src/lmem.cpp` | the creation number grows every object header and the size asserts pin the new layout (DETERMINISM.md, 1 and 5); the quat object size is pinned (DESIGN.md "Layer 3b as built"), and the transform's (DESIGN.md "Layer 3b as built"). |
+| `VM/src/lmem.cpp` | the creation number grows every object header and the size asserts pin the new layout (DETERMINISM.md, 1 and 5); the quat object size is pinned (DESIGN.md "Layer 3b as built"), and the transform's (DESIGN.md "Layer 3b as built"); `onallocate` moves the expression-temporary fence (DESIGN.md "Expression-temporary reuse"). |
 | `VM/src/lnumutils.h` | `luai_num*` are the fixed-point seams: operators, integer checks, overflow errors, `pow` and the exact-integer rule (DESIGN.md "Layer 3 as built", "Overflow", "Exact integers", "math library"). |
 | `VM/src/lobject.cpp` | `tonumber` and string coercion use the exact parser, and `tostring` uses the exact formatter (DESIGN.md "Literals", "Number formatting"); quat allocation, value equality and tostring (DESIGN.md "Layer 3b as built"); and transform's (DESIGN.md "Layer 3b as built"). |
 | `VM/src/lobject.h` | `TValue` stores the raw Q48.16 number, and the header carries `gcseq`, the destructor-queue page and its link (DETERMINISM.md, 1, 5 and 13; DESIGN.md "Representation"); the quat accessors, and `TKey::tt` widened to 5 bits (DESIGN.md "Layer 3b as built"); the transform accessors (DESIGN.md "Layer 3b as built"). |
 | `VM/src/loslib.cpp` | deleted: the `os` library and every clock and time read are removed (DETERMINISM.md, 9). |
-| `VM/src/lstate.cpp` | the per-VM creation counter, the destructor queue and the constant default random seed are state, not clocks (DETERMINISM.md, 1, 10 and 13). |
-| `VM/src/lstate.h` | the global state carries `gcseq`, the allocation-count pacing fields and the destructor queue (DETERMINISM.md, 1, 4 and 13); `MooQuat` in `union GCObject` (DESIGN.md "Layer 3b as built"), and `MooTransform` (DESIGN.md "Layer 3b as built"). |
+| `VM/src/lstate.cpp` | the per-VM creation counter, the destructor queue and the constant default random seed are state, not clocks (DETERMINISM.md, 1, 10 and 13); the expression-temporary fence starts at 1 (DESIGN.md "Expression-temporary reuse"). |
+| `VM/src/lstate.h` | the global state carries `gcseq`, the allocation-count pacing fields and the destructor queue (DETERMINISM.md, 1, 4 and 13); `MooQuat` in `union GCObject` (DESIGN.md "Layer 3b as built"), and `MooTransform` (DESIGN.md "Layer 3b as built"); the expression-temporary fence `mootempfence`, in the tail padding so the size is unchanged (DESIGN.md "Expression-temporary reuse"). |
 | `VM/src/lstrlib.cpp` | integer-only formats require an integer-valued number, and `string.pack`/`unpack` `f`/`d` use the boundary rule (DESIGN.md "Exact integers", "Boundary"). |
 | `VM/src/ltable.cpp` | a collectable key hashes by its creation number and a number by its raw value, never by address or IEEE bits (DETERMINISM.md, 1 and 2); and a quat by its four components (DESIGN.md "Layer 3b as built"), and a transform by its seven (DESIGN.md "Layer 3b as built"). |
 | `VM/src/ltm.cpp` | `luaT_typenames` names the new `LUA_TVEC3` tag `"vec3"`; interning it at startup shifts every creation number by one (DESIGN.md "vec3, quat and transform", DESIGN.md "Layer 3b as built"); and `quat` (DESIGN.md "Layer 3b as built"), and `transform` (DESIGN.md "Layer 3b as built"). |
@@ -46,9 +46,10 @@ edits them, except where a row above records the seam.
 | `VM/src/ludata.cpp` | a dead userdata with a destructor is queued for the end of the GC step instead of running during the sweep (DETERMINISM.md, 13). |
 | `VM/src/ludata.h` | userdata holds the destructor-queue page pointer used by the ordered destructor queue (DETERMINISM.md, 13). |
 | `VM/src/lveclib.cpp` | the float vector library is out of the build and stays in the tree unbuilt, so upstream merges stay mechanical (DESIGN.md "Layer 3 as built", "The float `vector` is out"). |
-| `VM/src/lvmexecute.cpp` | the arithmetic opcodes go through the fixed seams, a checked build raises the named overflow error, and `^` uses the fixed power path and leaves the fast path on `math.pow`'s errors (DESIGN.md "Layer 3 as built", "Overflow", "math library", "pow and ^"); vec3 `==` compares by value in the equality jumps (DESIGN.md "Layer 3b as built"); and quat `==` (DESIGN.md "Layer 3b as built"), and transform `==` (DESIGN.md "Layer 3b as built"). |
+| `VM/src/lvmexecute.cpp` | the arithmetic opcodes go through the fixed seams, a checked build raises the named overflow error, and `^` uses the fixed power path and leaves the fast path on `math.pow`'s errors (DESIGN.md "Layer 3 as built", "Overflow", "math library", "pow and ^"); vec3 `==` compares by value in the equality jumps (DESIGN.md "Layer 3b as built"); and quat `==` (DESIGN.md "Layer 3b as built"), and transform `==` (DESIGN.md "Layer 3b as built"); the expression-temporary opcodes, and the interrupt and debug hooks move the fence (DESIGN.md "Expression-temporary reuse"). |
+| `VM/src/lvm.h` | declares `luaV_doarithtemp`, the slow path of the expression-temporary opcodes (DESIGN.md "Expression-temporary reuse"). |
 | `VM/src/lvmload.cpp` | the loader accepts only the moo bytecode version, reads number constants as raw Q48.16, and refuses a vector constant and `INT64_MIN` by name (DESIGN.md "Literals", "Layer 3 as built", "vec3, quat and transform"). |
-| `VM/src/lvmutils.cpp` | division by zero is the named error, a checked overflow stops with the named error, and the numeric `for` trip count is exact with a zero step refused (DESIGN.md "Division by zero", "Overflow", "Exact integers"); vec3 arithmetic, equality and component reads (DESIGN.md "Layer 3b as built"); quat `*` (fixMulQuat, fixRotateVector), equality and component reads (DESIGN.md "Layer 3b as built"); transform `*` (compose, point), equality and `t.p`/`t.q` (DESIGN.md "Layer 3b as built"). |
+| `VM/src/lvmutils.cpp` | division by zero is the named error, a checked overflow stops with the named error, and the numeric `for` trip count is exact with a zero step refused (DESIGN.md "Division by zero", "Overflow", "Exact integers"); vec3 arithmetic, equality and component reads (DESIGN.md "Layer 3b as built"); quat `*` (fixMulQuat, fixRotateVector), equality and component reads (DESIGN.md "Layer 3b as built"); transform `*` (compose, point), equality and `t.p`/`t.q` (DESIGN.md "Layer 3b as built"); `luaV_doarithtemp` writes a vec3, quat or transform result into an expression temporary, and a metamethod call moves the fence (DESIGN.md "Expression-temporary reuse"). |
 
 ### Compiler
 
@@ -56,7 +57,7 @@ edits them, except where a row above records the seam.
 |---|---|
 | `Compiler/src/BuiltinFolding.cpp` | no builtin folds until the math library is rebuilt on fixed; `math.pi` and `math.huge` come from the VM at run time, and vector folding is removed (DESIGN.md "math library", "vec3, quat and transform"). |
 | `Compiler/src/Builtins.cpp` | `math.noise` compiles to the fixed shared-path fastcall and all `vector` builtins map to none (DESIGN.md "math library", "vec3, quat and transform"). |
-| `Compiler/src/Compiler.cpp` | number constants come from the AST's raw Q48.16 value, an unrolled loop's index is computed with `moo_number.h`, the export table is emitted in source order, not address order (DETERMINISM.md, 25), and no expression emits a vector constant (DESIGN.md "Literals", "Layer 3 as built", "vec3, quat and transform"). |
+| `Compiler/src/Compiler.cpp` | number constants come from the AST's raw Q48.16 value, an unrolled loop's index is computed with `moo_number.h`, the export table is emitted in source order, not address order (DETERMINISM.md, 25), and no expression emits a vector constant (DESIGN.md "Literals", "Layer 3 as built", "vec3, quat and transform"); an arithmetic op whose operand is an expression temporary is emitted as its temporary variant, through `MooTempReuse.h` (DESIGN.md "Expression-temporary reuse"). |
 | `Compiler/src/ConstantFolding.cpp` | folding uses `moo_number.h`, refuses to fold a saturating result in a checked build, and folds integer `^` through `moo_pow_int` (DESIGN.md "Overflow", "math library", "Literals"); an arithmetic or ordering operator on a non-number constant is left to the VM (DESIGN.md "Layer 3 as built"). |
 | `Compiler/src/ConstantFolding.h` | a folded number constant is `fixed_t` and there is no vector constant type (DESIGN.md "Layer 3 as built", "The compiler", "vec3, quat and transform"). |
 | `Compiler/src/CostModel.cpp` | the loop trip count reads the raw Q48.16 bounds with `moo_number.h`, with no double, and admits the same integer bounds as upstream (DESIGN.md "Literals", "Layer 3 as built"); two type tests bind no unused variable, so clang-cl builds it without `-Wunused-but-set-variable`. |
@@ -87,13 +88,15 @@ edits them, except where a row above records the seam.
 
 | file | why |
 |---|---|
-| `Common/include/Luau/Bytecode.h` | the moo bytecode version numbers and the raw-number constant encoding are declared here (DESIGN.md "Literals"). |
+| `Common/include/Luau/Bytecode.h` | the moo bytecode version numbers and the raw-number constant encoding are declared here (DESIGN.md "Literals"); the expression-temporary opcodes `LOP_ADDTB` .. `LOP_MINUST` follow upstream's last opcode, and moo bytecode version 2 adds them (DESIGN.md "Expression-temporary reuse"). |
 | `Common/include/Luau/Common.h` | `LUAU_MAYBE_UNUSED` is `__attribute__((unused))` under clang-cl as well, which defines `_MSC_VER`, so the nightly's clang-cl job builds with `-Werror` (DESIGN.md "Tests"). |
 | `Bytecode/include/Luau/BytecodeBuilder.h` | the builder takes a number constant as its raw Q48.16 value and converts a double once by the boundary rule (DESIGN.md "Literals", "Boundary"). |
 | `Bytecode/include/Luau/BytecodeGraph.h` | a graph number constant is raw Q48.16, with the same one-place double conversion (DESIGN.md "Literals", "Boundary"). |
 | `Bytecode/include/Luau/Sccp.h` | SCCP's constant is the raw Q48.16 value and its folds use `moo_number.h` exactly as the compiler does, refusing a saturating result in a checked build (DESIGN.md "Literals", "Semantics", "Overflow"). |
-| `Bytecode/src/BytecodeBuilder.cpp` | a constant is written as the raw 8-byte little-endian integer, prints through the exact formatter, and no vector constant is written (DESIGN.md "Literals", "Number formatting", "vec3, quat and transform"). |
-| `Bytecode/src/BytecodeDump.cpp` | the dump prints a number constant with moo's shortest-round-trip formatter (DESIGN.md "Number formatting"). |
+| `Bytecode/src/BytecodeBuilder.cpp` | a constant is written as the raw 8-byte little-endian integer, prints through the exact formatter, and no vector constant is written (DESIGN.md "Literals", "Number formatting", "vec3, quat and transform"); the expression-temporary opcodes are validated and dumped (DESIGN.md "Expression-temporary reuse"). |
+| `Bytecode/src/BytecodeDump.cpp` | the dump prints a number constant with moo's shortest-round-trip formatter (DESIGN.md "Number formatting"); the graph dump names the expression-temporary opcodes (DESIGN.md "Expression-temporary reuse"). |
+| `Bytecode/src/BytecodeGraphParser.h` | the graph reads the expression-temporary opcodes with their base ops' operands and keeps the mark (DESIGN.md "Expression-temporary reuse"). |
+| `Bytecode/src/BytecodeGraphSerializer.h` | the graph writes the expression-temporary opcodes back as they were read (DESIGN.md "Expression-temporary reuse"). |
 | `Bytecode/src/BytecodeGraph.cpp` | serialization writes and reads the raw 8-byte value and refuses `INT64_MIN` (DESIGN.md "Literals", "Representation"). |
 | `Bytecode/src/Sccp.cpp` | SCCP folds with the fixed operations and scales a `LOADN` integer immediate to its raw Q48.16 value (DESIGN.md "Literals", "Semantics", "Exact integers"). |
 
@@ -117,7 +120,7 @@ edits them, except where a row above records the seam.
 |---|---|
 | `CMakeLists.txt` | native codegen and the JIT inliner are off, FMA contraction is off (clang-cl takes `-ffp-contract=off` through `/clang:`), the vendored fixed library is built saturating, Moo.Test globs the per-subject test files in tests/moo, the Windows test binaries get a 2 MB stack in every optimized configuration, and policy CMP0156 and trimmed test link lists put each static library on an Apple or Windows link line once (DESIGN.md "Native codegen", "Upstream merges", "Overflow", "Tests"); gcc builds `Ast/src/Confusables.cpp` with `-Wno-bidi-chars`, since its bidi characters are confusable data, and `Analysis/src/BuiltinTypeFunctions.cpp` with `-Wno-free-nonheap-object`, a gcc 13 false positive, so `-DLUAU_WERROR=ON` builds with gcc (DESIGN.md "Tests"). |
 | `Makefile` | the same codegen/inliner exclusion, `-ffp-contract=off`, the fixed library include and the vector source leaving the build (DESIGN.md "Native codegen", "vec3, quat and transform"). |
-| `Sources.cmake` | the vector library, codegen and the JIT inliner leave the source lists, and the fixed sources are added (DESIGN.md "Native codegen", "vec3, quat and transform"); the vec3 library source is added (DESIGN.md "Layer 3b as built"); and the quat library source (DESIGN.md "Layer 3b as built"), and the transform library source (DESIGN.md "Layer 3b as built"); `tests/MooAnalyzer.test.cpp` joins the unit tests (DESIGN.md "Layer 3b as built"). |
+| `Sources.cmake` | the vector library, codegen and the JIT inliner leave the source lists, and the fixed sources are added (DESIGN.md "Native codegen", "vec3, quat and transform"); the vec3 library source is added (DESIGN.md "Layer 3b as built"); and the quat library source (DESIGN.md "Layer 3b as built"), and the transform library source (DESIGN.md "Layer 3b as built"); `tests/MooAnalyzer.test.cpp` joins the unit tests (DESIGN.md "Layer 3b as built"); `Compiler/src/MooTempReuse.cpp` joins the compiler (DESIGN.md "Expression-temporary reuse"). |
 
 ### fuzz
 
@@ -133,7 +136,7 @@ edits them, except where a row above records the seam.
 |---|---|
 | `tests/BytecodeCallInliner.test.cpp` | the test skips the 3-byte moo header, and `10 / 0` stays an unfolded `DIV` where upstream folded it to infinity (DESIGN.md "Literals", "Division by zero"). |
 | `tests/BytecodeCompiler.test.cpp` | the test skips the 3-byte moo header and reads raw number constants (DESIGN.md "Literals"). |
-| `tests/Compiler.test.cpp` | constant expectations are Q48.16 values and the vector-folding case is skipped (DESIGN.md "Literals", "vec3, quat and transform"). |
+| `tests/Compiler.test.cpp` | constant expectations are Q48.16 values and the vector-folding case is skipped (DESIGN.md "Literals", "vec3, quat and transform"); three expectations print the expression-temporary opcodes (DESIGN.md "Expression-temporary reuse"). |
 | `tests/Conformance.test.cpp` | the vector C API and vector-freeze tests are removed and host floats enter through `MooHost.h` (DESIGN.md "Boundary", "vec3, quat and transform"); every script sees the test-only global `moocheckedbuild`, true when `MOO_OVERFLOW_ERRORS` is on (DESIGN.md "Overflow"). |
 | `tests/DirectFieldAccess.test.cpp` | the host pushes numbers through `MooHost.h`'s boundary helper (DESIGN.md "Boundary"). |
 | `tests/Frontend.test.cpp` | the case that lints literals beyond 2^64 is skipped because those are a parse error in moo (DESIGN.md "Literals"); an upstream `#if 0` case says, with `moo:`, that upstream disables it (DESIGN.md "Tests"). |
@@ -183,9 +186,10 @@ own code, tests, notes or vendored `fixed` sources.
 - `.github/workflows/` (`ci.yml`, `nightly.yml`)
 - `CodeGen/src/` (`moo_codegen_off.cpp`)
 - `Common/include/` (`moo_number.h`, `moo_parse.h`, `moo_format.h`, `moo_pow.h`)
+- `Compiler/src/` (`MooTempReuse.h`, `MooTempReuse.cpp`)
 - `Inliner/src/` (`moo_jitinliner_off.cpp`)
 - `VM/include/` (`moo.h`)
-- `VM/src/` (`moo_api.cpp`, `moo_layout.cpp`, and layer 3b's `moo_vec3.h`, `moo_vec3lib.cpp`, `moo_quat.h`, `moo_quatlib.cpp`, `moo_transform.h`, `moo_transformlib.cpp`)
+- `VM/src/` (`moo_api.cpp`, `moo_layout.cpp`, and layer 3b's `moo_vec3.h`, `moo_vec3lib.cpp`, `moo_quat.h`, `moo_quatlib.cpp`, `moo_transform.h`, `moo_transformlib.cpp`, `moo_tempreuse.h`)
 - `docs/` (`DESIGN.md`, `DETERMINISM.md`, `PATCHES.md`, and `history/`, the per-card design notes of layers 3 to 5)
 - `extern/fixed/` (the vendored `fixed` library at its pinned commit)
 - `fuzz/` (`moo_arith.cpp`)
@@ -193,7 +197,8 @@ own code, tests, notes or vendored `fixed` sources.
 - `tests/conformance/moo/` (the expected-behaviour scripts, including `spec/`, one per subject)
 - `tests/determinism/` (the determinism programs and `expected.txt`; `compile/`, the compiler-determinism scripts, and `bytecode.txt` and `bytecode-checked.txt`, their pins)
 - `tests/moo/` (one test file per subject, the oracle C file and `vectors/`)
-- `tla/` (`NumericFor.tla`, `DestructorQueue.tla` and their models)
+- `tla/` (`NumericFor.tla`, `DestructorQueue.tla`, `Coroutines.tla`, `TempReuse.tla` and their models)
 - `tools/` (`moo-check-compile.py`, `moo-check-patches.sh`, `moo-check-no-clock.sh`, `moo-check-skips.sh`, `moo-ci-sccache.sh`, `moo-tlc.sh`, `moo-math-oracle/`, `revendor-fixed.sh`)
+- `bench/moo/` (the expression-temporary reuse benchmark)
 - `LICENSE-moo.txt`
 - `.gitattributes` (LF line endings for `.luau` sources and the bytecode pins)

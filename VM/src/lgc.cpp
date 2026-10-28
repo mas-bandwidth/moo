@@ -13,6 +13,7 @@
 #include "lbuffer.h"
 #include "lclass.h"
 #include "lvector.h"
+#include "moo_tempreuse.h" // moo: expression-temporary reuse
 
 #include <string.h>
 
@@ -135,7 +136,10 @@ LUAU_DYNAMIC_FASTFLAGVARIABLE(LuauGcHeapShrinkFix, false)
     { \
         void (*interrupt)(lua_State*, int) = g->cb.interrupt; \
         if (LUAU_UNLIKELY(!!interrupt)) \
+        { \
             interrupt(L, state); \
+            moo_tempfence(L); /* moo: the host may have read or written any register (moo_tempreuse.h) */ \
+        } \
     }
 
 #define maskmarks cast_byte(~(bitmask(BLACKBIT) | WHITEBITS))
@@ -929,6 +933,9 @@ static void rundtorqueue(lua_State* L)
 
     Udata* u = sortbyseq(g->dtorqueue);
     g->dtorqueue = NULL;
+
+    if (u)
+        moo_tempfence(L); // moo: a destructor gets L and may read or write any register (moo_tempreuse.h)
 
     while (u)
     {
