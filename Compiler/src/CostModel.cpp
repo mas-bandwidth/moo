@@ -114,7 +114,7 @@ struct CostVisitor : AstVisitor
 
     Cost model(AstExpr* node)
     {
-        if (const Constant* c = constants.find(node))
+        if (constants.find(node)) // moo: a type test; the constant itself is not needed
             return Cost(0, Cost::kLiteral);
 
         if (AstExprGroup* expr = node->as<AstExprGroup>())
@@ -170,7 +170,7 @@ struct CostVisitor : AstVisitor
         {
             return model(expr->expr) + model(expr->index) + 1;
         }
-        else if (AstExprFunction* expr = node->as<AstExprFunction>())
+        else if (node->is<AstExprFunction>()) // moo: a type test; the binding was never read
         {
             return 10; // high baseline cost due to allocation
         }

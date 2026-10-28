@@ -19,6 +19,7 @@
 #include "Luau/Common.h"
 #include "Luau/Compiler.h"
 #include "Luau/ExperimentalFlags.h"
+#include "Luau/ParseResult.h"
 #include "ScopedFlags.h"
 #include "moo_number.h"
 #include "doctest.h"
@@ -120,25 +121,57 @@ struct CliFlags
     CliFlags& operator=(const CliFlags&) = delete;
 };
 
-// moo-compile --binary -O<o> -g<g>: the same options (CLI/src/Compile.cpp copts) under CliFlags. A compile error is
-// nullopt.
-std::optional<std::string> compileBytes(const std::string& source, int o, int g)
+// One compile's result: the bytecode, or the error text moo-compile prints without its file name prefix, one line per
+// error: "(<line>,<column>): SyntaxError: <message>" or "(<line>,<column>): CompileError: <message>"
+// (CLI/src/Compile.cpp report).
+struct Compiled
+{
+    bool ok = false;
+    std::string data;
+
+    bool operator==(const Compiled& other) const
+    {
+        return ok == other.ok && data == other.data;
+    }
+
+    bool operator!=(const Compiled& other) const
+    {
+        return !(*this == other);
+    }
+};
+
+std::string errorLine(const Luau::Location& location, const char* type, const char* message)
+{
+    return "(" + std::to_string(location.begin.line + 1) + "," + std::to_string(location.begin.column + 1) + "): " + type + ": " +
+           message + "\n";
+}
+
+// moo-compile --binary -O<o> -g<g>: the same options (CLI/src/Compile.cpp copts) under CliFlags
+Compiled compileBytes(const std::string& source, int o, int g)
 {
     Luau::CompileOptions options = {};
     options.optimizationLevel = o;
     options.debugLevel = g;
     options.typeInfoLevel = 0;
 
+    Compiled result;
     try
     {
         Luau::BytecodeBuilder bcb;
         Luau::compileOrThrow(bcb, source, options);
-        return bcb.getBytecode();
+        result.ok = true;
+        result.data = bcb.getBytecode();
     }
-    catch (std::exception&)
+    catch (Luau::ParseErrors& e)
     {
-        return std::nullopt;
+        for (const Luau::ParseError& error : e.getErrors())
+            result.data += errorLine(error.getLocation(), "SyntaxError", error.what());
     }
+    catch (Luau::CompileError& e)
+    {
+        result.data = errorLine(e.getLocation(), "CompileError", e.what());
+    }
+    return result;
 }
 
 uint64_t fnv1a(const std::string& bytes)
@@ -149,14 +182,18 @@ uint64_t fnv1a(const std::string& bytes)
     return h;
 }
 
-// the pin of one compile: the FNV-1a 64 of the bytecode in hex, or "error" (moo-compile exits 1)
-std::string pinOf(const std::optional<std::string>& bytecode)
+std::string hex64(const std::string& bytes)
 {
-    if (!bytecode)
-        return "error";
     char buf[17];
-    snprintf(buf, sizeof(buf), "%016llx", (unsigned long long)fnv1a(*bytecode));
+    snprintf(buf, sizeof(buf), "%016llx", (unsigned long long)fnv1a(bytes));
     return buf;
+}
+
+// the pin of one compile: the FNV-1a 64 of the bytecode in hex, or error-<the FNV-1a 64 of the error text>, so a
+// changed or reordered error message moves the pin too (moo-compile exits 1)
+std::string pinOf(const Compiled& compiled)
+{
+    return compiled.ok ? hex64(compiled.data) : "error-" + hex64(compiled.data);
 }
 
 // Allocates and frees random-sized blocks, keeping some alive, so each compile's allocations land at new addresses.
@@ -195,7 +232,7 @@ struct HeapDisturber
 // compiles whose output differs from the first.
 int countDivergent(HeapDisturber& heap, const std::string& source, int o, int g, int times)
 {
-    std::optional<std::string> first = compileBytes(source, o, g);
+    Compiled first = compileBytes(source, o, g);
     int divergent = 0;
     for (int i = 1; i < times; ++i)
     {
@@ -481,7 +518,7 @@ TEST_CASE("CompilerClassExportsIgnoreAddresses")
                          "export class D\n    function f(self) return self end\nend\nexport class E\nend\nexport class F\nend\n"
                          "export function g() return A, B, C end\nexport function h() return D, E, F end\n";
     HeapDisturber heap(0x434c41535345ULL); // "CLASSE"
-    REQUIRE(compileBytes(source, 1, 1));
+    REQUIRE(compileBytes(source, 1, 1).ok);
     for (int o = 0; o <= 2; ++o)
         for (int g = 0; g <= 2; ++g)
             CHECK_EQ(countDivergent(heap, source, o, g, 10), 0);
@@ -499,7 +536,8 @@ TEST_CASE("CompilerBytecodePins")
     if (const char* write = getenv("MOO_BYTECODE_PINS_WRITE"); write && *write)
     {
         std::ofstream out(write, std::ios::binary);
-        out << "# The compiler's bytecode pins: tests/<file> O<-O> g<-g> FNV-1a 64 of moo-compile --binary, or error.\n";
+        out << "# The compiler's bytecode pins: tests/<file> O<-O> g<-g> FNV-1a 64 of moo-compile --binary, or\n";
+        out << "# error-<FNV-1a 64 of its error lines without the file name>.\n";
         out << "# Every CI job reproduces them (tests/moo/compile_determinism.test.cpp, tools/moo-check-compile.py).\n";
         out << "# An intended compiler change re-pins in its own pull request: MOO_BYTECODE_PINS_WRITE=<this file> Moo.Test.\n";
         out << "# " << (MOO_OVERFLOW_ERRORS ? "A checked build (MOO_OVERFLOW_ERRORS=ON): saturating folds are left to the VM."
@@ -555,16 +593,16 @@ TEST_CASE("CompilerGeneratedProgramsIgnoreAddresses")
         std::string source = ProgramGen(uint64_t(i) * 0x9e3779b97f4a7c15ULL + 1).program();
         for (int og = 0; og <= 2; ++og)
         {
-            std::optional<std::string> first = compileBytes(source, og, og);
-            compiled += first ? 1 : 0;
-            if (!first && rejected.empty())
+            Compiled first = compileBytes(source, og, og);
+            compiled += first.ok ? 1 : 0;
+            if (!first.ok && rejected.empty())
                 rejected = source;
             if (countDivergent(heap, source, og, og, 4) != 0 && divergent++ < 10)
                 MESSAGE("generated program " << i << " -O" << og << " -g" << og << " differs between allocation states:\n" << source);
             if (hashes.is_open())
             {
                 if (og == 0) // the program itself, so a platform difference in the generator shows as such
-                    hashes << "generated/" << i << " source " << pinOf(source) << "\n";
+                    hashes << "generated/" << i << " source " << hex64(source) << "\n";
                 hashes << "generated/" << i << " O" << og << " g" << og << " " << pinOf(first) << "\n";
             }
         }

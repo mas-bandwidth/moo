@@ -6,6 +6,11 @@
 identical sequence of observable effects on every supported platform and compiler, for
 every language construct and standard library function.**
 
+Bytecode is identical within one build mode, on every platform and compiler. A checked build
+(`MOO_OVERFLOW_ERRORS`, on whenever assertions are on) does not fold a saturating constant operation,
+so its bytecode differs from a release build's by design for that code (DESIGN.md "Overflow"); the
+values a program computes do not.
+
 This is a property of the language, not a sandbox or a style guide. There are no
 "don't do that" rules: if a construct is in moo, it is deterministic. If it cannot be made
 deterministic, it is removed.
@@ -510,12 +515,14 @@ at `-O0..2` x `-g0..2`, with `moo-compile`'s flags.
 - `tests/moo/compile_determinism.test.cpp` compiles each one ten times in one process with random-sized blocks
   allocated and freed between compiles, and the same for generated programs and an export of classes; every
   output must be byte-identical. It is red on the old loop with ASLR off as well as on.
-- `tests/determinism/bytecode.txt` pins each compile's FNV-1a 64; Moo.Test reproduces every pin in every CI job, so a
-  difference between platforms or compilers fails. A checked build reproduces `bytecode-checked.txt`: its compiler
+- `tests/determinism/bytecode.txt` pins each compile's FNV-1a 64, and a failing compile's as
+  `error-<FNV-1a 64 of its error lines without the file name>`, so an error's text and order are pinned too
+  (`tests/determinism/compile/compile_error.luau` is refused by the compiler, not the parser); Moo.Test
+  reproduces every pin in every CI job, so a difference between platforms or compilers fails. A checked build reproduces `bytecode-checked.txt`: its compiler
   leaves a saturating fold to the VM, so six compiles of `conformance/moo/spec/number.luau` differ by design. An intended compiler change re-pins in its own pull request
   (`MOO_BYTECODE_PINS_WRITE=tests/determinism/bytecode.txt Moo.Test -ts=compile_determinism`).
 - `tools/moo-check-compile.py` runs `moo-compile` in separate processes, from different directories, locales and
-  path spellings, against the same pins, in every CI job.
+  path spellings, against the same pins, in every CI job. A pin file with no pins fails.
 - The nightly compiles 4000 generated programs per platform, requires every platform's hashes to be equal, runs the
   compiler under Valgrind memcheck (MemorySanitizer needs an instrumented C++ library the runners lack), and repeats
   the checks under `MALLOC_PERTURB_` on glibc and `MallocScribble` on macOS.
