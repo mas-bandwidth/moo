@@ -1,5 +1,18 @@
 # moo changelog
 
+## v1.2.1 — 2026-10-28
+
+Cut from 7c0ff3e83d8e7f4a71f4b06c9530862197271d41. 3 pull requests since v1.2.0.
+
+Dogfood gate waived: moo is a language runtime, not a nova tool: it has no nova CLI reference or dogfood receipts, and no sprint spend store or provider spend
+
+Spend gate waived: moo is a language runtime, not a nova tool: it has no nova CLI reference or dogfood receipts, and no sprint spend store or provider spend (window 2026-10-27T00:00:00Z..2026-10-28T01:10:17Z)
+- unread: --spend-store <addr> names no sprint store, so the recorded spend cannot be read
+
+- #58 changelog: the v1.2.0 cut record
+- #59 Re-vendor fixed 8dda4fc; Windows -Werror; TableShape on raw values; error-text pins
+- #60 release readiness for v1.2.1: version and CHANGELOG
+
 ## v1.2.1
 
 A point release on the stable v1.2 line: every build on every platform compiles with warnings as
