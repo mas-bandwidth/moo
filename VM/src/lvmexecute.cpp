@@ -17,6 +17,7 @@
 #include "moo_vec3.h"      // moo: vec3, quat and transform compare by value
 #include "moo_quat.h"      // moo: quat
 #include "moo_transform.h" // moo: transform
+#include "moo_tempreuse.h" // moo: expression-temporary reuse
 
 #include <string.h>
 
@@ -100,6 +101,7 @@ LUAU_FASTFLAGVARIABLE(LuauFastpcallInterrupt)
         if (LUAU_UNLIKELY(!!interrupt)) \
         { /* the interrupt hook is called right before we advance pc */ \
             VM_PROTECT(L->ci->savedpc++; interrupt(L, -1)); \
+            moo_tempfence(L); /* moo: the host may have read or written any register (moo_tempreuse.h) */ \
             if (L->status != 0) \
             { \
                 L->ci->savedpc--; \
@@ -132,7 +134,9 @@ LUAU_FASTFLAGVARIABLE(LuauFastpcallInterrupt)
         VM_DISPATCH_OP(LOP_JUMPXEQKB), VM_DISPATCH_OP(LOP_JUMPXEQKN), VM_DISPATCH_OP(LOP_JUMPXEQKS), VM_DISPATCH_OP(LOP_IDIV), \
         VM_DISPATCH_OP(LOP_IDIVK), VM_DISPATCH_OP(LOP_GETUDATAKS), VM_DISPATCH_OP(LOP_SETUDATAKS), VM_DISPATCH_OP(LOP_NAMECALLUDATA), \
         VM_DISPATCH_OP(LOP_NEWCLASSMEMBER), VM_DISPATCH_OP(LOP_CALLFB), VM_DISPATCH_OP(LOP_CMPPROTO), VM_DISPATCH_OP(LOP_FASTPCALL), \
-        VM_DISPATCH_OP(LOP_NEWCLASS),
+        VM_DISPATCH_OP(LOP_NEWCLASS), VM_DISPATCH_OP(LOP_ADDTB), VM_DISPATCH_OP(LOP_ADDTC), VM_DISPATCH_OP(LOP_SUBTB), \
+        VM_DISPATCH_OP(LOP_SUBTC), VM_DISPATCH_OP(LOP_MULTB), VM_DISPATCH_OP(LOP_MULTC), VM_DISPATCH_OP(LOP_MULKTB), \
+        VM_DISPATCH_OP(LOP_MINUST),
 
 #if defined(__GNUC__) || defined(__clang__)
 #define VM_USE_CGOTO 1
@@ -197,6 +201,8 @@ LUAU_NOINLINE void luau_callhook(lua_State* L, lua_Hook hook, void* userdata)
     ar.userdata = userdata;
 
     hook(L, &ar);
+
+    moo_tempfence(L); // moo: the hook may have read or written any register (moo_tempreuse.h)
 
     L->ci->savedpc = oldsavedpc;
 
@@ -3691,6 +3697,329 @@ reentry:
                 }
 
                 VM_NEXT();
+            }
+
+            // moo: the expression-temporary variants (Bytecode.h, moo_tempreuse.h; docs/DESIGN.md "Expression-temporary
+            // reuse"): each is its base op line for line, except that the slow path is luaV_doarithtemp with the
+            // marked register
+
+            VM_CASE(LOP_ADDTB)
+            {
+                VM_CASE_INSTRUCTION insn = *pc++;
+                VM_CASE_STKID ra = VM_REG(LUAU_INSN_A(insn));
+                VM_CASE_STKID rb = VM_REG(LUAU_INSN_B(insn));
+                VM_CASE_STKID rc = VM_REG(LUAU_INSN_C(insn));
+
+                // fast-path
+                // moo: a checked build leaves it when the operation saturates
+                if (LUAU_LIKELY(ttisnumber(rb) && ttisnumber(rc) && luai_numnosat(add, nvalue(rb), nvalue(rc))))
+                {
+                    setnvalue(ra, luai_numadd(nvalue(rb), nvalue(rc)));
+                    VM_NEXT();
+                }
+                else
+                {
+                    // fast-path for userdata with C functions
+                    const TValue* fn = 0;
+                    if (ttisuserdata(rb) && (fn = luaT_gettmbyobj(L, rb, TM_ADD)) && ttisfunction(fn) && clvalue(fn)->isC)
+                    {
+                        // note: it's safe to push arguments past top for complicated reasons (see top of the file)
+                        LUAU_ASSERT(L->top + 3 < L->stack + L->stacksize);
+                        StkId top = L->top;
+                        setobj2s(L, top + 0, fn);
+                        setobj2s(L, top + 1, rb);
+                        setobj2s(L, top + 2, rc);
+                        L->top = top + 3;
+
+                        VM_PROTECT(luaV_callTM(L, 2, LUAU_INSN_A(insn)));
+                        VM_NEXT();
+                    }
+                    else
+                    {
+                        // slow-path, may invoke C/Lua via metamethods; the vec3, quat and transform ops write into the temporary
+                        VM_PROTECT(luaV_doarithtemp<TM_ADD>(L, ra, rb, rc, rb));
+                        VM_NEXT();
+                    }
+                }
+            }
+
+            VM_CASE(LOP_ADDTC)
+            {
+                VM_CASE_INSTRUCTION insn = *pc++;
+                VM_CASE_STKID ra = VM_REG(LUAU_INSN_A(insn));
+                VM_CASE_STKID rb = VM_REG(LUAU_INSN_B(insn));
+                VM_CASE_STKID rc = VM_REG(LUAU_INSN_C(insn));
+
+                // fast-path
+                // moo: a checked build leaves it when the operation saturates
+                if (LUAU_LIKELY(ttisnumber(rb) && ttisnumber(rc) && luai_numnosat(add, nvalue(rb), nvalue(rc))))
+                {
+                    setnvalue(ra, luai_numadd(nvalue(rb), nvalue(rc)));
+                    VM_NEXT();
+                }
+                else
+                {
+                    // fast-path for userdata with C functions
+                    const TValue* fn = 0;
+                    if (ttisuserdata(rb) && (fn = luaT_gettmbyobj(L, rb, TM_ADD)) && ttisfunction(fn) && clvalue(fn)->isC)
+                    {
+                        // note: it's safe to push arguments past top for complicated reasons (see top of the file)
+                        LUAU_ASSERT(L->top + 3 < L->stack + L->stacksize);
+                        StkId top = L->top;
+                        setobj2s(L, top + 0, fn);
+                        setobj2s(L, top + 1, rb);
+                        setobj2s(L, top + 2, rc);
+                        L->top = top + 3;
+
+                        VM_PROTECT(luaV_callTM(L, 2, LUAU_INSN_A(insn)));
+                        VM_NEXT();
+                    }
+                    else
+                    {
+                        // slow-path, may invoke C/Lua via metamethods; the vec3, quat and transform ops write into the temporary
+                        VM_PROTECT(luaV_doarithtemp<TM_ADD>(L, ra, rb, rc, rc));
+                        VM_NEXT();
+                    }
+                }
+            }
+
+            VM_CASE(LOP_SUBTB)
+            {
+                VM_CASE_INSTRUCTION insn = *pc++;
+                VM_CASE_STKID ra = VM_REG(LUAU_INSN_A(insn));
+                VM_CASE_STKID rb = VM_REG(LUAU_INSN_B(insn));
+                VM_CASE_STKID rc = VM_REG(LUAU_INSN_C(insn));
+
+                // fast-path
+                // moo: a checked build leaves it when the operation saturates
+                if (LUAU_LIKELY(ttisnumber(rb) && ttisnumber(rc) && luai_numnosat(sub, nvalue(rb), nvalue(rc))))
+                {
+                    setnvalue(ra, luai_numsub(nvalue(rb), nvalue(rc)));
+                    VM_NEXT();
+                }
+                else
+                {
+                    // fast-path for userdata with C functions
+                    const TValue* fn = 0;
+                    if (ttisuserdata(rb) && (fn = luaT_gettmbyobj(L, rb, TM_SUB)) && ttisfunction(fn) && clvalue(fn)->isC)
+                    {
+                        // note: it's safe to push arguments past top for complicated reasons (see top of the file)
+                        LUAU_ASSERT(L->top + 3 < L->stack + L->stacksize);
+                        StkId top = L->top;
+                        setobj2s(L, top + 0, fn);
+                        setobj2s(L, top + 1, rb);
+                        setobj2s(L, top + 2, rc);
+                        L->top = top + 3;
+
+                        VM_PROTECT(luaV_callTM(L, 2, LUAU_INSN_A(insn)));
+                        VM_NEXT();
+                    }
+                    else
+                    {
+                        // slow-path, may invoke C/Lua via metamethods; the vec3, quat and transform ops write into the temporary
+                        VM_PROTECT(luaV_doarithtemp<TM_SUB>(L, ra, rb, rc, rb));
+                        VM_NEXT();
+                    }
+                }
+            }
+
+            VM_CASE(LOP_SUBTC)
+            {
+                VM_CASE_INSTRUCTION insn = *pc++;
+                VM_CASE_STKID ra = VM_REG(LUAU_INSN_A(insn));
+                VM_CASE_STKID rb = VM_REG(LUAU_INSN_B(insn));
+                VM_CASE_STKID rc = VM_REG(LUAU_INSN_C(insn));
+
+                // fast-path
+                // moo: a checked build leaves it when the operation saturates
+                if (LUAU_LIKELY(ttisnumber(rb) && ttisnumber(rc) && luai_numnosat(sub, nvalue(rb), nvalue(rc))))
+                {
+                    setnvalue(ra, luai_numsub(nvalue(rb), nvalue(rc)));
+                    VM_NEXT();
+                }
+                else
+                {
+                    // fast-path for userdata with C functions
+                    const TValue* fn = 0;
+                    if (ttisuserdata(rb) && (fn = luaT_gettmbyobj(L, rb, TM_SUB)) && ttisfunction(fn) && clvalue(fn)->isC)
+                    {
+                        // note: it's safe to push arguments past top for complicated reasons (see top of the file)
+                        LUAU_ASSERT(L->top + 3 < L->stack + L->stacksize);
+                        StkId top = L->top;
+                        setobj2s(L, top + 0, fn);
+                        setobj2s(L, top + 1, rb);
+                        setobj2s(L, top + 2, rc);
+                        L->top = top + 3;
+
+                        VM_PROTECT(luaV_callTM(L, 2, LUAU_INSN_A(insn)));
+                        VM_NEXT();
+                    }
+                    else
+                    {
+                        // slow-path, may invoke C/Lua via metamethods; the vec3, quat and transform ops write into the temporary
+                        VM_PROTECT(luaV_doarithtemp<TM_SUB>(L, ra, rb, rc, rc));
+                        VM_NEXT();
+                    }
+                }
+            }
+
+            VM_CASE(LOP_MULTB)
+            {
+                VM_CASE_INSTRUCTION insn = *pc++;
+                VM_CASE_STKID ra = VM_REG(LUAU_INSN_A(insn));
+                VM_CASE_STKID rb = VM_REG(LUAU_INSN_B(insn));
+                VM_CASE_STKID rc = VM_REG(LUAU_INSN_C(insn));
+
+                // fast-path
+                // moo: a checked build leaves it when the operation saturates
+                if (LUAU_LIKELY(ttisnumber(rb) && ttisnumber(rc) && luai_numnosat(mul, nvalue(rb), nvalue(rc))))
+                {
+                    setnvalue(ra, luai_nummul(nvalue(rb), nvalue(rc)));
+                    VM_NEXT();
+                }
+                else
+                {
+                    // fast-path for userdata with C functions
+                    StkId rbc = ttisnumber(rb) ? rc : rb;
+                    const TValue* fn = 0;
+                    if (ttisuserdata(rbc) && (fn = luaT_gettmbyobj(L, rbc, TM_MUL)) && ttisfunction(fn) && clvalue(fn)->isC)
+                    {
+                        // note: it's safe to push arguments past top for complicated reasons (see top of the file)
+                        LUAU_ASSERT(L->top + 3 < L->stack + L->stacksize);
+                        StkId top = L->top;
+                        setobj2s(L, top + 0, fn);
+                        setobj2s(L, top + 1, rb);
+                        setobj2s(L, top + 2, rc);
+                        L->top = top + 3;
+
+                        VM_PROTECT(luaV_callTM(L, 2, LUAU_INSN_A(insn)));
+                        VM_NEXT();
+                    }
+                    else
+                    {
+                        // slow-path, may invoke C/Lua via metamethods; the vec3, quat and transform ops write into the temporary
+                        VM_PROTECT(luaV_doarithtemp<TM_MUL>(L, ra, rb, rc, rb));
+                        VM_NEXT();
+                    }
+                }
+            }
+
+            VM_CASE(LOP_MULTC)
+            {
+                VM_CASE_INSTRUCTION insn = *pc++;
+                VM_CASE_STKID ra = VM_REG(LUAU_INSN_A(insn));
+                VM_CASE_STKID rb = VM_REG(LUAU_INSN_B(insn));
+                VM_CASE_STKID rc = VM_REG(LUAU_INSN_C(insn));
+
+                // fast-path
+                // moo: a checked build leaves it when the operation saturates
+                if (LUAU_LIKELY(ttisnumber(rb) && ttisnumber(rc) && luai_numnosat(mul, nvalue(rb), nvalue(rc))))
+                {
+                    setnvalue(ra, luai_nummul(nvalue(rb), nvalue(rc)));
+                    VM_NEXT();
+                }
+                else
+                {
+                    // fast-path for userdata with C functions
+                    StkId rbc = ttisnumber(rb) ? rc : rb;
+                    const TValue* fn = 0;
+                    if (ttisuserdata(rbc) && (fn = luaT_gettmbyobj(L, rbc, TM_MUL)) && ttisfunction(fn) && clvalue(fn)->isC)
+                    {
+                        // note: it's safe to push arguments past top for complicated reasons (see top of the file)
+                        LUAU_ASSERT(L->top + 3 < L->stack + L->stacksize);
+                        StkId top = L->top;
+                        setobj2s(L, top + 0, fn);
+                        setobj2s(L, top + 1, rb);
+                        setobj2s(L, top + 2, rc);
+                        L->top = top + 3;
+
+                        VM_PROTECT(luaV_callTM(L, 2, LUAU_INSN_A(insn)));
+                        VM_NEXT();
+                    }
+                    else
+                    {
+                        // slow-path, may invoke C/Lua via metamethods; the vec3, quat and transform ops write into the temporary
+                        VM_PROTECT(luaV_doarithtemp<TM_MUL>(L, ra, rb, rc, rc));
+                        VM_NEXT();
+                    }
+                }
+            }
+
+            VM_CASE(LOP_MULKTB)
+            {
+                VM_CASE_INSTRUCTION insn = *pc++;
+                VM_CASE_STKID ra = VM_REG(LUAU_INSN_A(insn));
+                VM_CASE_STKID rb = VM_REG(LUAU_INSN_B(insn));
+                TValue* kv = VM_KV(LUAU_INSN_C(insn));
+
+                // fast-path
+                // moo: a checked build leaves it when the operation saturates
+                if (LUAU_LIKELY(ttisnumber(rb) && luai_numnosat(mul, nvalue(rb), nvalue(kv))))
+                {
+                    setnvalue(ra, luai_nummul(nvalue(rb), nvalue(kv)));
+                    VM_NEXT();
+                }
+                else
+                {
+                    // fast-path for userdata with C functions
+                    const TValue* fn = 0;
+                    if (ttisuserdata(rb) && (fn = luaT_gettmbyobj(L, rb, TM_MUL)) && ttisfunction(fn) && clvalue(fn)->isC)
+                    {
+                        // note: it's safe to push arguments past top for complicated reasons (see top of the file)
+                        LUAU_ASSERT(L->top + 3 < L->stack + L->stacksize);
+                        StkId top = L->top;
+                        setobj2s(L, top + 0, fn);
+                        setobj2s(L, top + 1, rb);
+                        setobj2s(L, top + 2, kv);
+                        L->top = top + 3;
+
+                        VM_PROTECT(luaV_callTM(L, 2, LUAU_INSN_A(insn)));
+                        VM_NEXT();
+                    }
+                    else
+                    {
+                        // slow-path, may invoke C/Lua via metamethods; vec3 * number writes into the temporary
+                        VM_PROTECT(luaV_doarithtemp<TM_MUL>(L, ra, rb, kv, rb));
+                        VM_NEXT();
+                    }
+                }
+            }
+
+            VM_CASE(LOP_MINUST)
+            {
+                VM_CASE_INSTRUCTION insn = *pc++;
+                VM_CASE_STKID ra = VM_REG(LUAU_INSN_A(insn));
+                VM_CASE_STKID rb = VM_REG(LUAU_INSN_B(insn));
+
+                // fast-path
+                if (LUAU_LIKELY(ttisnumber(rb)))
+                {
+                    setnvalue(ra, luai_numunm(nvalue(rb)));
+                    VM_NEXT();
+                }
+                else
+                {
+                    // fast-path for userdata with C functions
+                    const TValue* fn = 0;
+                    if (ttisuserdata(rb) && (fn = luaT_gettmbyobj(L, rb, TM_UNM)) && ttisfunction(fn) && clvalue(fn)->isC)
+                    {
+                        // note: it's safe to push arguments past top for complicated reasons (see top of the file)
+                        LUAU_ASSERT(L->top + 2 < L->stack + L->stacksize);
+                        StkId top = L->top;
+                        setobj2s(L, top + 0, fn);
+                        setobj2s(L, top + 1, rb);
+                        L->top = top + 2;
+
+                        VM_PROTECT(luaV_callTM(L, 1, LUAU_INSN_A(insn)));
+                        VM_NEXT();
+                    }
+                    else
+                    {
+                        // slow-path, may invoke C/Lua via metamethods; unary - on a vec3 writes into the temporary
+                        VM_PROTECT(luaV_doarithtemp<TM_UNM>(L, ra, rb, rb, rb));
+                        VM_NEXT();
+                    }
+                }
             }
 
 #if !VM_USE_CGOTO

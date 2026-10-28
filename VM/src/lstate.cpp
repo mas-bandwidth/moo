@@ -229,6 +229,7 @@ lua_State* lua_newstate(lua_Alloc allocator, void* ud)
         L->tt = LUA_TTHREAD;
         L->marked = g->currentwhite = bit2mask(WHITE0BIT, FIXEDBIT);
         g->gcseq = 1;
+        g->mootempfence = 1; // moo: expression-temporary reuse (moo_tempreuse.h)
         g->dtorqueue = NULL;
 
         L->global = g;
@@ -284,6 +285,7 @@ lua_State* lua_newstate(lua_Alloc allocator, void* ud)
         L->tt = LUA_TTHREAD;
         L->marked = g->currentwhite = bit2mask(WHITE0BIT, FIXEDBIT);
         g->gcseq = 1;
+        g->mootempfence = 1; // moo: expression-temporary reuse (moo_tempreuse.h)
         g->dtorqueue = NULL;
         L->memcat = 0;
         preinit_state(L, g);

@@ -96,6 +96,7 @@ target_sources(Luau.Compiler PRIVATE
     Compiler/src/Types.cpp
     Compiler/src/ValueTracking.cpp
     Compiler/src/lcode.cpp
+    Compiler/src/MooTempReuse.cpp # moo: expression-temporary reuse (docs/DESIGN.md "Expression-temporary reuse")
     Compiler/src/Builtins.h
     Compiler/src/BuiltinFolding.h
     Compiler/src/ConstantFolding.h
@@ -104,6 +105,7 @@ target_sources(Luau.Compiler PRIVATE
     Compiler/src/Types.h
     Compiler/src/Utils.h
     Compiler/src/ValueTracking.h
+    Compiler/src/MooTempReuse.h
 )
 
 # Luau.Config Sources

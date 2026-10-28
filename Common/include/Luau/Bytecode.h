@@ -66,6 +66,8 @@
 // bumps LBC_MOO_VERSION_*, never LBC_VERSION_*, so it cannot collide with an upstream Luau version on a merge.
 // moo version 1: LBC_CONSTANT_NUMBER is the raw Q48.16 value, 8 bytes little-endian, in [-INT64_MAX, INT64_MAX];
 //                LBC_CONSTANT_INTEGER is refused (DESIGN.md "integer").
+// moo version 2: adds the expression-temporary opcodes LOP_ADDTB .. LOP_MINUST (DESIGN.md "Expression-temporary
+//                reuse"). A version 1 blob is a version 2 blob that uses none of them, so the VM loads both.
 
 // # Bytecode type information history
 // Version 1: (from bytecode version 4) Type information for function signature. Currently supported.
@@ -479,6 +481,26 @@ enum LuauOpcode
     // AUX: constant table index of unreified class object
     LOP_NEWCLASS,
 
+    // moo: expression-temporary reuse (docs/DESIGN.md "Expression-temporary reuse"; tla/TempReuse.tla). Each is the
+    // opcode it names (ADD, SUB, MUL, MULK, MINUS), with the same operands and the same result, and one more
+    // statement from the compiler: the register the suffix names (B or C) holds an expression temporary that an
+    // arithmetic op of the same expression produced, which nothing else reads and which is dead after this op. When the
+    // operation is a vec3, quat or transform one, that register holds an object of the result's type, and the object's
+    // creation number is at or above global_State::mootempfence, the VM writes the result into that object instead of
+    // allocating one. Every other case runs exactly as the named opcode. moo bytecode version 2 adds them; they follow
+    // upstream's last opcode, so every upstream opcode keeps its number.
+    // A: target register
+    // B: source register 1 (ADDTB, SUBTB, MULTB, MULKTB, MINUST: the temporary)
+    // C: source register 2 (ADDTC, SUBTC, MULTC: the temporary), or the constant table index (MULKTB); unused (MINUST)
+    LOP_ADDTB,
+    LOP_ADDTC,
+    LOP_SUBTB,
+    LOP_SUBTC,
+    LOP_MULTB,
+    LOP_MULTC,
+    LOP_MULKTB,
+    LOP_MINUST,
+
     // Enum entry for number of opcodes, not a valid opcode by itself!
     LOP__COUNT
 };
@@ -557,8 +579,8 @@ enum MooBytecodeTag
 {
     LBC_MOO_VERSION_FLAG = 0x80,
     LBC_MOO_VERSION_MIN = 1,
-    LBC_MOO_VERSION_MAX = 1,
-    LBC_MOO_VERSION_TARGET = 1,
+    LBC_MOO_VERSION_MAX = 2,
+    LBC_MOO_VERSION_TARGET = 2,
 };
 
 // Type table tags

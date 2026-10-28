@@ -44,7 +44,7 @@ do
 
     -- Parse a single-proto moo bytecode blob and return its opcode list and constant tags.
     local function parseMainProto(bytes)
-        assert(string.byte(bytes, 1) == 0x81, "expected moo bytecode v1")
+        assert(string.byte(bytes, 1) == 0x82, "expected moo bytecode v2")
         local pos = 4 -- skip moo version (1), luau version (2), types version (3)
 
         local stringCount

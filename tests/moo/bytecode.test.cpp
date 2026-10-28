@@ -208,7 +208,7 @@ TEST_CASE("BytecodeRefusesUnknownMooVersion")
         if (mooversion >= LBC_MOO_VERSION_MIN && mooversion <= LBC_MOO_VERSION_MAX)
             continue;
         blob[0] = char(LBC_MOO_VERSION_FLAG | mooversion);
-        std::string expected = "moo: moo bytecode version mismatch (expected [1..1], got " + std::to_string(mooversion) + ")";
+        std::string expected = "moo: moo bytecode version mismatch (expected [1..2], got " + std::to_string(mooversion) + ")";
         CHECK_MESSAGE(loadAndRun(L, blob) == expected, "moo version " << mooversion);
     }
 

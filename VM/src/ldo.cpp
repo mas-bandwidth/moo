@@ -8,6 +8,7 @@
 #include "lmem.h"
 #include "ltable.h"
 #include "lvm.h"
+#include "moo_tempreuse.h" // moo: expression-temporary reuse
 
 #if LUA_USE_LONGJMP
 #include <setjmp.h>
@@ -808,6 +809,8 @@ int lua_resume(lua_State* L, lua_State* from, int nargs)
     if (LUAU_UNLIKELY(!!L->global->cb.preresume))
         L->global->cb.preresume(L);
 
+    moo_tempfence(L); // moo: the host may have read or written a suspended thread's registers (moo_tempreuse.h)
+
     int oldnCcalls = L->nCcalls;
 
     int status = luaD_rawrunprotected(L, resume, L->top - nargs);
@@ -827,6 +830,8 @@ int lua_resumeerror(lua_State* L, lua_State* from)
 
     if (LUAU_UNLIKELY(!!L->global->cb.preresume))
         L->global->cb.preresume(L);
+
+    moo_tempfence(L); // moo: the host may have read or written a suspended thread's registers (moo_tempreuse.h)
 
     int oldnCcalls = L->nCcalls;
 

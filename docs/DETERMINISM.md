@@ -54,6 +54,7 @@ test in `tests/Moo.test.cpp`. This table is the state of `main`:
 | 9 | `os` and time | **fixed**: the `os` library is deleted (`VM/src/loslib.cpp`) |
 | 10 | `math.random` seeding | **fixed**: constant default seed, `moo_setrandomseed` in `VM/include/moo.h` |
 | 25 | the export table's order follows addresses | **fixed**: exported functions and classes are emitted in source order; every CI job checks the compiler's output against `tests/determinism/bytecode.txt` in shifting allocation states and in separate processes |
+| 26 | expression-temporary reuse writes into objects | **deterministic by construction**: the compiler marks the op (bytecode pinned per level in `tests/determinism/bytecode.txt`), and the VM writes only into an object created after the fence, which moves on metamethod returns, host callbacks and resumes (DESIGN.md "Expression-temporary reuse"; `tla/TempReuse.tla`) |
 | 14 | FMA in native codegen | **fixed**: native code generation is excluded from the build (`MOO_CODEGEN` off, DESIGN.md "Native codegen"); `moo --codegen*` and `--jit-inliner` are refused |
 
 The creation number costs 8 bytes in every object (16 in a userdata, whose data stays 16-byte
@@ -436,7 +437,8 @@ No FPU is involved.
 
 **Fix:** a moo bytecode version whose number constant is the raw int64 Q48.16 value. The VM
 refuses Luau bytecode by version, by name. Built in layer 3 (DESIGN.md "Layer 3 as built", "The moo bytecode version"): moo
-bytecode version 1; `VM/src/lvmload.cpp` reads the raw value and refuses Luau bytecode by name.
+bytecode version 1; `VM/src/lvmload.cpp` reads the raw value and refuses Luau bytecode by name. Version 2 adds the
+expression-temporary opcodes (item 26); the VM loads versions 1 and 2.
 
 ### 20. Error messages and tracebacks
 
@@ -532,3 +534,24 @@ writes back into a map keyed the same way, so its order cannot reach the output 
 `inlineBuiltinsBackup`; `ConstantFolding.cpp` `buildTableConstantMap`), indexes by a stored position
 (`BytecodeBuilder.cpp` `stringTable`), or is in the bytecode-graph passes, which only the JIT inliner runs and moo
 does not build. `Compiler.cpp`'s template-table keys use an `InsertionOrderedMap`.
+
+### 26. Expression-temporary reuse writes into objects
+
+Not a source in Luau 0.741: moo adds it in layer 3b (DESIGN.md "Expression-temporary reuse"). At `-O1` and `-O2` an
+`+`, `-`, `*` or unary `-` whose operand is an expression temporary is a marked opcode, and the VM writes its vec3,
+quat or transform result into that operand's object instead of allocating.
+
+**Why it is deterministic.** Which ops are marked is the compiler's decision, from the AST and its register
+allocation alone; the bytecode it gives is pinned at `-O0..2` like every other compile (item 25), and the marked
+programs re-pinned `bytecode.txt` and `bytecode-checked.txt` when reuse landed (moo bytecode version 2 and the new
+opcodes). Whether a marked op writes in place depends on the operand's tag and on its creation number against the
+fence, `global_State::mootempfence`, which moves to the creation counter after a metamethod returns, after a host
+callback (interrupt, debug hook, destructor) and at a resume: events the program and its inputs determine. The value
+computed is the same either way, bit for bit (a vec3, quat or transform is compared, hashed and printed by value,
+and the object written is one nothing else holds), so only allocation changes: fewer objects, and so GC pacing in
+allocation units, as with every other difference between optimization levels' bytecode. The determinism suite's
+hashes did not move.
+
+**Checks.** `tests/moo/tempreuse.test.cpp` (1024 seeded programs bit-identical at `-O0`, `-O1` and `-O2`; every
+must-not-reuse form; every fence site) and `tests/conformance/moo/spec/tempreuse.luau`; `tla/TempReuse.tla` with three
+plants.

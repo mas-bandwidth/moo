@@ -14,6 +14,7 @@
 #include "Builtins.h"
 #include "ConstantFolding.h"
 #include "CostModel.h"
+#include "MooTempReuse.h" // moo: expression-temporary reuse (docs/DESIGN.md "Expression-temporary reuse")
 #include "TableShape.h"
 #include "Types.h"
 #include "Utils.h"
@@ -2339,9 +2340,11 @@ struct Compiler
             return;
         }
 
-        uint8_t re = compileExprAuto(expr->expr, rs);
+        // moo: an expression temporary operand marks the op (MooTempReuse.h)
+        bool temp = false;
+        uint8_t re = compileExprAutoMooTemp(expr->expr, rs, temp);
 
-        bytecode.emitABC(getUnaryOp(expr->op), target, re, 0);
+        bytecode.emitABC(tempOpcode(getUnaryOp(expr->op), temp, false), target, re, 0);
     }
 
     static void unrollConcats(std::vector<AstExpr*>& args)
@@ -2376,9 +2379,11 @@ struct Compiler
 
             if (rc >= 0 && rc <= 255)
             {
-                uint8_t rl = compileExprAuto(expr->left, rs);
+                // moo: an expression temporary operand marks the op (MooTempReuse.h)
+                bool templ = false;
+                uint8_t rl = compileExprAutoMooTemp(expr->left, rs, templ);
 
-                bytecode.emitABC(getBinaryOpArith(expr->op, /* k= */ true), target, rl, uint8_t(rc));
+                bytecode.emitABC(tempOpcode(getBinaryOpArith(expr->op, /* k= */ true), templ, false), target, rl, uint8_t(rc));
 
                 hintTemporaryExprRegType(expr->left, rl, LBC_TYPE_NUMBER, /* instLength */ 1);
             }
@@ -2411,9 +2416,11 @@ struct Compiler
 
                             if (lc >= 0 && lc <= 255)
                             {
-                                uint8_t rr = compileExprAuto(expr->right, rs);
+                                // moo: an expression temporary operand marks the op (MooTempReuse.h)
+                                bool tempr = false;
+                                uint8_t rr = compileExprAutoMooTemp(expr->right, rs, tempr);
 
-                                bytecode.emitABC(getBinaryOpArith(expr->op, /* k= */ true), target, rr, uint8_t(lc));
+                                bytecode.emitABC(tempOpcode(getBinaryOpArith(expr->op, /* k= */ true), tempr, false), target, rr, uint8_t(lc));
 
                                 hintTemporaryExprRegType(expr->right, rr, LBC_TYPE_NUMBER, /* instLength */ 1);
                                 return;
@@ -2422,10 +2429,12 @@ struct Compiler
                     }
                 }
 
-                uint8_t rl = compileExprAuto(expr->left, rs);
-                uint8_t rr = compileExprAuto(expr->right, rs);
+                // moo: an expression temporary operand marks the op (MooTempReuse.h)
+                bool templ = false, tempr = false;
+                uint8_t rl = compileExprAutoMooTemp(expr->left, rs, templ);
+                uint8_t rr = compileExprAutoMooTemp(expr->right, rs, tempr);
 
-                bytecode.emitABC(getBinaryOpArith(expr->op), target, rl, rr);
+                bytecode.emitABC(tempOpcode(getBinaryOpArith(expr->op), templ, tempr), target, rl, rr);
 
                 hintTemporaryExprRegType(expr->left, rl, LBC_TYPE_NUMBER, /* instLength */ 1);
                 hintTemporaryExprRegType(expr->right, rr, LBC_TYPE_NUMBER, /* instLength */ 1);
@@ -3381,6 +3390,18 @@ struct Compiler
 
             return reg;
         }
+    }
+
+    // moo: compileExprAuto, and whether the operand is an expression temporary: an arithmetic producer
+    // (isTempProducer) compiled into the register allocated for it here, which is regTop at the call
+    // (MooTempReuse.h, docs/DESIGN.md "Expression-temporary reuse"); never at -O0
+    uint8_t compileExprAutoMooTemp(AstExpr* node, RegScope& rs, bool& temp)
+    {
+        unsigned int top = regTop;
+        uint8_t reg = compileExprAuto(node, rs);
+
+        temp = options.optimizationLevel >= 1 && unsigned(reg) == top && isTempProducer(node, constants);
+        return reg;
     }
 
     void compileExprSide(AstExpr* node)
@@ -4758,9 +4779,11 @@ struct Compiler
             }
             else
             {
-                uint8_t rr = compileExprAuto(stat->value, rs);
+                // moo: an expression temporary operand marks the op (MooTempReuse.h); the target is the variable
+                bool tempr = false;
+                uint8_t rr = compileExprAutoMooTemp(stat->value, rs, tempr);
 
-                bytecode.emitABC(getBinaryOpArith(stat->op), target, target, rr);
+                bytecode.emitABC(tempOpcode(getBinaryOpArith(stat->op), false, tempr), target, target, rr);
 
                 if (var.kind != LValue::Kind_Local)
                     hintTemporaryRegType(stat->var, target, LBC_TYPE_NUMBER, /* instLength */ 1);

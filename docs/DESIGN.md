@@ -4,8 +4,8 @@ moo is Luau with two changes: everything in the language is deterministic, and `
 Q48.16 fixed point. Floats and doubles are outlawed inside the VM. Everything else (syntax,
 tools, the C API) stays as close to Luau as possible.
 
-**Status.** Layers 1-5 are built. Layer 3b is built except the expression-temporary reuse in the
-compiler, which is not built, and awaits its lock. The conformance record is the program-by-program
+**Status.** Layers 1-5 are built, layer 3b with the expression-temporary reuse in the compiler
+("Expression-temporary reuse"); layer 3b awaits its lock. The conformance record is the program-by-program
 matrix in DETERMINISM.md, "Status". The sections "Layer 3 as built" and "Layer 3b as built" below
 are the state of `main`. Everything else here is design.
 
@@ -37,11 +37,12 @@ file and line, is in [DETERMINISM.md](DETERMINISM.md). This document says what r
   converts once by the boundary rule: NaN becomes 0, and infinity or out of range saturates.
   `setCompileConstantVector` and `setCompileConstantVectord` set nothing.
 - **The moo bytecode version** (`Common/include/Luau/Bytecode.h`, "moo bytecode versions"): a moo blob starts with
-  `0x80 | moo version` (1), then the Luau version its format follows. A number constant is the raw Q48.16 value, 8
+  `0x80 | moo version` (2; version 1, which has no expression-temporary opcodes, still loads), then the Luau version
+  its format follows. A number constant is the raw Q48.16 value, 8
   bytes little-endian. The VM refuses Luau bytecode (`this is Luau bytecode (version N), not moo bytecode`), an
   unknown moo version, an integer constant (`moo bytecode has no integer constant`) and `INT64_MIN`, each by name.
   The bytecode dump prints numbers through `moo_format.h`. A first byte of 1 to 127 is Luau bytecode; byte 0 stays the
-  compile-error blob. An unknown moo version is `moo bytecode version mismatch (expected [1..1], got N)`, a blob that
+  compile-error blob. An unknown moo version is `moo bytecode version mismatch (expected [1..2], got N)`, a blob that
   ends after the moo byte is `moo bytecode is truncated`, and a moo blob whose second byte is not a supported Luau
   format keeps Luau's `bytecode version mismatch`. `INT64_MIN` is `moo bytecode number constant out of range`; the
   bytecode-graph reader (`fromFunctionBytecode`) refuses it too. `LBC_CONSTANT_VECTOR` (7) and `LBC_CONSTANT_VECTORD`
@@ -150,8 +151,16 @@ This section is the current statement of the layer. The per-card notes it was bu
   with the one position add saturating (`VM/src/moo_transformlib.cpp`; "Saturation, stated precisely").
   `transform.new` takes omitted parts from the identity. `fixInvMulTransforms` is not a library function: a script
   writes `transform.inverse(a) * b`, which is not bit-identical to it.
-- **Every operation allocates one new object.** The representation table's cost of one allocation per operation is
-  now the implementation; one `vec3 + vec3` adds exactly 40 bytes to `totalbytes`.
+- **Every operation allocates one new object, except into an expression temporary.** The representation table's cost
+  of one allocation per operation is the implementation; one `vec3 + vec3` adds exactly 40 bytes to `totalbytes`.
+  An operation the compiler marked, whose operand is an expression temporary of the result's type, writes into that
+  object instead and allocates nothing ("Expression-temporary reuse").
+- **Expression-temporary reuse.** At `-O1` and `-O2` the compiler emits `ADDTB`/`ADDTC`, `SUBTB`/`SUBTC`,
+  `MULTB`/`MULTC`, `MULKTB` and `MINUST` for an `+`, `-`, `*` or unary `-` whose operand is an expression temporary
+  (`Compiler/src/MooTempReuse.h`), and the VM writes a vec3, quat or transform result into that operand's object
+  when it was created at or after the fence (`VM/src/moo_tempreuse.h`, `luaV_doarithtemp` in `VM/src/lvmutils.cpp`).
+  `acc + a*s - b + b*2` makes two objects instead of five. Modelled in `tla/TempReuse.tla`; tested in
+  `tests/moo/tempreuse.test.cpp` and `tests/conformance/moo/spec/tempreuse.luau`; moo bytecode version 2.
 - **The result is stored before the GC check.** A GC step in the propagate phase can shrink the running thread's
   stack (`lgc.cpp`, `shrinkstack`), so a register pointer taken before `luaC_checkGC` is stale after it. Every vec3,
   quat and transform operator stores its new object first and then checks, as upstream's `LOP_NEWTABLE` does (commit
@@ -212,8 +221,7 @@ This section is the current statement of the layer. The per-card notes it was bu
   saturates to the most positive. The result is still deterministic (unsigned wrap is defined), and `fixLength` is
   unaffected. In the 2^22 run 131 of 4194304 random dot cases wrapped. Fixed upstream (fixed #59): at pin `4a70c64`
   `fixDot` saturates with the true sign, the oracle counts 0 wraps, and `GeometryFixDotSaturatesAtTheRangeEnd` holds it.
-- **Not built.** Expression-temporary reuse in the compiler ("Representations costed"). `quat.slerp` waits for
-  `fixed`. (The `fixCross`, `fixRotateVector` and `fixMulAdd` sums that were owed upstream saturate under
+- **Not built.** `quat.slerp` waits for `fixed`. (The `fixCross`, `fixRotateVector` and `fixMulAdd` sums that were owed upstream saturate under
   `FIX_SATURATE` since fixed #60-#62; "Saturation, stated precisely".)
 
 ## Representation
@@ -631,8 +639,9 @@ trend from 16 to 40 bytes says it would cost more again.
   small-object free list; a dedicated per-type list would gain little. What remains is GC work,
   and the lever for it is the compiler. A value an arithmetic op produces into an
   expression temporary has never been stored, passed or captured, so the next op in the same
-  expression may overwrite it in place. In `acc + a*s - b + b*2` that cuts four allocations to
-  two. It is a compiler decision, so it is deterministic. The gain is an estimate until built.
+  expression may overwrite it in place. In `acc + a*s - b + b*2` that cuts the allocations to
+  two. It is a compiler decision, so it is deterministic. Built and measured: "Expression-temporary reuse" below
+  (five allocations to two; this estimate had counted four).
 - **(b) A wider TValue.** Fast vector ops (no allocation), but it taxes everything: +7.7% time and
   +11.5% memory on general code at 32 bytes (vec3 only), +18% and +17% at 40 bytes (quat), every
   number array and hash node twice the size, and the table and stack layouts that Luau's code
@@ -652,6 +661,93 @@ a transform, and the smallest upstream diff (one GC object kind per type, no cha
 Its cost falls on vector-heavy script loops; in the intended use the heavy vector math (physics)
 runs in fixed3d's C, not in scripts. If a vec3-bound script ever matters, (b) at 32 bytes for vec3 alone
 is the fallback: about 8% everywhere, with quat and transform staying as objects.
+
+### Expression-temporary reuse
+
+Built (`Compiler/src/MooTempReuse.h`, `VM/src/moo_tempreuse.h`, `tla/TempReuse.tla`). A vec3, quat or transform an
+arithmetic op produces into an expression temporary can be overwritten by the next op of the same expression,
+because nothing else in the program can reach it. The compiler decides where; the VM checks, at run time, the one
+thing the compiler cannot see.
+
+**The compiler's rule.** In `compileExprBinary` (`+`, `-`, `*`, in every operand form: register and register,
+register and constant, and the `-O2` swap of a constant left operand), `compileExprUnary` (unary `-`) and
+`compileStatCompoundAssign` (`+=`, `-=`, `*=`), an operand is an *expression temporary* when both hold:
+
+1. its expression, under any parentheses and type assertions, is an `+`, `-` or `*` `AstExprBinary` or a unary `-`
+   `AstExprUnary`, and not a compile-time constant (`isTempProducer`): its code is one arithmetic op that writes its
+   result into the operand's register;
+2. `compileExprAuto` returned the register it allocated for that operand, which is `regTop` at the call
+   (`compileExprAutoMooTemp`): never a local's register, since every live local is below `regTop`, and never a
+   register the move elision substituted.
+
+Such a register is written by its producer and read by this op alone. The compiler names no temporary, so no local,
+upvalue, table field, closure, call argument or return value refers to it; a closure in the same expression captures
+locals, never temporaries; a call argument, a returned value and a stored value are other ops' operands, not this
+one's. The op is then emitted as its temporary variant (`tempOpcode`): `ADDTB`, `SUBTB`, `MULTB` when the temporary is
+the left operand (B), `ADDTC`, `SUBTC`, `MULTC` when it is the right one (C; the left is chosen when both are),
+`MULKTB` for `MULK`, `MINUST` for `MINUS`. In a compound assignment the variable is B, so only C is marked. Nothing is
+marked at `-O0`. Division, `//`, `%` and `^` have no vec3, quat or transform form, so they are never marked and never
+count as producers.
+
+**The VM's rule.** A marked op runs its base op line for line (the number fast path, the userdata metamethod fast
+path), and its slow path is `luaV_doarithtemp`: `luaV_doarithimpl`'s cases in its order with the same fixed function
+and the same checked-build error, except that the result goes into the marked register's object when that object is
+of the result's type (vec3 for `+ - *`, unary `-`, `vec3 * number`, `quat * vec3` and `transform * vec3`; quat for
+`quat * quat`; transform for `transform * transform`), its creation number is at or above the fence, and its memory
+category is the one a new object would get (a C function in the expression may switch it). That
+allocates nothing, so there is no GC check. Every other case is `luaV_doarithimpl` itself, errors included. A quat or
+transform temporary is never written with a vec3 result.
+
+**The fence** (`global_State::mootempfence`, in the struct's tail padding, so `sizeof(global_State)` and the
+initial `totalbytes` are unchanged). The compiler's rule says nothing in the *program text* reads the temporary, but
+two things it cannot see can put a visible object in that register or hand the temporary's object to someone: a
+metamethod (the other operand is a table or userdata: the temporary is passed to it, and it returns any object it
+likes, perhaps one it keeps), and a host callback while the temporary is live (an interrupt, a debug hook, a
+userdata destructor, or anything the host does to a suspended thread before resuming it). Each of those moves the
+fence to the next creation number when it returns: `callTMres` and `luaV_callTM` (`VM/src/lvmutils.cpp`), the
+interrupt in `VM_INTERRUPT` and `GC_INTERRUPT`, `luau_callhook`, `rundtorqueue`, and `lua_resume`/`lua_resumeerror`
+after `preresume`. So an object that existed when outside code last returned is never overwritten; one the fast path
+made since cannot have been seen by anything. A metamethod's or a callback's cost is one store. The fence moves only
+forward, on events the program and its inputs decide, so where it is, and so whether an op reuses, is deterministic.
+Callbacks that run inside an allocation (`onallocate`, `useratom`) are outside the rule: Luau gives them no usable
+stack.
+
+**Why the result is the same.** A vec3, quat and transform are values: compared by value, hashed by value, printed
+by value, with no address exposed (`lua_topointer` is `NULL`). Writing the result into an object no one else can
+reach gives the program exactly the value a new object would. The one place identity shows, `next` after a removed
+key ("Layer 3b as built", "Removed keys"), needs the object to have been a table key, which a temporary never was.
+What does change is the allocation count, and with it GC pacing; it changes with the bytecode, which already
+differs between optimization levels in what it allocates (`-O1` shares closures that `-O0` allocates), and the
+bytecode is pinned per level.
+
+**The model.** `tla/TempReuse.tla` has temporaries, objects named by creation number, the visible set and the fence;
+its actions are the producer on the fast path and through a metamethod, the marked op in place, allocating and
+through a metamethod, an unmarked use, a program allocation and a host callback that reads and writes registers.
+`NoVisibleMutation` (no in-place write ever hits a visible object) holds with two temporaries and five objects (3812
+states) and with three and six (63598); each plant breaks it: no fence after a metamethod, no fence after a host
+callback, and no comparison with the fence (`tools/moo-tlc.sh`, `tla/CASES.tsv`).
+
+**Tests** (`tests/moo/tempreuse.test.cpp`, suite `tempreuse`, and `tests/conformance/moo/spec/tempreuse.luau`).
+`acc + a*s - b + b*2` makes 5 objects at `-O0` and 2 at `-O1` and `-O2`, counted by the creation counter and by
+`totalbytes` with the collector stopped, with identical results; every opcode is emitted, dumped and run, with its
+object count off and on; the fence decides in place directly (an object below it is never written: the reversed
+witness of the comparison); each fence site moves it; a metamethod's kept operand and a held value it returns stay
+unchanged; the spec script checks a local, an upvalue, a table field, a call argument, a returned value, a value a
+closure captures in the same expression, a compound assignment, a table key and the two metamethod forms at
+`-O0..2`. 1024 seeded programs over all four types give bit-identical results and errors at `-O0`, `-O1` and `-O2`
+(errors at `-O2` compared without their line, which inlining moves): 51608 objects at `-O0`, 27882 at `-O1`. With the
+fence removed from `callTMres`, or from `luaV_callTM`, by hand and reverted, the cases went red: the kept operand
+was overwritten.
+
+**Measured** (`bench/moo/tempreuse.py`, programs in `bench/moo/tempreuse/`; objects per iteration are exact, times
+are the median of 11 whole-process runs on the studio, Apple M3 Ultra, Release, under other load: an indication):
+
+| program | objects per iteration, main | with reuse | time, main | with reuse |
+|---|---|---|---|---|
+| `expr`: `acc = acc + a*s - b + b*2`, 2M iterations | 5 | 2 | 0.110 s | 0.066 s (-40%) |
+| `particles`: Euler step, gravity and drag, per particle | 8 | 4 | 0.130 s | 0.093 s (-28%) |
+| `rotate`: `q*dq1*dq2`, `t*u*w*u`, `q*(p + off*2)` | 8 | 3 | 0.302 s | 0.249 s (-18%) |
+| `number`: the same shapes on numbers (the control) | 0 | 0 | 0.274 s | 0.276 s (same) |
 
 ### Conformance (layer 3)
 
@@ -725,7 +821,7 @@ can say it, its expected-behaviour script in `tests/conformance/moo/spec/<subjec
 `MooSpecScripts` (`tests/Moo.test.cpp`) runs in a fresh VM with the `moo_test` helpers and which
 returns `"OK"`. The subjects: `number`, `literals`, `boundary`, `buffer`, `bytecode`,
 `compiler`, `removed`, `format`, `math`, `math_oracle`, `pow`, `oracle`, `differential`,
-`vec3`, `quat`, `transform`, `gc`, `geometry_oracle`, `coroutines`, `errors`, `upstream`, and
+`vec3`, `quat`, `transform`, `gc`, `geometry_oracle`, `tempreuse`, `coroutines`, `errors`, `upstream`, and
 the script `analyzer.luau` (the VM side of `tests/MooAnalyzer.test.cpp`). The other scripts in
 `tests/conformance/moo/` replace upstream conformance scripts and say so.
 
@@ -759,8 +855,8 @@ nightly. Floating-point contraction is off on all of them; clang-cl takes it as
 Per house practice, each state machine moo adds or changes gets a TLA+ module beside it, checked
 with TLC on a small instance before the code is merged: the GC pacing and destructor queue
 (layer 2, `tla/DestructorQueue.tla`) and the numeric `for` trip count (layer 3,
-`tla/NumericFor.tla`), and the coroutine resume/yield/close/error states (layer 5, `tla/Coroutines.tla`, with
-two plants).
+`tla/NumericFor.tla`), the coroutine resume/yield/close/error states (layer 5, `tla/Coroutines.tla`, with
+two plants), and the expression-temporary fence (layer 3b, `tla/TempReuse.tla`, with three plants).
 
 ## Upstream merges
 
@@ -810,9 +906,9 @@ with Glenn.
    the compiler. Checked by: bit-exact agreement with fixed3d's vec, quat and transform over
    dense inputs, and the representation benchmarks rerun against the numbers above. *Built: the
    three objects, their operations, library, C API and analyzer types, the 3b oracle with its reversed
-   witness and the fixed3d comparison, 0 differences ("Layer 3b as built"). Not built: expression-temporary reuse; `quat.slerp`
-   waits for `fixed`; no layer 3b note records the representation benchmarks rerun. Awaiting its
-   lock.*
+   witness and the fixed3d comparison, 0 differences, and expression-temporary reuse ("Layer 3b as built",
+   "Expression-temporary reuse"). Not built: `quat.slerp` waits for `fixed`; no layer 3b note records the
+   representation benchmarks rerun. Awaiting its lock.*
 4. **math and formatting.** The math library on `fixed`; `pow`/`^`; `tostring`, `tonumber`
    and `string.format`; float bytes in buffers and `string.pack`. Checked by: the CORE-MATH
    error table, round-trip of every formatted value, and bit-exact agreement with `fixed`.

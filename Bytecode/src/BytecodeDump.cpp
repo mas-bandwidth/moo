@@ -247,6 +247,23 @@ const char* getLuauOpcodeName(LuauOpcode cmd)
         return "FASTPCALL";
     case LOP_NEWCLASS:
         return "NEWCLASS";
+    // moo: expression-temporary reuse (Bytecode.h)
+    case LOP_ADDTB:
+        return "ADDTB";
+    case LOP_ADDTC:
+        return "ADDTC";
+    case LOP_SUBTB:
+        return "SUBTB";
+    case LOP_SUBTC:
+        return "SUBTC";
+    case LOP_MULTB:
+        return "MULTB";
+    case LOP_MULTC:
+        return "MULTC";
+    case LOP_MULKTB:
+        return "MULKTB";
+    case LOP_MINUST:
+        return "MINUST";
     default:
         LUAU_ASSERT(!"Unsupported opcode");
         return "unknown";

@@ -844,6 +844,14 @@ struct BytecodeGraphParser
             case LOP_POW:
             case LOP_AND:
             case LOP_OR:
+            // moo: the expression-temporary opcodes keep their mark through the graph (Bytecode.h): no pass gives a
+            // value a second reader. A pass that would must read them as ADD, SUB, MUL, MULK and MINUS.
+            case LOP_ADDTB:
+            case LOP_ADDTC:
+            case LOP_SUBTB:
+            case LOP_SUBTC:
+            case LOP_MULTB:
+            case LOP_MULTC:
                 addVmRegInput(node, LUAU_INSN_B(insn));
                 addVmRegInput(node, LUAU_INSN_C(insn));
                 addProducer(LUAU_INSN_A(insn), nodeOp);
@@ -857,6 +865,7 @@ struct BytecodeGraphParser
             case LOP_POWK:
             case LOP_ANDK:
             case LOP_ORK:
+            case LOP_MULKTB: // moo: expression-temporary reuse (Bytecode.h)
                 addVmRegInput(node, LUAU_INSN_B(insn));
                 addVmConstInput(node, LUAU_INSN_C(insn));
                 addProducer(LUAU_INSN_A(insn), nodeOp);
@@ -874,6 +883,7 @@ struct BytecodeGraphParser
             case LOP_NOT:
             case LOP_MINUS:
             case LOP_LENGTH:
+            case LOP_MINUST: // moo: expression-temporary reuse (Bytecode.h)
                 addVmRegInput(node, LUAU_INSN_B(insn));
                 addProducer(LUAU_INSN_A(insn), nodeOp);
                 break;

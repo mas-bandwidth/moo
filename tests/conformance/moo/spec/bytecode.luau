@@ -11,8 +11,8 @@ do
     for level = 0, 2 do
         local bytecode = moo_test.compile("return 0.1, -1.5, 137438953472.5", level)
 
-        -- 0x80 | moo version 1, then a Luau format version (7-bit)
-        assert(string.byte(bytecode, 1) == 0x81, tostring(string.byte(bytecode, 1)))
+        -- 0x80 | moo version 2 (version 2 adds the expression-temporary opcodes), then a Luau format version (7-bit)
+        assert(string.byte(bytecode, 1) == 0x82, tostring(string.byte(bytecode, 1)))
         assert(string.byte(bytecode, 2) < 0x80, tostring(string.byte(bytecode, 2)))
 
         local fn, err = moo_test.load(bytecode, "=bcv")
@@ -29,10 +29,10 @@ do
         assert(luauerr == "bcv: this is Luau bytecode (version " .. string.byte(bytecode, 2) .. "), not moo bytecode", luauerr)
 
         -- a moo version this VM does not know: refused by name
-        local future = string.char(0x82) .. string.sub(bytecode, 2)
+        local future = string.char(0x83) .. string.sub(bytecode, 2)
         local nofuture, futureerr = moo_test.load(future, "=bcv")
         assert(nofuture == nil)
-        assert(futureerr == "bcv: moo bytecode version mismatch (expected [1..1], got 2)", futureerr)
+        assert(futureerr == "bcv: moo bytecode version mismatch (expected [1..2], got 3)", futureerr)
     end
 end
 
@@ -45,7 +45,7 @@ do
     -- The body of a hand-built chunk in Luau version 9 format (LBC_VERSION_TARGET at BASE), types version 3: no strings, no
     -- userdata types, one proto with no instructions (the constant is read before any instruction runs), holding `constant`.
     local function chunkWithConstant(constant)
-        local s = string.char(0x81, 9, 3, 0, 0, 1) -- moo version 1, Luau version, types version, strings, userdata, protos
+        local s = string.char(0x81, 9, 3, 0, 0, 1) -- moo version 1 (still loaded), Luau version, types version, strings, userdata, protos
         s = s .. string.char(1, 0, 0, 0, 0, 0)     -- maxstacksize, numparams, nups, is_vararg, flags, type info size
         s = s .. string.char(0)                     -- sizecode: no instructions
         s = s .. string.char(1)                     -- sizek

@@ -7,3 +7,7 @@ MCNumericForBrokenSaturate.cfg	NumericFor.tla	invariant	NeverTooMany
 MCCoroutines.cfg	Coroutines.tla	pass	-
 MCCoroutinesBrokenCloseNormal.cfg	Coroutines.tla	invariant	NormalIsTheChain
 MCCoroutinesBrokenResumeNormal.cfg	Coroutines.tla	invariant	ChainDistinct
+MCTempReuse.cfg	TempReuse.tla	pass	-
+MCTempReuseBrokenNoTMFence.cfg	TempReuse.tla	invariant	NoVisibleMutation
+MCTempReuseBrokenNoHostFence.cfg	TempReuse.tla	invariant	NoVisibleMutation
+MCTempReuseBrokenNoCheck.cfg	TempReuse.tla	invariant	NoVisibleMutation

@@ -488,6 +488,13 @@ struct BytecodeGraphSerializer
         case LOP_POW:
         case LOP_AND:
         case LOP_OR:
+        // moo: expression-temporary reuse (Bytecode.h); the mark is kept, as the parser keeps it
+        case LOP_ADDTB:
+        case LOP_ADDTC:
+        case LOP_SUBTB:
+        case LOP_SUBTC:
+        case LOP_MULTB:
+        case LOP_MULTC:
             bcb.emitABC(insn.op, getRegister(insnOp), getRegInput(insn, 0), getRegInput(insn, 1));
             break;
 
@@ -499,6 +506,7 @@ struct BytecodeGraphSerializer
         case LOP_POWK:
         case LOP_ANDK:
         case LOP_ORK:
+        case LOP_MULKTB: // moo: expression-temporary reuse (Bytecode.h)
             bcb.emitABC(insn.op, getRegister(insnOp), getRegInput(insn, 0), getVmConstInputABC(insn, 1));
             break;
 
@@ -510,6 +518,7 @@ struct BytecodeGraphSerializer
         case LOP_NOT:
         case LOP_MINUS:
         case LOP_LENGTH:
+        case LOP_MINUST: // moo: expression-temporary reuse (Bytecode.h)
             bcb.emitABC(insn.op, getRegister(insnOp), getRegInput(insn, 0), 0);
             break;
 
