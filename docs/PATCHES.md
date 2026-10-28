@@ -59,10 +59,10 @@ edits them, except where a row above records the seam.
 | `Compiler/src/Compiler.cpp` | number constants come from the AST's raw Q48.16 value, an unrolled loop's index is computed with `moo_number.h`, the export table is emitted in source order, not address order (DETERMINISM.md, 25), and no expression emits a vector constant (DESIGN.md "Literals", "Layer 3 as built", "vec3, quat and transform"). |
 | `Compiler/src/ConstantFolding.cpp` | folding uses `moo_number.h`, refuses to fold a saturating result in a checked build, and folds integer `^` through `moo_pow_int` (DESIGN.md "Overflow", "math library", "Literals"); an arithmetic or ordering operator on a non-number constant is left to the VM (DESIGN.md "Layer 3 as built"). |
 | `Compiler/src/ConstantFolding.h` | a folded number constant is `fixed_t` and there is no vector constant type (DESIGN.md "Layer 3 as built", "The compiler", "vec3, quat and transform"). |
-| `Compiler/src/CostModel.cpp` | the loop trip count reads the raw Q48.16 bounds with `moo_number.h`, with no double, and admits the same integer bounds as upstream (DESIGN.md "Literals", "Layer 3 as built"). |
+| `Compiler/src/CostModel.cpp` | the loop trip count reads the raw Q48.16 bounds with `moo_number.h`, with no double, and admits the same integer bounds as upstream (DESIGN.md "Literals", "Layer 3 as built"); two type tests bind no unused variable, so clang-cl builds it without `-Wunused-but-set-variable`. |
 | `Compiler/src/CostModel.h` | `getTripCount` takes raw Q48.16 bounds (`fixed_t`), not doubles (DESIGN.md "Layer 3 as built"). |
 | `Compiler/src/TableShape.cpp` | the array-size hint reads a constant index and the `for` bounds as raw Q48.16 values, not the doubles beside them; the hints, and so the bytecode, are unchanged (DESIGN.md "Layer 3 as built"). |
-| `Compiler/src/Types.cpp` | `math.noise`, now a fixed fastcall (`LBF_MATH_NOISE`), resolves to the number type like the other math builtins (DESIGN.md "math library"). |
+| `Compiler/src/Types.cpp` | `math.noise`, now a fixed fastcall (`LBF_MATH_NOISE`), resolves to the number type like the other math builtins (DESIGN.md "math library"); four type tests bind no unused variable, so clang-cl builds it without `-Wunused-but-set-variable`. |
 
 ### Ast
 
@@ -88,6 +88,7 @@ edits them, except where a row above records the seam.
 | file | why |
 |---|---|
 | `Common/include/Luau/Bytecode.h` | the moo bytecode version numbers and the raw-number constant encoding are declared here (DESIGN.md "Literals"). |
+| `Common/include/Luau/Common.h` | `LUAU_MAYBE_UNUSED` is `__attribute__((unused))` under clang-cl as well, which defines `_MSC_VER`, so the nightly's clang-cl job builds with `-Werror` (DESIGN.md "Tests"). |
 | `Bytecode/include/Luau/BytecodeBuilder.h` | the builder takes a number constant as its raw Q48.16 value and converts a double once by the boundary rule (DESIGN.md "Literals", "Boundary"). |
 | `Bytecode/include/Luau/BytecodeGraph.h` | a graph number constant is raw Q48.16, with the same one-place double conversion (DESIGN.md "Literals", "Boundary"). |
 | `Bytecode/include/Luau/Sccp.h` | SCCP's constant is the raw Q48.16 value and its folds use `moo_number.h` exactly as the compiler does, refusing a saturating result in a checked build (DESIGN.md "Literals", "Semantics", "Overflow"). |
@@ -114,7 +115,7 @@ edits them, except where a row above records the seam.
 
 | file | why |
 |---|---|
-| `CMakeLists.txt` | native codegen and the JIT inliner are off, FMA contraction is off, the vendored fixed library is built saturating, Moo.Test globs the per-subject test files in tests/moo, the Windows test binaries get a 2 MB stack in every optimized configuration, and policy CMP0156 and trimmed test link lists put each static library on an Apple or Windows link line once (DESIGN.md "Native codegen", "Upstream merges", "Overflow", "Tests"); gcc builds `Ast/src/Confusables.cpp` with `-Wno-bidi-chars`, since its bidi characters are confusable data, and `Analysis/src/BuiltinTypeFunctions.cpp` with `-Wno-free-nonheap-object`, a gcc 13 false positive, so `-DLUAU_WERROR=ON` builds with gcc (DESIGN.md "Tests"). |
+| `CMakeLists.txt` | native codegen and the JIT inliner are off, FMA contraction is off (clang-cl takes `-ffp-contract=off` through `/clang:`), the vendored fixed library is built saturating, Moo.Test globs the per-subject test files in tests/moo, the Windows test binaries get a 2 MB stack in every optimized configuration, and policy CMP0156 and trimmed test link lists put each static library on an Apple or Windows link line once (DESIGN.md "Native codegen", "Upstream merges", "Overflow", "Tests"); gcc builds `Ast/src/Confusables.cpp` with `-Wno-bidi-chars`, since its bidi characters are confusable data, and `Analysis/src/BuiltinTypeFunctions.cpp` with `-Wno-free-nonheap-object`, a gcc 13 false positive, so `-DLUAU_WERROR=ON` builds with gcc (DESIGN.md "Tests"). |
 | `Makefile` | the same codegen/inliner exclusion, `-ffp-contract=off`, the fixed library include and the vector source leaving the build (DESIGN.md "Native codegen", "vec3, quat and transform"). |
 | `Sources.cmake` | the vector library, codegen and the JIT inliner leave the source lists, and the fixed sources are added (DESIGN.md "Native codegen", "vec3, quat and transform"); the vec3 library source is added (DESIGN.md "Layer 3b as built"); and the quat library source (DESIGN.md "Layer 3b as built"), and the transform library source (DESIGN.md "Layer 3b as built"); `tests/MooAnalyzer.test.cpp` joins the unit tests (DESIGN.md "Layer 3b as built"). |
 

@@ -749,6 +749,11 @@ reads a skipped case's reason from `moo:` on its line or the line above (in a mo
 its comments); a `tests/...` path and an optional CamelCase case name in the reason must resolve,
 and lines saying `upstream` or `Replaces` are not resolved.
 
+Every compiler CI uses builds with warnings as errors (`-DLUAU_WERROR=ON`): clang and gcc on
+Linux, clang on macOS, MSVC (`/WX`) on Windows in every pull request, and MSVC and clang-cl in the
+nightly. Floating-point contraction is off on all of them; clang-cl takes it as
+`/clang:-ffp-contract=off`, since it ignores the bare flag.
+
 ## State machines and TLA+
 
 Per house practice, each state machine moo adds or changes gets a TLA+ module beside it, checked

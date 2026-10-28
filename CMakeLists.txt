@@ -51,9 +51,12 @@ endif()
 
 project(Luau LANGUAGES CXX C)
 
-# moo: no floating-point contraction (FMA) anywhere, so every platform rounds the same way
+# moo: no floating-point contraction (FMA) anywhere, so every platform rounds the same way. clang-cl sets MSVC and
+# ignores a bare -ffp-contract=off, so it takes the flag through /clang:. MSVC itself contracts only under /fp:fast.
 if(NOT MSVC)
     add_compile_options(-ffp-contract=off)
+elseif(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+    add_compile_options(/clang:-ffp-contract=off)
 endif()
 
 if (LUAU_BUILD_SHARED)
@@ -118,8 +121,10 @@ add_library(Moo.Fixed STATIC extern/fixed/src/fixed_math.c extern/fixed/src/fixe
 target_include_directories(Moo.Fixed PUBLIC extern/fixed/include)
 target_compile_definitions(Moo.Fixed PUBLIC FIX_SATURATE)
 set_target_properties(Moo.Fixed PROPERTIES C_STANDARD 11 C_STANDARD_REQUIRED ON)
-if(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
+if(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang" AND NOT CMAKE_C_COMPILER_FRONTEND_VARIANT STREQUAL "MSVC")
     target_compile_options(Moo.Fixed PRIVATE -ffp-contract=off)
+elseif(CMAKE_C_COMPILER_ID STREQUAL "Clang")
+    target_compile_options(Moo.Fixed PRIVATE /clang:-ffp-contract=off) # moo: clang-cl
 endif()
 
 # Proxy target to make it possible to depend on private VM headers

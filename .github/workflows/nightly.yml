@@ -127,16 +127,23 @@ jobs:
           - name: windows-msvc
             toolset: ""
             werror: "ON"
-          # clang-cl stays off: Common.h's LUAU_MAYBE_UNUSED is empty under _MSC_VER, so clang-cl reports VM/src/ltable.cpp's
-          # unused hashvec (-Wunused-function), which -Werror turns into an error
           - name: windows-clang-cl
             toolset: "-T ClangCL"
-            werror: "OFF"
+            werror: "ON"
     steps:
       - uses: actions/checkout@v4
 
       - name: configure
         run: cmake -S . -B build -A x64 ${{ matrix.toolset }} -DLUAU_WERROR=${{ matrix.werror }}
+
+      # clang-cl ignores a bare -ffp-contract=off, so it must get the /clang: spelling, in the VM and in fixed
+      - name: check /clang:-ffp-contract=off
+        if: matrix.name == 'windows-clang-cl'
+        shell: bash
+        run: |
+          grep -q -- "/clang:-ffp-contract=off" build/Luau.VM.vcxproj
+          grep -q -- "/clang:-ffp-contract=off" build/Moo.Fixed.vcxproj
+          ! grep -q -- " -ffp-contract=off" build/Moo.Fixed.vcxproj
 
       - name: build
         run: cmake --build build --config RelWithDebInfo --parallel 4 --target Moo.Test Luau.Conformance Luau.UnitTest Luau.Compile.CLI

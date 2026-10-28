@@ -7,7 +7,12 @@
 #ifdef _MSC_VER
 #define LUAU_NORETURN __declspec(noreturn)
 #define LUAU_NOINLINE __declspec(noinline)
+// moo: clang-cl defines _MSC_VER too, and warns on an unused static function without the attribute
+#ifdef __clang__
+#define LUAU_MAYBE_UNUSED __attribute__((unused))
+#else
 #define LUAU_MAYBE_UNUSED
+#endif
 #define LUAU_FORCEINLINE __forceinline
 #define LUAU_LIKELY(x) x
 #define LUAU_UNLIKELY(x) x

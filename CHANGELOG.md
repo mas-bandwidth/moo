@@ -4,6 +4,9 @@
 
 ### Fixed
 
+- clang-cl builds with floating-point contraction off: it ignored a bare `-ffp-contract=off`
+  (`-Wunknown-argument`) and CMake gave it no flag at all outside `Moo.Fixed`; it takes
+  `/clang:-ffp-contract=off` for every target.
 - `extern/fixed` moves to fixed `8dda4fc` (fixed #66): every unsigned negation is spelled
   `(T)0 - x`, so MSVC builds it without C4146, and the Windows `INT128_MIN / 1` divide is defined.
   The arithmetic is unchanged everywhere else: the math oracle and the determinism pins hold.
@@ -15,9 +18,9 @@
 
 ### CI
 
-- The per-PR Windows job builds with `-DLUAU_WERROR=ON` (MSVC `/WX`), and so does the nightly's
-  `windows-msvc` job. `windows-clang-cl` stays off: clang-cl reports `ltable.cpp`'s unused
-  `hashvec`, since `LUAU_MAYBE_UNUSED` is empty under `_MSC_VER`.
+- The per-PR Windows job builds with `-DLUAU_WERROR=ON` (MSVC `/WX`), and so do the nightly's
+  `windows-msvc` and `windows-clang-cl` jobs. `LUAU_MAYBE_UNUSED` is `__attribute__((unused))` under
+  clang-cl, and six type tests in `CostModel.cpp` and `Types.cpp` no longer bind unused variables.
 - The compile-determinism pins hash a failing compile's error text (`error-<hash>`, not `error`),
   and the corpus has a script the compiler, not the parser, refuses. `moo-check-compile.py` fails on
   a pin file with no pins. DESIGN.md and DETERMINISM.md say bytecode is identical within one build
