@@ -1,13 +1,18 @@
 # moo changelog
 
-## Unreleased
+## v1.2.1
+
+A point release on the stable v1.2 line: every build on every platform compiles with warnings as
+errors, including Windows MSVC and clang-cl; fixed moves to v1.5.0 and fixed3d with it; the
+determinism gates also pin the text of compile errors. Compiled bytecode is unchanged from v1.2.0.
+`moo --version` prints `moo 1.2.1 (Luau 0.741)`. Pull request #59.
 
 ### Fixed
 
 - clang-cl builds with floating-point contraction off: it ignored a bare `-ffp-contract=off`
   (`-Wunknown-argument`) and CMake gave it no flag at all outside `Moo.Fixed`; it takes
   `/clang:-ffp-contract=off` for every target.
-- `extern/fixed` moves to fixed `8dda4fc` (fixed #66): every unsigned negation is spelled
+- `extern/fixed` moves to fixed v1.5.0 (`8dda4fc`, fixed #66): every unsigned negation is spelled
   `(T)0 - x`, so MSVC builds it without C4146, and the Windows `INT128_MIN / 1` divide is defined.
   The arithmetic is unchanged everywhere else: the math oracle and the determinism pins hold.
   `tools/moo-fixed3d-compare.sh` pins fixed3d `ae0e52d` (fixed3d #111), which vendors the same

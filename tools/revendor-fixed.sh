@@ -24,10 +24,10 @@ set -euo pipefail
 FIXED_REPO="https://github.com/mas-bandwidth/fixed.git"
 # fixed main after #66: FIX_SATURATE reaches every add, subtract and reduction (#59-#62), every
 # unsigned negation is spelled (T)0 - x, and the Windows INT128_MIN / 1 divide is defined (#66).
-# This is an unreleased snapshot, pinned by immutable commit rather than a branch.
+# fixed v1.5.0, pinned by immutable commit rather than a branch.
 # moo: the commit fixed3d vendors (fixed3d #111); move both together.
 FIXED_PIN="8dda4fcdae38a7fde0a63bd9ba8edc3f2f75ad1c"
-FIXED_VERSION="unreleased-8dda4fc"
+FIXED_VERSION="v1.5.0"
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 DEST="$ROOT/extern/fixed"
