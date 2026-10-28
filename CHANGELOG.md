@@ -1,5 +1,18 @@
 # moo changelog
 
+## v1.3.0 — 2026-10-28
+
+Cut from f60f0239f41c6c0a827ecee44a7f9539c5798068. 3 pull requests since v1.2.1.
+
+Dogfood gate waived: moo is a language runtime, not a nova tool: it has no nova CLI reference or dogfood receipts, and no sprint spend store or provider spend
+
+Spend gate waived: moo is a language runtime, not a nova tool: it has no nova CLI reference or dogfood receipts, and no sprint spend store or provider spend (window 2026-10-28T00:00:00Z..2026-10-28T02:05:55Z)
+- unread: --spend-store <addr> names no sprint store, so the recorded spend cannot be read
+
+- #61 changelog: the v1.2.1 cut record
+- #62 layer 3b: expression-temporary reuse for vec3, quat and transform
+- #63 release readiness for v1.3.0: version and CHANGELOG
+
 ## v1.3.0
 
 Expression-temporary reuse for vec3, quat and transform: the last open row of the roadmap. An
