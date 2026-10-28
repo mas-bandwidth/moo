@@ -1,12 +1,13 @@
 # moo changelog
 
-## Unreleased
+## v1.3.0
 
 Expression-temporary reuse for vec3, quat and transform: the last open row of the roadmap. An
 arithmetic op whose operand is a temporary another arithmetic op of the same expression produced
 writes its result into that object instead of allocating one, so `acc + a*s - b + b*2` makes two
 objects where it made five. Results are bit-identical; only allocation changes. Compiled bytecode
 changes: moo bytecode version 2, and every compile pin is re-pinned. Version 1 bytecode still loads.
+`moo --version` prints `moo 1.3.0 (Luau 0.741)`. Pull request #62.
 
 ### Added
 
