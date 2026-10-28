@@ -546,7 +546,7 @@ allocation alone; the bytecode it gives is pinned at `-O0..2` like every other c
 programs re-pinned `bytecode.txt` and `bytecode-checked.txt` when reuse landed (moo bytecode version 2 and the new
 opcodes). Whether a marked op writes in place depends on the operand's tag and on its creation number against the
 fence, `global_State::mootempfence`, which moves to the creation counter after a metamethod returns, after a host
-callback (interrupt, debug hook, destructor) and at a resume: events the program and its inputs determine. The value
+callback (interrupt, debug hook, destructor, allocation callback) and at a resume: events the program and its inputs determine. The value
 computed is the same either way, bit for bit (a vec3, quat or transform is compared, hashed and printed by value,
 and the object written is one nothing else holds), so only allocation changes: fewer objects, and so GC pacing in
 allocation units, as with every other difference between optimization levels' bytecode. The determinism suite's

@@ -425,6 +425,89 @@ TEST_CASE("TempReuseEveryFenceSiteMovesTheFence")
     }
 }
 
+namespace onallocate_host
+{
+
+int armed = 0, ref = 0, busy = 0;
+
+// a host that, on an allocation inside the running frame, finds the live temporary a*s = (2, 4, 6) by stack index and
+// keeps it (the cold review's counterexample before onallocate moved the fence)
+void onallocate(lua_State* L, void* block, size_t osize, size_t nsize, uint8_t memcat, int tt, int tag)
+{
+    (void)block, (void)osize, (void)nsize, (void)memcat, (void)tag;
+    if (!armed || ref || busy || tt != LUA_TVEC3)
+        return;
+    busy = 1;
+    for (int i = 1; i <= lua_gettop(L); i++)
+    {
+        lua_Number v[3];
+        if (moo_tovec3(L, i, v) && v[0] == num(2) && v[1] == num(4) && v[2] == num(6))
+        {
+            ref = lua_ref(L, i);
+            break;
+        }
+    }
+    busy = 0;
+}
+
+int arm(lua_State* L)
+{
+    (void)L;
+    armed = 1;
+    return 0;
+}
+
+int disarm(lua_State* L)
+{
+    (void)L;
+    armed = 0;
+    return 0;
+}
+
+} // namespace onallocate_host
+
+// onallocate runs inside an allocation with the running frame's registers in reach: it moves the fence too, so the
+// temporary the host kept is not overwritten by the next marked op
+TEST_CASE("TempReuseOnallocateHostKeepsATemporary")
+{
+    using namespace onallocate_host;
+    const char* source = "local a = vec3.new(1, 2, 3) local b = vec3.new(10, 20, 30) local s = 2\n"
+                         "arm() local r = (a * s) + (b * s) disarm() return r";
+
+    for (int level = 0; level <= 2; ++level)
+    {
+        CAPTURE(level);
+        State st;
+        lua_State* L = st.L;
+        lua_pushcfunction(L, arm, "arm");
+        lua_setglobal(L, "arm");
+        lua_pushcfunction(L, disarm, "disarm");
+        lua_setglobal(L, "disarm");
+        // free registry slots first, so the host's lua_ref allocates nothing
+        int refs[16];
+        for (int i = 0; i < 16; i++)
+        {
+            lua_pushinteger(L, i);
+            refs[i] = lua_ref(L, -1);
+            lua_pop(L, 1);
+        }
+        for (int i = 0; i < 16; i++)
+            lua_unref(L, refs[i]);
+
+        armed = 0, ref = 0, busy = 0;
+        lua_callbacks(L)->onallocate = onallocate;
+        std::string bytecode = compileAt(source, level);
+        REQUIRE(luau_load(L, "=onallocate", bytecode.data(), bytecode.size(), 0) == 0);
+        REQUIRE(lua_pcall(L, 0, 1, 0) == 0);
+        lua_callbacks(L)->onallocate = nullptr;
+
+        CHECK(describe(L, -1) == "vec3 " + std::to_string(num(22)) + " " + std::to_string(num(44)) + " " + std::to_string(num(66)));
+        REQUIRE(ref != 0);
+        lua_getref(L, ref);
+        CHECK(describe(L, -1) == "vec3 " + std::to_string(num(2)) + " " + std::to_string(num(4)) + " " + std::to_string(num(6)));
+    }
+}
+
 // A metamethod's result is never overwritten in place: here __add hands back its own vec3 operand (the temporary a*s)
 // after keeping it, and the marked SUBTB that reads the result must not write into it. The same with __mul returning
 // a vec3 the program holds. Run at -O1 and -O2, where the ops are marked; the kept value must stay as it was.

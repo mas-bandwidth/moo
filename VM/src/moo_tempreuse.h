@@ -14,8 +14,8 @@
 // place where code outside the arithmetic can have run moves the fence to the next creation number when that code
 // returns, and no object that existed then is overwritten: a metamethod call (callTMres, luaV_callTM in
 // lvmutils.cpp), the interrupt (VM_INTERRUPT in lvmexecute.cpp, GC_INTERRUPT in lgc.cpp), a debug hook
-// (luau_callhook), the destructor queue (rundtorqueue in lgc.cpp), and a resume (lua_resume, lua_resumeerror in
-// ldo.cpp), which covers whatever the host did to a suspended thread. The fence moves only forward, and it moves
+// (luau_callhook), the destructor queue (rundtorqueue in lgc.cpp), the allocation callback (onallocate in lmem.cpp),
+// and a resume (lua_resume, lua_resumeerror in ldo.cpp), which covers whatever the host did to a suspended thread. The fence moves only forward, and it moves
 // on nothing the program computes, so where it is follows from the program alone: deterministic.
 #pragma once
 

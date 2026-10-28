@@ -5,6 +5,7 @@
 #include "lstate.h"
 #include "ldo.h"
 #include "ldebug.h"
+#include "moo_tempreuse.h" // moo: expression-temporary reuse
 
 #include <string.h>
 
@@ -575,6 +576,7 @@ void* luaM_new_(lua_State* L, size_t nsize, uint8_t memcat)
     if (LUAU_UNLIKELY(!!g->cb.onallocate))
     {
         g->cb.onallocate(L, block, 0, nsize, memcat, LUA_T_ALL, 0);
+        moo_tempfence(L); // moo: the host may have read or written any register (moo_tempreuse.h)
     }
 
     return block;
@@ -597,6 +599,7 @@ void* luaM_trynew_(lua_State* L, size_t nsize, uint8_t memcat)
     if (LUAU_UNLIKELY(!!g->cb.onallocate))
     {
         g->cb.onallocate(L, block, 0, nsize, memcat, LUA_T_ALL, 0);
+        moo_tempfence(L); // moo: the host may have read or written any register (moo_tempreuse.h)
     }
 
     return block;
@@ -637,6 +640,7 @@ GCObject* luaM_newgco_(lua_State* L, size_t nsize, uint8_t memcat, int tt, int t
     if (LUAU_UNLIKELY(!!g->cb.onallocate))
     {
         g->cb.onallocate(L, block, 0, nsize, memcat, tt, tag);
+        moo_tempfence(L); // moo: the host may have read or written any register (moo_tempreuse.h)
     }
 
     return (GCObject*)block;
@@ -681,6 +685,7 @@ GCObject* luaM_newgcocaged_(lua_State* L, size_t nsize, uint8_t memcat, int tt, 
     if (LUAU_UNLIKELY(!!g->cb.onallocate))
     {
         g->cb.onallocate(L, block, 0, nsize, memcat, tt, tag);
+        moo_tempfence(L); // moo: the host may have read or written any register (moo_tempreuse.h)
     }
 
     return (GCObject*)block;
@@ -707,6 +712,7 @@ GCObject* luaM_newgcofixed_(lua_State* L, size_t nsize, uint8_t memcat, int tt)
     if (LUAU_UNLIKELY(!!g->cb.onallocate))
     {
         g->cb.onallocate(L, block, 0, nsize, memcat, tt, 0);
+        moo_tempfence(L); // moo: the host may have read or written any register (moo_tempreuse.h)
     }
 
     return (GCObject*)block;
@@ -860,6 +866,7 @@ void* luaM_realloc_(lua_State* L, void* block, size_t osize, size_t nsize, uint8
     if (LUAU_UNLIKELY(!!g->cb.onallocate))
     {
         g->cb.onallocate(L, result, osize, nsize, memcat, LUA_T_ALL, 0);
+        moo_tempfence(L); // moo: the host may have read or written any register (moo_tempreuse.h)
     }
 
     return result;

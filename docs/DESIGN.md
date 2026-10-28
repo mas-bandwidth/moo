@@ -703,14 +703,15 @@ initial `totalbytes` are unchanged). The compiler's rule says nothing in the *pr
 two things it cannot see can put a visible object in that register or hand the temporary's object to someone: a
 metamethod (the other operand is a table or userdata: the temporary is passed to it, and it returns any object it
 likes, perhaps one it keeps), and a host callback while the temporary is live (an interrupt, a debug hook, a
-userdata destructor, or anything the host does to a suspended thread before resuming it). Each of those moves the
+userdata destructor, an allocation callback, or anything the host does to a suspended thread before resuming it). Each of those moves the
 fence to the next creation number when it returns: `callTMres` and `luaV_callTM` (`VM/src/lvmutils.cpp`), the
-interrupt in `VM_INTERRUPT` and `GC_INTERRUPT`, `luau_callhook`, `rundtorqueue`, and `lua_resume`/`lua_resumeerror`
-after `preresume`. So an object that existed when outside code last returned is never overwritten; one the fast path
+interrupt in `VM_INTERRUPT` and `GC_INTERRUPT`, `luau_callhook`, `rundtorqueue`, `onallocate` (`VM/src/lmem.cpp`),
+and `lua_resume`/`lua_resumeerror` after `preresume`. So an object that existed when outside code last returned is never overwritten; one the fast path
 made since cannot have been seen by anything. A metamethod's or a callback's cost is one store. The fence moves only
 forward, on events the program and its inputs decide, so where it is, and so whether an op reuses, is deterministic.
-Callbacks that run inside an allocation (`onallocate`, `useratom`) are outside the rule: Luau gives them no usable
-stack.
+(`onallocate` was found by the cold review of this change: a host that reads the frame by stack index from inside it
+and keeps the temporary saw it overwritten; `TempReuseOnallocateHostKeepsATemporary` is that host. moo's VM never calls
+`useratom`.)
 
 **Why the result is the same.** A vec3, quat and transform are values: compared by value, hashed by value, printed
 by value, with no address exposed (`lua_topointer` is `NULL`). Writing the result into an object no one else can
@@ -731,13 +732,14 @@ callback, and no comparison with the fence (`tools/moo-tlc.sh`, `tla/CASES.tsv`)
 `acc + a*s - b + b*2` makes 5 objects at `-O0` and 2 at `-O1` and `-O2`, counted by the creation counter and by
 `totalbytes` with the collector stopped, with identical results; every opcode is emitted, dumped and run, with its
 object count off and on; the fence decides in place directly (an object below it is never written: the reversed
-witness of the comparison); each fence site moves it; a metamethod's kept operand and a held value it returns stay
+witness of the comparison); each fence site moves it; an `onallocate` host that keeps a live temporary sees it
+unchanged; a metamethod's kept operand and a held value it returns stay
 unchanged; the spec script checks a local, an upvalue, a table field, a call argument, a returned value, a value a
 closure captures in the same expression, a compound assignment, a table key and the two metamethod forms at
 `-O0..2`. 1024 seeded programs over all four types give bit-identical results and errors at `-O0`, `-O1` and `-O2`
 (errors at `-O2` compared without their line, which inlining moves): 51608 objects at `-O0`, 27882 at `-O1`. With the
-fence removed from `callTMres`, or from `luaV_callTM`, by hand and reverted, the cases went red: the kept operand
-was overwritten.
+fence removed from `callTMres`, from `luaV_callTM`, or from `onallocate`, by hand and reverted, the cases went red: the
+kept value was overwritten.
 
 **Measured** (`bench/moo/tempreuse.py`, programs in `bench/moo/tempreuse/`; objects per iteration are exact, times
 are the median of 11 whole-process runs on the studio, Apple M3 Ultra, Release, under other load: an indication):

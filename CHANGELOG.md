@@ -16,9 +16,11 @@ changes: moo bytecode version 2, and every compile pin is re-pinned. Version 1 b
   (`Compiler/src/MooTempReuse.h`); `-O0` emits none. Numbers take the same fast path as before.
 - The VM writes a vec3, quat or transform result into the temporary's object when it is of the
   result's type and was created after the fence (`global_State::mootempfence`), which moves to the
-  creation counter after every metamethod call, interrupt, debug hook, destructor run and resume, so
-  nothing the program or the host could have seen is ever written (`VM/src/moo_tempreuse.h`).
-  `sizeof(global_State)` is unchanged.
+  creation counter after every metamethod call, interrupt, debug hook, destructor run, allocation
+  callback and resume, so nothing the program or the host could have seen is ever written
+  (`VM/src/moo_tempreuse.h`). `sizeof(global_State)` is unchanged. A cold review found the
+  allocation callback missing from that list, with a host that keeps a temporary from inside it;
+  it is in the list and in the tests.
 - `tla/TempReuse.tla` models the fence, with three plants that each break `NoVisibleMutation`;
   `tests/moo/tempreuse.test.cpp` and `tests/conformance/moo/spec/tempreuse.luau` pin the counts,
   every opcode, every fence site, every must-not-reuse form and 1024 seeded programs bit-identical
