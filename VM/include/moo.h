@@ -10,8 +10,8 @@
 // which `moo --version` prints with the Luau release it is forked from.
 #define MOO_VERSION_MAJOR 1
 #define MOO_VERSION_MINOR 2
-#define MOO_VERSION_PATCH 0
-#define MOO_VERSION "1.2.0"
+#define MOO_VERSION_PATCH 1
+#define MOO_VERSION "1.2.1"
 #define MOO_LUAU_VERSION "0.741"
 
 // The seed math.random starts from when no seed is given (docs/DETERMINISM.md, 10).
