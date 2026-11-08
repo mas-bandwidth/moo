@@ -19,10 +19,14 @@
 # creation number by five, and global_State grows by ten tag slots (80 bytes), which moves GC pacing; every state
 # hash moved, and the effects hashes of the programs that log creation numbers or gcinfo (docs/DESIGN.md "Layer 3c
 # as built").
-coroutines.luau 114e20c491afbdc6 33d2d8f66c5e979a
-gcchurn.luau ff8c69e35aa61f7d de07f526bb2c4725
-library.luau ea1b27dc2966016e a52f943e66f732a4
-objectkeys.luau 9c2ba3898c884656 8ffc5f7678a0ceb7
-coroutines2.luau 45af4a6f2428da59 2333623472d1cf1c
-errors.luau f7037948e0d4bea2 838a08a10a0a4c6e
-math.luau 9828cd8215d55af5 b8e79e26bdf2f479
+# moo: re-pinned when layer 3d added the wide, poswide, worldtransformwide, aabbwide and time tags: five more
+# type-name strings shift every creation number by five and global_State grows by ten more tag slots (80 bytes,
+# 19344 -> 19424); every state hash moved, and the effects hashes of the programs that log creation numbers or
+# gcinfo (docs/DESIGN.md "Layer 3d as built").
+coroutines.luau bfb84f049018e4d9 692ad173ba608c58
+gcchurn.luau cf4944afedee7949 6355693b3cf585f3
+library.luau 72d3f0807ee613b9 8afa137008b78300
+objectkeys.luau 96fa4ac84841858a fef70c435993b7f9
+coroutines2.luau 45af4a6f2428da59 37829c3f44bcff6d
+errors.luau 6a5601ac464a468f 22cc65c29275a619
+math.luau 41085d2ad5dd1870 4cd938d1bf78ba3c

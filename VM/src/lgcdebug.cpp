@@ -215,6 +215,11 @@ static void validateobj(global_State* g, GCObject* o)
     case LUA_TPLANE:
     case LUA_TAABB:
     case LUA_TFIX30:
+    case LUA_TWIDE: // moo: layer 3d wide and time (docs/DESIGN.md "Layer 3d as built")
+    case LUA_TPOSWIDE:
+    case LUA_TWORLDTRANSFORMWIDE:
+    case LUA_TAABBWIDE:
+    case LUA_TTIME:
         break;
 
     case LUA_TBUFFER:
@@ -697,6 +702,11 @@ static void dumpobj(FILE* f, GCObject* o)
     case LUA_TPLANE:
     case LUA_TAABB:
     case LUA_TFIX30:
+    case LUA_TWIDE: // moo: layer 3d wide and time (docs/DESIGN.md "Layer 3d as built")
+    case LUA_TPOSWIDE:
+    case LUA_TWORLDTRANSFORMWIDE:
+    case LUA_TAABBWIDE:
+    case LUA_TTIME:
         return;
 
     case LUA_TBUFFER:
@@ -1145,6 +1155,17 @@ static void enumobj(EnumContext* ctx, GCObject* o)
         return enumnode(ctx, o, sizeof(MooAABB), NULL);
     case LUA_TFIX30:
         return enumnode(ctx, o, sizeof(MooFix30), NULL);
+    // moo: layer 3d wide and time (docs/DESIGN.md "Layer 3d as built")
+    case LUA_TWIDE:
+        return enumnode(ctx, o, sizeof(MooFixedWide), NULL);
+    case LUA_TPOSWIDE:
+        return enumnode(ctx, o, sizeof(MooPosWide), NULL);
+    case LUA_TWORLDTRANSFORMWIDE:
+        return enumnode(ctx, o, sizeof(MooWorldTransformWide), NULL);
+    case LUA_TAABBWIDE:
+        return enumnode(ctx, o, sizeof(MooAABBWide), NULL);
+    case LUA_TTIME:
+        return enumnode(ctx, o, sizeof(MooTime), NULL);
 
     case LUA_TBUFFER:
         return enumbuffer(ctx, gco2buf(o));

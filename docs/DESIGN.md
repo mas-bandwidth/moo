@@ -257,6 +257,26 @@ Wide world space and time (roadmap layer-3d): Q112.16 `wide` and Q32.32 `time`, 
 transform and AABB built on them. The plan is Virtual Go's `scratch/vg-plans/moo-wide-time-plan.md` (W0-W9); this
 section states what is built, layer by layer.
 
+- **Representation (W1).** Five tags after `LUA_TFIX30`, in this order: `LUA_TWIDE` (22), `LUA_TPOSWIDE`,
+  `LUA_TWORLDTRANSFORMWIDE`, `LUA_TAABBWIDE`, `LUA_TTIME` (26); `LUA_TDEADKEY` is 27, inside `TKey::tt`'s 5 bits, with
+  four values to spare. Each is an immutable GC leaf built as the vec3 is (`VM/src/moo_wide.h`): `MooFixedWide` 32
+  bytes, `MooPosWide` 64, `MooWorldTransformWide` 96 (the position, then fixed's `fixQuat`), `MooAABBWide` 112,
+  `MooTime` 24 (the int64 at offset 16, as fix30's int32). A Q112.16 coordinate is stored as two 64-bit limbs, low
+  first, never as `fixInt128`, which is a 16-aligned `__int128` on some targets and a struct on others; GC blocks are
+  8-aligned. time is boxed like the others (the plan's decision: a new value tag would renumber `lua_type` for C hosts
+  and reverse 3b's rule that moo tags follow every upstream tag). `type` returns the name; `tostring` prints a wide as
+  its literal (`1.5w`), a time as its literal (`0.25s`), and `poswide(xw, yw, zw)`,
+  `worldtransformwide(poswide(..), quat(..))`, `aabbwide(poswide(..), poswide(..))`, with the exact formatter. `==`,
+  `rawequal` and table keys compare the raw bits, as layer 3c's kinds do, with no cross-kind equality (`1w ~= 1`),
+  and the GC rules are 3c's (`tla/ValueKeys.tla`, whose abstract values cover every kind).
+- **Key hash.** With `f` `hashint`'s finalizer on a 64-bit raw and `hw(l) = f(lo)*73856093 ^ f(hi)*19349663` for a
+  wide coordinate: wide is `hw`; poswide is `hw(x) ^ hw(y)*2654435761 ^ hw(z)*2246822519` (mat3's column formula);
+  worldtransformwide is poswide's hash `^` quat's hash `*2654435761` (transform's); aabbwide is
+  `poswide(lower) ^ poswide(upper)*2654435761`; time is `f(raw)*83492791`. They fix `next` order and are pinned in
+  `tests/moo/wide.test.cpp`.
+- **Determinism hashes.** Five more type-name strings shift every creation number by five and `global_State` grows by
+  ten more tag slots (80 bytes, 19344 -> 19424), so moo's frozen hashes are re-cut by name, and Virtual Go's
+  `kPinnedHash`/`kPinnedFixedHash` move on the pin bump that brings this layer.
 - **Exact text (W4, the formatter and the parser).** `Common/include/moo_fixtext.h` is `moo_format.h`'s shortest
   round-trip formatter and `moo_parse.h`'s exact parser, generalised over the raw's width (64 or 128 bits) and its
   fraction bits (16 or 32), in integer arithmetic with no libc, locale or float. `moo_fixtostr` prints the shortest
