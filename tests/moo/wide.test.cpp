@@ -32,8 +32,6 @@ namespace
 {
 
 const fixed_t kOne = MOO_NUMBER_ONE;
-// the most negative wide value, -(2^127 - 1): the 128-bit minimum is reserved (fixIsValidWideCoord)
-const fixedWide_t kWideMin = fixInt128Make(UINT64_C(0x8000000000000000), 1);
 
 // the frozen key hashes of WideHashFrozen and the traversal orders of WideKeysOneSlotAndPinnedOrder
 const uint64_t kWideHashPin = 3675161459263674704ull;
@@ -273,7 +271,7 @@ TEST_CASE("WideTostring")
     setwidevalue(L, L->top, moo_wide_new(L, fixInt128Make(1, 0)));
     incr_top(L);
     CHECK(tostr(L, -1) == "281474976710656w");
-    setwidevalue(L, L->top, moo_wide_new(L, kWideMin));
+    setwidevalue(L, L->top, moo_wide_new(L, FIX_WIDE_MIN));
     incr_top(L);
     CHECK(tostr(L, -1) == "-2596148429267413814265248164610047.99998w");
 
@@ -303,7 +301,7 @@ TEST_CASE("WideTostring")
     CHECK(tostr(L, -1) == "aabbwide(poswide(1w, -2w, 281474976710656w), poswide(1w, -2w, 281474976710656w))");
 
     // the widest components fit each kind's bound
-    fixedWide_t m = kWideMin;
+    fixedWide_t m = FIX_WIDE_MIN;
     fixPosWide pm = {m, m, m};
     char wbuf[MOO_WIDE_TOSTR_MAX];
     CHECK(size_t(moo_wide_tostring(wbuf, moo_wide_new(L, m)) - wbuf) <= MOO_WIDE_TOSTR_MAX);
@@ -317,7 +315,7 @@ TEST_CASE("WideTostring")
     char bbuf[MOO_AABBWIDE_TOSTR_MAX];
     CHECK(size_t(moo_aabbwide_tostring(bbuf, moo_aabbwide_new(L, bm)) - bbuf) <= MOO_AABBWIDE_TOSTR_MAX);
     char ibuf[MOO_TIME_TOSTR_MAX];
-    CHECK(size_t(moo_time_tostring(ibuf, moo_time_new(L, -INT64_MAX)) - ibuf) <= MOO_TIME_TOSTR_MAX);
+    CHECK(size_t(moo_time_tostring(ibuf, moo_time_new(L, FIX_TIME_MIN)) - ibuf) <= MOO_TIME_TOSTR_MAX);
 }
 
 // The key hashes are frozen: they fix `next` order, so they are part of the determinism guarantee.
