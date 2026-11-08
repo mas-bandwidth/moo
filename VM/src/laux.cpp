@@ -12,6 +12,11 @@
 #include "moo_vec3.h"      // moo: tostring of vec3, quat and transform
 #include "moo_quat.h"      // moo: quat
 #include "moo_transform.h" // moo: transform
+#include "moo_vec2.h"      // moo: layer 3c narrow types (docs/DESIGN.md "Layer 3c as built")
+#include "moo_mat3.h"
+#include "moo_plane.h"
+#include "moo_aabb.h"
+#include "moo_fix30.h"
 
 #include <string.h>
 
@@ -661,6 +666,42 @@ const char* luaL_tolstring(lua_State* L, int idx, size_t* len)
         // moo: and a transform
         char s[MOO_TRANSFORM_TOSTR_MAX];
         char* e = moo_transform_tostring(s, transformvalue(luaA_toobject(L, idx)));
+        lua_pushlstring(L, s, e - s);
+        break;
+    }
+    // moo: layer 3c narrow types, each in its literal-like form (docs/DESIGN.md "Layer 3c as built")
+    case LUA_TVEC2:
+    {
+        char s[MOO_VEC2_TOSTR_MAX];
+        char* e = moo_vec2_tostring(s, vec2value(luaA_toobject(L, idx)));
+        lua_pushlstring(L, s, e - s);
+        break;
+    }
+    case LUA_TMAT3:
+    {
+        char s[MOO_MAT3_TOSTR_MAX];
+        char* e = moo_mat3_tostring(s, mat3value(luaA_toobject(L, idx)));
+        lua_pushlstring(L, s, e - s);
+        break;
+    }
+    case LUA_TPLANE:
+    {
+        char s[MOO_PLANE_TOSTR_MAX];
+        char* e = moo_plane_tostring(s, planevalue(luaA_toobject(L, idx)));
+        lua_pushlstring(L, s, e - s);
+        break;
+    }
+    case LUA_TAABB:
+    {
+        char s[MOO_AABB_TOSTR_MAX];
+        char* e = moo_aabb_tostring(s, aabbvalue(luaA_toobject(L, idx)));
+        lua_pushlstring(L, s, e - s);
+        break;
+    }
+    case LUA_TFIX30:
+    {
+        char s[MOO_FIX30_TOSTR_MAX];
+        char* e = moo_fix30_tostring(s, fix30value(luaA_toobject(L, idx)));
         lua_pushlstring(L, s, e - s);
         break;
     }

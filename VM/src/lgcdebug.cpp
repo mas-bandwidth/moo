@@ -205,10 +205,16 @@ static void validateobj(global_State* g, GCObject* o)
     case LUA_TVECTOR:
         break;
 
-    // moo: vec3, quat and transform are leaves (docs/history/layer3b/moo-v2-l3b-vec3-object.md, decision 6)
+    // moo: vec3, quat and transform are leaves (docs/history/layer3b/moo-v2-l3b-vec3-object.md, decision 6), and so
+    // are the layer 3c narrow types (docs/DESIGN.md "Layer 3c as built")
     case LUA_TVEC3:
     case LUA_TQUAT:
     case LUA_TTRANSFORM:
+    case LUA_TVEC2:
+    case LUA_TMAT3:
+    case LUA_TPLANE:
+    case LUA_TAABB:
+    case LUA_TFIX30:
         break;
 
     case LUA_TBUFFER:
@@ -681,10 +687,16 @@ static void dumpobj(FILE* f, GCObject* o)
     case LUA_TVECTOR:
         return; // vector data is outlined, but is a constant cost of a vector
 
-    // moo: vec3, quat and transform are fixed-size leaves (docs/history/layer3b/moo-v2-l3b-vec3-object.md, decision 6)
+    // moo: vec3, quat and transform are fixed-size leaves (docs/history/layer3b/moo-v2-l3b-vec3-object.md, decision 6),
+    // and so are the layer 3c narrow types (docs/DESIGN.md "Layer 3c as built")
     case LUA_TVEC3:
     case LUA_TQUAT:
     case LUA_TTRANSFORM:
+    case LUA_TVEC2:
+    case LUA_TMAT3:
+    case LUA_TPLANE:
+    case LUA_TAABB:
+    case LUA_TFIX30:
         return;
 
     case LUA_TBUFFER:
@@ -1122,6 +1134,17 @@ static void enumobj(EnumContext* ctx, GCObject* o)
         return enumnode(ctx, o, sizeof(MooQuat), NULL);
     case LUA_TTRANSFORM:
         return enumnode(ctx, o, sizeof(MooTransform), NULL);
+    // moo: layer 3c narrow types (docs/DESIGN.md "Layer 3c as built")
+    case LUA_TVEC2:
+        return enumnode(ctx, o, sizeof(MooVec2), NULL);
+    case LUA_TMAT3:
+        return enumnode(ctx, o, sizeof(MooMat3), NULL);
+    case LUA_TPLANE:
+        return enumnode(ctx, o, sizeof(MooPlane), NULL);
+    case LUA_TAABB:
+        return enumnode(ctx, o, sizeof(MooAABB), NULL);
+    case LUA_TFIX30:
+        return enumnode(ctx, o, sizeof(MooFix30), NULL);
 
     case LUA_TBUFFER:
         return enumbuffer(ctx, gco2buf(o));

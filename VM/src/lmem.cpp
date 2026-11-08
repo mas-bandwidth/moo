@@ -133,6 +133,12 @@ static_assert(sizeof(MooVec3) == 40, "size mismatch for vec3 object");
 static_assert(sizeof(MooQuat) == 48, "size mismatch for quat object");
 // moo: transform object size (docs/history/layer3b/moo-v2-l3b-transform.md)
 static_assert(sizeof(MooTransform) == 72, "size mismatch for transform object");
+// moo: layer 3c narrow type object sizes (docs/DESIGN.md "Layer 3c as built")
+static_assert(sizeof(MooVec2) == 32, "size mismatch for vec2 object");
+static_assert(sizeof(MooMat3) == 88, "size mismatch for mat3 object");
+static_assert(sizeof(MooPlane) == 48, "size mismatch for plane object");
+static_assert(sizeof(MooAABB) == 64, "size mismatch for aabb object");
+static_assert(sizeof(MooFix30) == 24, "size mismatch for fix30 object");
 
 // The userdata is designed to provide 16 byte alignment for 16 byte and larger userdata sizes
 static_assert(offsetof(Udata, data) == 32, "data must be at precise offset provide proper alignment");

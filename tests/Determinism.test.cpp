@@ -219,6 +219,36 @@ bool hashObject(void* context, lua_Page* page, GCObject* o)
         f.u64(uint64_t(gco2transform(o)->q.v.z));
         f.u64(uint64_t(gco2transform(o)->q.s));
         break;
+    // moo: layer 3c narrow types, each payload is state (docs/DESIGN.md "Layer 3c as built")
+    case LUA_TVEC2:
+        f.u64(uint64_t(gco2vec2(o)->x));
+        f.u64(uint64_t(gco2vec2(o)->y));
+        break;
+    case LUA_TMAT3:
+    {
+        const fixMatrix3 m = moo_mat3_payload(gco2mat3(o));
+        const fixed_t c[9] = {m.cx.x, m.cx.y, m.cx.z, m.cy.x, m.cy.y, m.cy.z, m.cz.x, m.cz.y, m.cz.z};
+        for (fixed_t x : c)
+            f.u64(uint64_t(x));
+        break;
+    }
+    case LUA_TPLANE:
+        f.u64(uint64_t(gco2plane(o)->normal.x));
+        f.u64(uint64_t(gco2plane(o)->normal.y));
+        f.u64(uint64_t(gco2plane(o)->normal.z));
+        f.u64(uint64_t(gco2plane(o)->offset));
+        break;
+    case LUA_TAABB:
+        f.u64(uint64_t(gco2aabb(o)->lower.x));
+        f.u64(uint64_t(gco2aabb(o)->lower.y));
+        f.u64(uint64_t(gco2aabb(o)->lower.z));
+        f.u64(uint64_t(gco2aabb(o)->upper.x));
+        f.u64(uint64_t(gco2aabb(o)->upper.y));
+        f.u64(uint64_t(gco2aabb(o)->upper.z));
+        break;
+    case LUA_TFIX30:
+        f.u64(uint64_t(int64_t(gco2fix30(o)->raw)));
+        break;
     case LUA_TFUNCTION:
     {
         Closure* c = gco2cl(o);

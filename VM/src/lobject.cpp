@@ -13,6 +13,11 @@
 #include "moo_vec3.h"      // moo: vec3
 #include "moo_quat.h"      // moo: quat
 #include "moo_transform.h" // moo: transform
+#include "moo_vec2.h"      // moo: layer 3c narrow types (docs/DESIGN.md "Layer 3c as built")
+#include "moo_mat3.h"
+#include "moo_plane.h"
+#include "moo_aabb.h"
+#include "moo_fix30.h"
 
 #include <ctype.h>
 #include <string.h>
@@ -143,6 +148,169 @@ char* moo_transform_tostring(char* buf, const MooTransform* t)
     return p;
 }
 
+// moo: layer 3c narrow types, allocation, equality and tostring in the 3b shape (docs/DESIGN.md "Layer 3c as built")
+static char* moo_vec3_tostring_raw(char* p, fixVec3 v)
+{
+    memcpy(p, "vec3(", 5);
+    p = moo_numtostr(p + 5, v.x);
+    *p++ = ',';
+    *p++ = ' ';
+    p = moo_numtostr(p, v.y);
+    *p++ = ',';
+    *p++ = ' ';
+    p = moo_numtostr(p, v.z);
+    *p++ = ')';
+    return p;
+}
+
+MooVec2* moo_vec2_new(lua_State* L, fixVec2 v)
+{
+    MooVec2* o = luaM_newgcofixed(L, MooVec2, sizeof(MooVec2), L->activememcat, LUA_TVEC2);
+    luaC_init(L, o, LUA_TVEC2);
+    o->x = v.x;
+    o->y = v.y;
+    return o;
+}
+
+int moo_vec2_equal(const MooVec2* a, const MooVec2* b)
+{
+    return a->x == b->x && a->y == b->y;
+}
+
+char* moo_vec2_tostring(char* buf, const MooVec2* v)
+{
+    memcpy(buf, "vec2(", 5);
+    char* p = moo_numtostr(buf + 5, v->x);
+    *p++ = ',';
+    *p++ = ' ';
+    p = moo_numtostr(p, v->y);
+    *p++ = ')';
+    return p;
+}
+
+MooMat3* moo_mat3_new(lua_State* L, fixMatrix3 m)
+{
+    MooMat3* o = luaM_newgcofixed(L, MooMat3, sizeof(MooMat3), L->activememcat, LUA_TMAT3);
+    luaC_init(L, o, LUA_TMAT3);
+    o->cx = m.cx;
+    o->cy = m.cy;
+    o->cz = m.cz;
+    return o;
+}
+
+int moo_mat3_equal(const MooMat3* a, const MooMat3* b)
+{
+    return a->cx.x == b->cx.x && a->cx.y == b->cx.y && a->cx.z == b->cx.z && a->cy.x == b->cy.x && a->cy.y == b->cy.y &&
+           a->cy.z == b->cy.z && a->cz.x == b->cz.x && a->cz.y == b->cz.y && a->cz.z == b->cz.z;
+}
+
+char* moo_mat3_tostring(char* buf, const MooMat3* m)
+{
+    memcpy(buf, "mat3(", 5);
+    char* p = moo_vec3_tostring_raw(buf + 5, m->cx);
+    *p++ = ',';
+    *p++ = ' ';
+    p = moo_vec3_tostring_raw(p, m->cy);
+    *p++ = ',';
+    *p++ = ' ';
+    p = moo_vec3_tostring_raw(p, m->cz);
+    *p++ = ')';
+    return p;
+}
+
+MooPlane* moo_plane_new(lua_State* L, fixPlane pl)
+{
+    MooPlane* o = luaM_newgcofixed(L, MooPlane, sizeof(MooPlane), L->activememcat, LUA_TPLANE);
+    luaC_init(L, o, LUA_TPLANE);
+    o->normal = pl.normal;
+    o->offset = pl.offset;
+    return o;
+}
+
+int moo_plane_equal(const MooPlane* a, const MooPlane* b)
+{
+    return a->normal.x == b->normal.x && a->normal.y == b->normal.y && a->normal.z == b->normal.z && a->offset == b->offset;
+}
+
+char* moo_plane_tostring(char* buf, const MooPlane* pl)
+{
+    memcpy(buf, "plane(", 6);
+    char* p = moo_vec3_tostring_raw(buf + 6, pl->normal);
+    *p++ = ',';
+    *p++ = ' ';
+    p = moo_numtostr(p, pl->offset);
+    *p++ = ')';
+    return p;
+}
+
+MooAABB* moo_aabb_new(lua_State* L, fixAABB a)
+{
+    MooAABB* o = luaM_newgcofixed(L, MooAABB, sizeof(MooAABB), L->activememcat, LUA_TAABB);
+    luaC_init(L, o, LUA_TAABB);
+    o->lower = a.lowerBound;
+    o->upper = a.upperBound;
+    return o;
+}
+
+int moo_aabb_equal(const MooAABB* a, const MooAABB* b)
+{
+    return a->lower.x == b->lower.x && a->lower.y == b->lower.y && a->lower.z == b->lower.z && a->upper.x == b->upper.x &&
+           a->upper.y == b->upper.y && a->upper.z == b->upper.z;
+}
+
+char* moo_aabb_tostring(char* buf, const MooAABB* a)
+{
+    memcpy(buf, "aabb(", 5);
+    char* p = moo_vec3_tostring_raw(buf + 5, a->lower);
+    *p++ = ',';
+    *p++ = ' ';
+    p = moo_vec3_tostring_raw(p, a->upper);
+    *p++ = ')';
+    return p;
+}
+
+MooFix30* moo_fix30_new(lua_State* L, fixed30_t x)
+{
+    MooFix30* o = luaM_newgcofixed(L, MooFix30, sizeof(MooFix30), L->activememcat, LUA_TFIX30);
+    luaC_init(L, o, LUA_TFIX30);
+    o->raw = x.raw;
+    return o;
+}
+
+int moo_fix30_equal(const MooFix30* a, const MooFix30* b)
+{
+    return a->raw == b->raw;
+}
+
+// the exact decimal of raw / 2^30: a sign, the integer part (0, 1 or 2), then every fraction digit that is not a
+// trailing zero. A fraction with denominator 2^30 has at most 30 decimal digits, and each step multiplies a value
+// below 2^30 by 10, which fits 64 bits with room; no libc, no double (DETERMINISM.md 8).
+char* moo_fix30_tostring(char* buf, const MooFix30* x)
+{
+    memcpy(buf, "fix30(", 6);
+    char* p = buf + 6;
+    int64_t raw = x->raw;
+    if (raw < 0)
+    {
+        *p++ = '-';
+        raw = -raw; // -INT32_MIN fits int64
+    }
+    *p++ = char('0' + (raw >> 30));
+    uint64_t frac = uint64_t(raw) & ((uint64_t(1) << 30) - 1);
+    if (frac != 0)
+    {
+        *p++ = '.';
+        while (frac != 0)
+        {
+            frac *= 10;
+            *p++ = char('0' + (frac >> 30));
+            frac &= (uint64_t(1) << 30) - 1;
+        }
+    }
+    *p++ = ')';
+    return p;
+}
+
 // moo: no float vector arm; vec3, quat and transform compare by value (docs/history/layer3b/moo-v2-l3b-vec3-object.md,
 // decision 3)
 int luaO_rawequalObj(const TValue* t1, const TValue* t2)
@@ -168,6 +336,17 @@ int luaO_rawequalObj(const TValue* t1, const TValue* t2)
             return moo_quat_equal(quatvalue(t1), quatvalue(t2));
         case LUA_TTRANSFORM:
             return moo_transform_equal(transformvalue(t1), transformvalue(t2));
+        // moo: layer 3c narrow types, by value (docs/DESIGN.md "Layer 3c as built")
+        case LUA_TVEC2:
+            return moo_vec2_equal(vec2value(t1), vec2value(t2));
+        case LUA_TMAT3:
+            return moo_mat3_equal(mat3value(t1), mat3value(t2));
+        case LUA_TPLANE:
+            return moo_plane_equal(planevalue(t1), planevalue(t2));
+        case LUA_TAABB:
+            return moo_aabb_equal(aabbvalue(t1), aabbvalue(t2));
+        case LUA_TFIX30:
+            return moo_fix30_equal(fix30value(t1), fix30value(t2));
         default:
             LUAU_ASSERT(iscollectable(t1));
             return gcvalue(t1) == gcvalue(t2);
@@ -197,6 +376,17 @@ int luaO_rawequalKey(const TKey* t1, const TValue* t2)
             return moo_quat_equal(quatvalue(t1), quatvalue(t2));
         case LUA_TTRANSFORM:
             return moo_transform_equal(transformvalue(t1), transformvalue(t2));
+        // moo: layer 3c narrow types, by value (docs/DESIGN.md "Layer 3c as built")
+        case LUA_TVEC2:
+            return moo_vec2_equal(vec2value(t1), vec2value(t2));
+        case LUA_TMAT3:
+            return moo_mat3_equal(mat3value(t1), mat3value(t2));
+        case LUA_TPLANE:
+            return moo_plane_equal(planevalue(t1), planevalue(t2));
+        case LUA_TAABB:
+            return moo_aabb_equal(aabbvalue(t1), aabbvalue(t2));
+        case LUA_TFIX30:
+            return moo_fix30_equal(fix30value(t1), fix30value(t2));
         default:
             LUAU_ASSERT(iscollectable(t1));
             return gcvalue(t1) == gcvalue(t2);
