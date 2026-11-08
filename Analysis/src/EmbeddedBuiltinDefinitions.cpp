@@ -142,6 +142,17 @@ declare math: {
     isnan: @checked (x: number) -> boolean,
     isinf: @checked (x: number) -> boolean,
     isfinite: @checked (x: number) -> boolean,
+
+    muldiv: @checked (a: number, b: number, c: number) -> number,
+    halfsum: @checked (a: number, b: number) -> number,
+    halfdifference: @checked (a: number, b: number) -> number,
+    unwindangle: @checked (radians: number) -> number,
+    cossin: @checked (radians: number) -> (number, number),
+    smoothcriticallydamped: @checked (current: number, target: number, velocity: number, smoothTime: number, deltaTime: number) -> (number, number),
+    smoothcriticallydampedupdown: @checked (current: number, target: number, velocity: number, smoothTimeUp: number, smoothTimeDown: number, deltaTime: number) -> (number, number),
+    fits: @checked (raw: number, minRaw: number, maxRaw: number) -> boolean,
+    narrow: @checked (raw: number, shift: number) -> number,
+    widen: @checked (raw: number, shift: number) -> number,
 }
 
 )BUILTIN_SRC";
@@ -433,12 +444,45 @@ declare vec3: {
     length: @checked (a: vec3) -> number,
     magnitude: @checked (a: vec3) -> number,
     normalize: @checked (a: vec3) -> vec3,
+    distance: @checked (a: vec3, b: vec3) -> number,
+    distancesquared: @checked (a: vec3, b: vec3) -> number,
+    lengthsquared: @checked (a: vec3) -> number,
+    lerp: @checked (a: vec3, b: vec3, alpha: number) -> vec3,
+    min: @checked (a: vec3, b: vec3) -> vec3,
+    max: @checked (a: vec3, b: vec3) -> vec3,
+    clamp: @checked (a: vec3, lower: vec3, upper: vec3) -> vec3,
+    abs: @checked (a: vec3) -> vec3,
+    sign: @checked (a: vec3) -> vec3,
+    perp: @checked (a: vec3) -> vec3,
+    muladd: @checked (a: vec3, s: number, b: vec3) -> vec3,
+    mulsub: @checked (a: vec3, s: number, b: vec3) -> vec3,
+    blend2: @checked (s: number, a: vec3, t: number, b: vec3) -> vec3,
+    safescale: @checked (a: vec3) -> vec3,
+    isnormalized: @checked (a: vec3) -> boolean,
+    getlengthandnormalize: @checked (a: vec3) -> (vec3, number),
+    normalizewithlength: @checked (a: vec3) -> (vec3, number),
+    subpos: @checked (a: vec3, b: vec3) -> vec3,
+    offsetpos: @checked (p: vec3, d: vec3) -> vec3,
+    lerpposition: @checked (a: vec3, b: vec3, t: number) -> vec3,
+    isvalid: @checked (a: vec3) -> boolean,
 }
 
 declare quat: {
     new: @checked (x: number?, y: number?, z: number?, w: number?) -> quat,
     conjugate: @checked (q: quat) -> quat,
     nlerp: @checked (a: quat, b: quat, alpha: number) -> quat,
+    normalize: @checked (q: quat) -> quat,
+    invmul: @checked (a: quat, b: quat) -> quat,
+    dot: @checked (a: quat, b: quat) -> number,
+    negate: @checked (q: quat) -> quat,
+    fromaxisangle: @checked (axis: vec3, radians: number) -> quat,
+    axisangle: @checked (q: quat) -> (vec3, number),
+    angle: @checked (q: quat) -> number,
+    twistangle: @checked (q: quat) -> number,
+    swingangle: @checked (q: quat) -> number,
+    betweenunitvectors: @checked (a: vec3, b: vec3) -> quat,
+    isvalid: @checked (q: quat) -> boolean,
+    isnormalized: @checked (q: quat) -> boolean,
 }
 
 declare transform: {
@@ -448,6 +492,14 @@ declare transform: {
     direction: @checked (t: transform, v: vec3) -> vec3,
     invpoint: @checked (t: transform, v: vec3) -> vec3,
     invdirection: @checked (t: transform, v: vec3) -> vec3,
+    invmul: @checked (a: transform, b: transform) -> transform,
+    makeworld: @checked (t: transform) -> transform,
+    mulworld: @checked (a: transform, b: transform) -> transform,
+    invmulworld: @checked (a: transform, b: transform) -> transform,
+    transformworldpoint: @checked (t: transform, p: vec3) -> vec3,
+    invtransformworldpoint: @checked (t: transform, p: vec3) -> vec3,
+    torelative: @checked (t: transform, base: vec3) -> transform,
+    isvalid: @checked (t: transform) -> boolean,
 }
 
 )BUILTIN_SRC";

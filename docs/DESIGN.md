@@ -250,6 +250,25 @@ function; moo adds only the checks before the call, the formatter and the parser
 - **Determinism hashes.** The five type-name strings shift every creation number by five and `global_State` grows by
   ten tag slots (80 bytes, 19344), so moo's frozen hashes and Virtual Go's `kPinnedHash`/`kPinnedFixedHash` move on the
   pin bump that brings this layer, although no existing program uses the types.
+- **The completed libraries (N5).** The rest of fixed's functions on the existing types, each one fixed call:
+  `math.muldiv` (`fixMulDiv`), `halfsum`, `halfdifference`, `unwindangle`, `cossin` (`fixComputeCosSinPrecise`, two
+  values; `math.cos` and `math.sin` stay on `fixComputeCosSin`), `smoothcriticallydamped` and
+  `smoothcriticallydampedupdown` (position and velocity, two values), and the raw-value helpers `fits`, `narrow`,
+  `widen` (`fixed_quantize.h`, on the number's raw bits); `vec3.distance`, `distancesquared`, `lengthsquared`, `lerp`,
+  `min`, `max`, `clamp`, `abs`, `sign`, `perp`, `muladd`, `mulsub`, `blend2`, `safescale`, `isnormalized`,
+  `getlengthandnormalize` and `normalizewithlength` (vector and length), the position functions `subpos`,
+  `offsetpos`, `lerpposition` (`fixPos` is `fixVec3`), and `isvalid`; `quat.normalize`, `invmul`, `dot`, `negate`,
+  `fromaxisangle`, `axisangle` (axis and angle), `angle`, `twistangle`, `swingangle`, `betweenunitvectors`, `isvalid`,
+  `isnormalized`; `transform.invmul`, the world family `makeworld`, `mulworld`, `invmulworld`,
+  `transformworldpoint`, `invtransformworldpoint`, `torelative` (`fixWorldTransform` is `fixTransform`), and
+  `isvalid`. Where fixed asserts a precondition the argument is refused by name (an alpha outside [0, 1], a non-unit
+  axis or vector, a shift outside [0, 63), a raw value outside `fixNarrow`'s or `fixWiden`'s range; `widen` also
+  refuses `INT64_MIN >> shift`, so a widened value is never `INT64_MIN`); otherwise fixed's result, saturation
+  included, is the answer in release and checked builds alike (the 3b rule for compound functions).
+  `tests/moo/complete.test.cpp` checks all 51 against fixed's C (2^12 PCG32 and edge cases each, `MOO_ORACLE_3C_N`),
+  with a reversed witness of eleven plants, each red on its function only. `math.lerp` keeps its layer 3 definition
+  (exact at `t == 1`), so `fixLerp` is not exposed under that name; `quat.frommatrix` (`fixMakeQuatFromMatrix`) comes
+  with `mat3`'s library.
 
 ## Representation
 
