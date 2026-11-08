@@ -331,6 +331,16 @@ static void reallymarkobject(global_State* g, GCObject* o)
         gray2black(o);
         return;
     }
+    // moo: layer 3c narrow types, leaves too (docs/DESIGN.md "Layer 3c as built")
+    case LUA_TVEC2:
+    case LUA_TMAT3:
+    case LUA_TPLANE:
+    case LUA_TAABB:
+    case LUA_TFIX30:
+    {
+        gray2black(o);
+        return;
+    }
     case LUA_TBUFFER:
     {
         gray2black(o); // buffers are never gray
@@ -711,6 +721,12 @@ static int isobjcleared(GCObject* o)
         stringmark(&o->gch);
         return 0;
     }
+    // moo: layer 3c narrow types (docs/DESIGN.md "Layer 3c as built")
+    if (o->gch.tt == LUA_TVEC2 || o->gch.tt == LUA_TMAT3 || o->gch.tt == LUA_TPLANE || o->gch.tt == LUA_TAABB || o->gch.tt == LUA_TFIX30)
+    {
+        stringmark(&o->gch);
+        return 0;
+    }
 
     return iswhite(o);
 }
@@ -871,6 +887,22 @@ static void freeobj(lua_State* L, GCObject* o, lua_Page* page)
     // moo: transform
     case LUA_TTRANSFORM:
         luaM_freegcofixed(L, gco2transform(o), sizeof(MooTransform), gco2transform(o)->memcat, page);
+        break;
+    // moo: layer 3c narrow types (docs/DESIGN.md "Layer 3c as built")
+    case LUA_TVEC2:
+        luaM_freegcofixed(L, gco2vec2(o), sizeof(MooVec2), gco2vec2(o)->memcat, page);
+        break;
+    case LUA_TMAT3:
+        luaM_freegcofixed(L, gco2mat3(o), sizeof(MooMat3), gco2mat3(o)->memcat, page);
+        break;
+    case LUA_TPLANE:
+        luaM_freegcofixed(L, gco2plane(o), sizeof(MooPlane), gco2plane(o)->memcat, page);
+        break;
+    case LUA_TAABB:
+        luaM_freegcofixed(L, gco2aabb(o), sizeof(MooAABB), gco2aabb(o)->memcat, page);
+        break;
+    case LUA_TFIX30:
+        luaM_freegcofixed(L, gco2fix30(o), sizeof(MooFix30), gco2fix30(o)->memcat, page);
         break;
     default:
         LUAU_ASSERT(0);

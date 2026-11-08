@@ -17,6 +17,11 @@
 #include "moo_vec3.h"      // moo: vec3, quat and transform compare by value
 #include "moo_quat.h"      // moo: quat
 #include "moo_transform.h" // moo: transform
+#include "moo_vec2.h"      // moo: layer 3c narrow types (docs/DESIGN.md "Layer 3c as built")
+#include "moo_mat3.h"
+#include "moo_plane.h"
+#include "moo_aabb.h"
+#include "moo_fix30.h"
 #include "moo_tempreuse.h" // moo: expression-temporary reuse
 
 #include <string.h>
@@ -1437,6 +1442,37 @@ reentry:
                         VM_NEXT();
                         break;
 
+                    // moo: and the layer 3c narrow types (docs/DESIGN.md "Layer 3c as built")
+                    case LUA_TVEC2:
+                        pc += moo_vec2_equal(vec2value(ra), vec2value(rb)) ? LUAU_INSN_D(insn) : 1;
+                        VM_ASSERT_PC(pc);
+                        VM_NEXT();
+                        break;
+
+                    case LUA_TMAT3:
+                        pc += moo_mat3_equal(mat3value(ra), mat3value(rb)) ? LUAU_INSN_D(insn) : 1;
+                        VM_ASSERT_PC(pc);
+                        VM_NEXT();
+                        break;
+
+                    case LUA_TPLANE:
+                        pc += moo_plane_equal(planevalue(ra), planevalue(rb)) ? LUAU_INSN_D(insn) : 1;
+                        VM_ASSERT_PC(pc);
+                        VM_NEXT();
+                        break;
+
+                    case LUA_TAABB:
+                        pc += moo_aabb_equal(aabbvalue(ra), aabbvalue(rb)) ? LUAU_INSN_D(insn) : 1;
+                        VM_ASSERT_PC(pc);
+                        VM_NEXT();
+                        break;
+
+                    case LUA_TFIX30:
+                        pc += moo_fix30_equal(fix30value(ra), fix30value(rb)) ? LUAU_INSN_D(insn) : 1;
+                        VM_ASSERT_PC(pc);
+                        VM_NEXT();
+                        break;
+
                     // Class objects are only ever physically equal, so check
                     // for pointer equality.
                     case LUA_TCLASS:
@@ -1582,6 +1618,37 @@ reentry:
                     // moo: and a transform
                     case LUA_TTRANSFORM:
                         pc += !moo_transform_equal(transformvalue(ra), transformvalue(rb)) ? LUAU_INSN_D(insn) : 1;
+                        VM_ASSERT_PC(pc);
+                        VM_NEXT();
+                        break;
+
+                    // moo: and the layer 3c narrow types (docs/DESIGN.md "Layer 3c as built")
+                    case LUA_TVEC2:
+                        pc += !moo_vec2_equal(vec2value(ra), vec2value(rb)) ? LUAU_INSN_D(insn) : 1;
+                        VM_ASSERT_PC(pc);
+                        VM_NEXT();
+                        break;
+
+                    case LUA_TMAT3:
+                        pc += !moo_mat3_equal(mat3value(ra), mat3value(rb)) ? LUAU_INSN_D(insn) : 1;
+                        VM_ASSERT_PC(pc);
+                        VM_NEXT();
+                        break;
+
+                    case LUA_TPLANE:
+                        pc += !moo_plane_equal(planevalue(ra), planevalue(rb)) ? LUAU_INSN_D(insn) : 1;
+                        VM_ASSERT_PC(pc);
+                        VM_NEXT();
+                        break;
+
+                    case LUA_TAABB:
+                        pc += !moo_aabb_equal(aabbvalue(ra), aabbvalue(rb)) ? LUAU_INSN_D(insn) : 1;
+                        VM_ASSERT_PC(pc);
+                        VM_NEXT();
+                        break;
+
+                    case LUA_TFIX30:
+                        pc += !moo_fix30_equal(fix30value(ra), fix30value(rb)) ? LUAU_INSN_D(insn) : 1;
                         VM_ASSERT_PC(pc);
                         VM_NEXT();
                         break;

@@ -444,6 +444,15 @@ conformance/moo/spec/compiler.luau O1 g2 21e22f8f5fadefe8
 conformance/moo/spec/compiler.luau O2 g0 376cd2ed6a10f5c2
 conformance/moo/spec/compiler.luau O2 g1 fd69153018449096
 conformance/moo/spec/compiler.luau O2 g2 8fb6e36c58366532
+conformance/moo/spec/complete.luau O0 g0 15f09531f57abd51
+conformance/moo/spec/complete.luau O0 g1 1ba8cc457673a99f
+conformance/moo/spec/complete.luau O0 g2 9373ae9ddeab7787
+conformance/moo/spec/complete.luau O1 g0 915749145f11b2a7
+conformance/moo/spec/complete.luau O1 g1 8651679070c0d5c2
+conformance/moo/spec/complete.luau O1 g2 8bbae96e1ee11138
+conformance/moo/spec/complete.luau O2 g0 b2ae46e358d02746
+conformance/moo/spec/complete.luau O2 g1 d52876938f7d3150
+conformance/moo/spec/complete.luau O2 g2 edf8dcae176ae6ff
 conformance/moo/spec/coroutines.luau O0 g0 3ed6497635ce8f29
 conformance/moo/spec/coroutines.luau O0 g1 1425e05f5c5bfdcb
 conformance/moo/spec/coroutines.luau O0 g2 770904c8640600e9

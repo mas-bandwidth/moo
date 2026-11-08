@@ -224,6 +224,52 @@ This section is the current statement of the layer. The per-card notes it was bu
 - **Not built.** `quat.slerp` waits for `fixed`. (The `fixCross`, `fixRotateVector` and `fixMulAdd` sums that were owed upstream saturate under
   `FIX_SATURATE` since fixed #60-#62; "Saturation, stated precisely".)
 
+## Layer 3c as built
+
+Layer 3c makes every narrow type of the vendored fixed a first-class value: `vec2` (`fixVec2`), `mat3` (`fixMatrix3`),
+`plane` (`fixPlane`), `aabb` (`fixAABB`) and `fix30` (`fixed30_t`, Q2.30). Every operation on them is fixed's own C
+function; moo adds only the checks before the call, the formatter and the parser. The roadmap rows are
+`layer-3c` in `docs/roadmap.sexp`.
+
+- **Representation (N1).** Five tags after `LUA_TTRANSFORM`, in this order: `LUA_TVEC2` (17), `LUA_TMAT3`,
+  `LUA_TPLANE`, `LUA_TAABB`, `LUA_TFIX30` (21); `LUA_TDEADKEY` is 22, inside `TKey::tt`'s 5 bits. Each value is an
+  immutable GC leaf built as the vec3 is: `MooVec2` 32 bytes, `MooMat3` 88 (columns `cx`, `cy`, `cz`), `MooPlane` 48
+  (`normal`, `offset`), `MooAABB` 64 (`lower`, `upper`), `MooFix30` 24 (the int32 at offset 16: a free GC block keeps
+  its free-list link right after the header, so no GC object is smaller than 24 bytes). The sizes are pinned in
+  `VM/src/moo_layout.cpp`. `type` returns the name; `tostring` prints `vec2(x, y)`, `mat3(vec3(..), vec3(..),
+  vec3(..))`, `plane(vec3(..), d)`, `aabb(vec3(..), vec3(..))` and `fix30(x)` (the exact Q2.30 decimal) with no
+  address and no creation number. `==`, `rawequal` and table keys compare the raw components: equal bits are one key,
+  no kind equals another kind or a number, and `__eq` is never called. The GC never clears one from a weak table, and a
+  removed key becomes `LUA_TDEADKEY` before the sweep frees its object, matched afterwards by identity only, as for
+  vec3 (`tla/ValueKeys.tla`).
+- **Key hash.** In the vec3 family (`VM/src/ltable.cpp`), with `f` `hashint`'s finalizer on a raw component and
+  `h3(v) = f(x)*73856093 ^ f(y)*19349663 ^ f(z)*83492791`: vec2 is `f(x)*73856093 ^ f(y)*19349663`; mat3 is
+  `h3(cx) ^ h3(cy)*2654435761 ^ h3(cz)*2246822519`; plane is `h3(normal) ^ f(offset)*39916801`; aabb is
+  `h3(lower) ^ h3(upper)*2654435761`; fix30 is `f(raw)`, the int32 sign-extended. They fix `next` order and are pinned
+  in `tests/moo/narrow.test.cpp`.
+- **Determinism hashes.** The five type-name strings shift every creation number by five and `global_State` grows by
+  ten tag slots (80 bytes, 19344), so moo's frozen hashes and Virtual Go's `kPinnedHash`/`kPinnedFixedHash` move on the
+  pin bump that brings this layer, although no existing program uses the types.
+- **The completed libraries (N5).** The rest of fixed's functions on the existing types, each one fixed call:
+  `math.muldiv` (`fixMulDiv`), `halfsum`, `halfdifference`, `unwindangle`, `cossin` (`fixComputeCosSinPrecise`, two
+  values; `math.cos` and `math.sin` stay on `fixComputeCosSin`), `smoothcriticallydamped` and
+  `smoothcriticallydampedupdown` (position and velocity, two values), and the raw-value helpers `fits`, `narrow`,
+  `widen` (`fixed_quantize.h`, on the number's raw bits); `vec3.distance`, `distancesquared`, `lengthsquared`, `lerp`,
+  `min`, `max`, `clamp`, `abs`, `sign`, `perp`, `muladd`, `mulsub`, `blend2`, `safescale`, `isnormalized`,
+  `getlengthandnormalize` and `normalizewithlength` (vector and length), the position functions `subpos`,
+  `offsetpos`, `lerpposition` (`fixPos` is `fixVec3`), and `isvalid`; `quat.normalize`, `invmul`, `dot`, `negate`,
+  `fromaxisangle`, `axisangle` (axis and angle), `angle`, `twistangle`, `swingangle`, `betweenunitvectors`, `isvalid`,
+  `isnormalized`; `transform.invmul`, the world family `makeworld`, `mulworld`, `invmulworld`,
+  `transformworldpoint`, `invtransformworldpoint`, `torelative` (`fixWorldTransform` is `fixTransform`), and
+  `isvalid`. Where fixed asserts a precondition the argument is refused by name (an alpha outside [0, 1], a non-unit
+  axis or vector, a shift outside [0, 63), a raw value outside `fixNarrow`'s or `fixWiden`'s range; `widen` also
+  refuses `INT64_MIN >> shift`, so a widened value is never `INT64_MIN`); otherwise fixed's result, saturation
+  included, is the answer in release and checked builds alike (the 3b rule for compound functions).
+  `tests/moo/complete.test.cpp` checks all 51 against fixed's C (2^12 PCG32 and edge cases each, `MOO_ORACLE_3C_N`),
+  with a reversed witness of eleven plants, each red on its function only. `math.lerp` keeps its layer 3 definition
+  (exact at `t == 1`), so `fixLerp` is not exposed under that name; `quat.frommatrix` (`fixMakeQuatFromMatrix`) comes
+  with `mat3`'s library.
+
 ## Representation
 
 There is one number type. Its value is the raw signed 64-bit Q48.16 integer, `fixed_t`
@@ -858,7 +904,8 @@ Per house practice, each state machine moo adds or changes gets a TLA+ module be
 with TLC on a small instance before the code is merged: the GC pacing and destructor queue
 (layer 2, `tla/DestructorQueue.tla`) and the numeric `for` trip count (layer 3,
 `tla/NumericFor.tla`), the coroutine resume/yield/close/error states (layer 5, `tla/Coroutines.tla`, with
-two plants), and the expression-temporary fence (layer 3b, `tla/TempReuse.tla`, with three plants).
+two plants), and the expression-temporary fence (layer 3b, `tla/TempReuse.tla`, with three plants), and value-keyed objects as
+table keys, dead keys and `next` (layer 3c, `tla/ValueKeys.tla`, with two plants).
 
 ## Upstream merges
 

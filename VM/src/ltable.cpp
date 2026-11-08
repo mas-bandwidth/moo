@@ -34,6 +34,11 @@
 #include "moo_vec3.h"      // moo: vec3, quat and transform keys hash and compare by value
 #include "moo_quat.h"      // moo: quat
 #include "moo_transform.h" // moo: transform
+#include "moo_vec2.h"      // moo: layer 3c narrow types (docs/DESIGN.md "Layer 3c as built")
+#include "moo_mat3.h"
+#include "moo_plane.h"
+#include "moo_aabb.h"
+#include "moo_fix30.h"
 
 #include <string.h>
 
@@ -216,6 +221,43 @@ unsigned int moo_transform_hash(const MooTransform* t)
     return hp ^ hq * 2654435761u;
 }
 
+// moo: layer 3c narrow types, in the same formula family (docs/DESIGN.md "Layer 3c as built"). These fix `next`
+// order, so they are part of the determinism guarantee.
+static uint32_t moo_vec3_raw_hash(fixVec3 v)
+{
+    return moo_vec3_comp_hash(v.x) * 73856093u ^ moo_vec3_comp_hash(v.y) * 19349663u ^ moo_vec3_comp_hash(v.z) * 83492791u;
+}
+
+// the first two of hashvec's primes
+unsigned int moo_vec2_hash(const MooVec2* v)
+{
+    return moo_vec3_comp_hash(v->x) * 73856093u ^ moo_vec3_comp_hash(v->y) * 19349663u;
+}
+
+// the three columns' vec3 hashes, the second and third with their own odd multipliers (transform's and one more)
+unsigned int moo_mat3_hash(const MooMat3* m)
+{
+    return moo_vec3_raw_hash(m->cx) ^ moo_vec3_raw_hash(m->cy) * 2654435761u ^ moo_vec3_raw_hash(m->cz) * 2246822519u;
+}
+
+// the quat formula: a plane's payload has the quat's shape, three components and a scalar
+unsigned int moo_plane_hash(const MooPlane* p)
+{
+    return moo_vec3_raw_hash(p->normal) ^ moo_vec3_comp_hash(p->offset) * 39916801u;
+}
+
+// the transform formula on the two bounds
+unsigned int moo_aabb_hash(const MooAABB* a)
+{
+    return moo_vec3_raw_hash(a->lower) ^ moo_vec3_raw_hash(a->upper) * 2654435761u;
+}
+
+// the one raw component through hashint's finalizer, sign-extended
+unsigned int moo_fix30_hash(const MooFix30* x)
+{
+    return moo_vec3_comp_hash(x->raw);
+}
+
 LUAU_MAYBE_UNUSED static LuaNode* hashvec(const LuaTable* t, const float* v)
 {
     unsigned int i[LUA_VECTOR_SIZE];
@@ -296,6 +338,16 @@ static LuaNode* mainposition(const LuaTable* t, const TValue* key)
         return hashpow2(t, moo_quat_hash(quatvalue(key)));
     case LUA_TTRANSFORM: // moo: transform
         return hashpow2(t, moo_transform_hash(transformvalue(key)));
+    case LUA_TVEC2: // moo: layer 3c narrow types
+        return hashpow2(t, moo_vec2_hash(vec2value(key)));
+    case LUA_TMAT3:
+        return hashpow2(t, moo_mat3_hash(mat3value(key)));
+    case LUA_TPLANE:
+        return hashpow2(t, moo_plane_hash(planevalue(key)));
+    case LUA_TAABB:
+        return hashpow2(t, moo_aabb_hash(aabbvalue(key)));
+    case LUA_TFIX30:
+        return hashpow2(t, moo_fix30_hash(fix30value(key)));
     case LUA_TSTRING:
         return hashstr(t, tsvalue(key));
     case LUA_TBOOLEAN:
@@ -361,6 +413,36 @@ LUAU_FORCEINLINE LuaNode* mainpositiontagged<LUA_TTRANSFORM>(const LuaTable* t, 
     return hashpow2(t, moo_transform_hash(key));
 }
 
+template<> // moo: layer 3c narrow types
+LUAU_FORCEINLINE LuaNode* mainpositiontagged<LUA_TVEC2>(const LuaTable* t, MooVec2* key)
+{
+    return hashpow2(t, moo_vec2_hash(key));
+}
+
+template<>
+LUAU_FORCEINLINE LuaNode* mainpositiontagged<LUA_TMAT3>(const LuaTable* t, MooMat3* key)
+{
+    return hashpow2(t, moo_mat3_hash(key));
+}
+
+template<>
+LUAU_FORCEINLINE LuaNode* mainpositiontagged<LUA_TPLANE>(const LuaTable* t, MooPlane* key)
+{
+    return hashpow2(t, moo_plane_hash(key));
+}
+
+template<>
+LUAU_FORCEINLINE LuaNode* mainpositiontagged<LUA_TAABB>(const LuaTable* t, MooAABB* key)
+{
+    return hashpow2(t, moo_aabb_hash(key));
+}
+
+template<>
+LUAU_FORCEINLINE LuaNode* mainpositiontagged<LUA_TFIX30>(const LuaTable* t, MooFix30* key)
+{
+    return hashpow2(t, moo_fix30_hash(key));
+}
+
 template<>
 LUAU_FORCEINLINE LuaNode* mainpositiontagged<LUA_TSTRING>(const LuaTable* t, TString* key)
 {
@@ -417,6 +499,36 @@ template<> // moo: transform
 LUAU_FORCEINLINE int rawequalkeyvalue<LUA_TTRANSFORM>(const TKey* t1, MooTransform* key)
 {
     return moo_transform_equal(transformvalue(t1), key);
+}
+
+template<> // moo: layer 3c narrow types
+LUAU_FORCEINLINE int rawequalkeyvalue<LUA_TVEC2>(const TKey* t1, MooVec2* key)
+{
+    return moo_vec2_equal(vec2value(t1), key);
+}
+
+template<>
+LUAU_FORCEINLINE int rawequalkeyvalue<LUA_TMAT3>(const TKey* t1, MooMat3* key)
+{
+    return moo_mat3_equal(mat3value(t1), key);
+}
+
+template<>
+LUAU_FORCEINLINE int rawequalkeyvalue<LUA_TPLANE>(const TKey* t1, MooPlane* key)
+{
+    return moo_plane_equal(planevalue(t1), key);
+}
+
+template<>
+LUAU_FORCEINLINE int rawequalkeyvalue<LUA_TAABB>(const TKey* t1, MooAABB* key)
+{
+    return moo_aabb_equal(aabbvalue(t1), key);
+}
+
+template<>
+LUAU_FORCEINLINE int rawequalkeyvalue<LUA_TFIX30>(const TKey* t1, MooFix30* key)
+{
+    return moo_fix30_equal(fix30value(t1), key);
 }
 
 template<>
@@ -1399,6 +1511,16 @@ const TValue* luaH_get(LuaTable* t, const TValue* key)
             return chainsearchtagged<LUA_TQUAT>(t, quatvalue(key), LUA_TQUAT);
         case LUA_TTRANSFORM: // moo: transform
             return chainsearchtagged<LUA_TTRANSFORM>(t, transformvalue(key), LUA_TTRANSFORM);
+        case LUA_TVEC2: // moo: layer 3c narrow types
+            return chainsearchtagged<LUA_TVEC2>(t, vec2value(key), LUA_TVEC2);
+        case LUA_TMAT3:
+            return chainsearchtagged<LUA_TMAT3>(t, mat3value(key), LUA_TMAT3);
+        case LUA_TPLANE:
+            return chainsearchtagged<LUA_TPLANE>(t, planevalue(key), LUA_TPLANE);
+        case LUA_TAABB:
+            return chainsearchtagged<LUA_TAABB>(t, aabbvalue(key), LUA_TAABB);
+        case LUA_TFIX30:
+            return chainsearchtagged<LUA_TFIX30>(t, fix30value(key), LUA_TFIX30);
         case LUA_TSTRING:
             return luaH_getstr(t, tsvalue(key));
         default:
@@ -1489,6 +1611,16 @@ TValue* luaH_newkey(lua_State* L, LuaTable* t, const TValue* key)
             return newkeytagged<LUA_TQUAT, false>(L, t, key, quatvalue(key), -1);
         case LUA_TTRANSFORM: // moo: transform
             return newkeytagged<LUA_TTRANSFORM, false>(L, t, key, transformvalue(key), -1);
+        case LUA_TVEC2: // moo: layer 3c narrow types; Q48.16 has no NaN to refuse
+            return newkeytagged<LUA_TVEC2, false>(L, t, key, vec2value(key), -1);
+        case LUA_TMAT3:
+            return newkeytagged<LUA_TMAT3, false>(L, t, key, mat3value(key), -1);
+        case LUA_TPLANE:
+            return newkeytagged<LUA_TPLANE, false>(L, t, key, planevalue(key), -1);
+        case LUA_TAABB:
+            return newkeytagged<LUA_TAABB, false>(L, t, key, aabbvalue(key), -1);
+        case LUA_TFIX30:
+            return newkeytagged<LUA_TFIX30, false>(L, t, key, fix30value(key), -1);
         case LUA_TSTRING:
             return newkeytagged<LUA_TSTRING, false>(L, t, key, tsvalue(key), -1);
         default:

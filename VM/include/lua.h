@@ -110,6 +110,14 @@ enum lua_Type
     // moo: transform
     LUA_TTRANSFORM,
 
+    // moo: layer 3c, the narrow fixed types vec2, mat3, plane, aabb and fix30, immutable GC values after the 3b tags
+    // (docs/DESIGN.md "Layer 3c as built")
+    LUA_TVEC2,
+    LUA_TMAT3,
+    LUA_TPLANE,
+    LUA_TAABB,
+    LUA_TFIX30,
+
     // values below this line are used in GCObject tags but may never show up in TValue type tags
 
     // LUA_TDEADKEY is used in TKey to identify Luau table entries that have the value set to nil,
