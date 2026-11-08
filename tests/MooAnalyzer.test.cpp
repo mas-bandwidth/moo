@@ -132,8 +132,10 @@ local ce: aabb = aabb.fromcenterextents(t, a, a)
 local f: fix30 = fix30.new(0.5)
 local fn: number = fix30.tonumber(f)
 local f2: fix30 = fix30.normalizecomponent(3, 4)
+local fr: number = fix30.raw(f)
+local f3: fix30 = fix30.fromraw(fr)
 
-local _ = {v2, v2z, v2n, mm, mv, cols, inv, sol, det, fq, q, mok, p, p0, pn, pd, pok, corners, area, tests, boxes, ce, fn, f2}
+local _ = {v2, v2z, v2n, mm, mv, cols, inv, sol, det, fq, q, mok, p, p0, pn, pd, pok, corners, area, tests, boxes, ce, fn, f2, fr, f3}
 )");
 
     LUAU_REQUIRE_NO_ERRORS(result);

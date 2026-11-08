@@ -541,10 +541,30 @@ int fix30_normalizecomponent(lua_State* L)
     return 1;
 }
 
+// fix30.raw(x): the Q2.30 bits as an integer in [-2^31, 2^31), exactly; fix30.fromraw(n) is its inverse. The wire
+// (serialize.moo's fixed(2,30)) carries these bits, which fix30.tonumber rounds away (layer 3c N4).
+int fix30_raw(lua_State* L)
+{
+    lua_pushnumber(L, moo_numfromint(moo_fix30_check(L, 1).raw));
+    return 1;
+}
+
+int fix30_fromraw(lua_State* L)
+{
+    fixed_t n = luaL_checknumber(L, 1);
+    luaL_argcheck(L, (n & (MOO_NUMBER_ONE - 1)) == 0, 1, "number has no integer representation");
+    int64_t raw = n / MOO_NUMBER_ONE; // exact: no fraction bits
+    luaL_argcheck(L, raw >= INT32_MIN && raw <= INT32_MAX, 1, "raw must be in [-2^31, 2^31)");
+    moo_pushfix30(L, int32_t(raw));
+    return 1;
+}
+
 const luaL_Reg fix30lib[] = {
     {"new", fix30_new},
     {"tonumber", fix30_tonumber},
     {"normalizecomponent", fix30_normalizecomponent},
+    {"raw", fix30_raw},
+    {"fromraw", fix30_fromraw},
     {NULL, NULL},
 };
 

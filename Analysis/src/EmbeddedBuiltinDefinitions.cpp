@@ -579,6 +579,8 @@ declare fix30: {
     new: @checked (x: number) -> fix30,
     tonumber: @checked (x: fix30) -> number,
     normalizecomponent: @checked (x: number, length: number) -> fix30,
+    raw: @checked (x: fix30) -> number,
+    fromraw: @checked (raw: number) -> fix30,
 }
 
 )BUILTIN_SRC";

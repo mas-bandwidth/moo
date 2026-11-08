@@ -108,6 +108,13 @@ do
     assert(fix30.tonumber(fix30.normalizecomponent(3, 4)) == 0.75)
     assert(fix30.tonumber(fix30.normalizecomponent(-4, 4)) == -1)
     assert(not pcall(fix30.normalizecomponent, 1, 0))
+    -- the raw Q2.30 bits, which the wire carries: 0.5 is 2^29, and the smallest step survives where tonumber rounds it
+    assert(fix30.raw(h) == 536870912)
+    assert(fix30.fromraw(fix30.raw(h)) == h)
+    assert(fix30.raw(fix30.fromraw(-2147483648)) == -2147483648)
+    assert(fix30.tonumber(fix30.fromraw(1)) == 0)
+    assert(fix30.raw(fix30.fromraw(1)) == 1)
+    assert(not pcall(fix30.fromraw, 2147483648))
     local t = {}
     t[fix30.new(0.25)] = true
     assert(t[fix30.new(0.25)] == true)

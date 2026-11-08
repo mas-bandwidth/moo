@@ -34,8 +34,8 @@ TEST_SUITE_BEGIN("complete");
 //
 // Inputs are an edge set (zero, one raw unit, one, a half, 2^47, the range ends, pi and its multiples for the angles)
 // mixed with PCG32 draws of random bit length and sign; vectors take the 3b oracle's degenerate shapes, quaternions
-// are unit, near-unit, identity, exact half turns or full-range. 2^12 cases per function; MOO_ORACLE_3C_N sets the
-// count (the nightly raises it). One summary line is printed.
+// are unit, near-unit, identity, exact half turns or full-range. 2^14 cases per function; MOO_ORACLE_3C_N sets the
+// count (the nightly runs 2^22). One summary line is printed.
 
 namespace
 {
@@ -50,7 +50,7 @@ uint64_t caseCount()
 {
     const char* text = getenv("MOO_ORACLE_3C_N");
     if (!text)
-        return uint64_t(1) << 12;
+        return uint64_t(1) << 14;
     char* end = nullptr;
     unsigned long long n = strtoull(text, &end, 10);
     REQUIRE_MESSAGE((*end == 0 && n > 0 && text[0] != '-'), "MOO_ORACLE_3C_N must be a positive decimal count, not '" << text << "'");
@@ -704,6 +704,8 @@ struct Oracle
             function f30new(x) return fix30.new(x) end
             function f30tonumber(x) return fix30.tonumber(x) end
             function f30normalize(x, l) return fix30.normalizecomponent(x, l) end
+            function f30raw(x) return fix30.raw(x) end
+            function f30fromraw(n) return fix30.fromraw(n) end
         )");
         REQUIRE(luau_load(L, "=moo-3c-oracle", bytecode.data(), bytecode.size(), 0) == 0);
         REQUIRE(lua_pcall(L, 0, 0, 0) == 0);
@@ -1157,6 +1159,25 @@ static void runNarrow(Oracle& o)
             }
         });
     }
+    // the wire's bits (N4): raw is the int32 as an integer, fromraw its inverse, refusing what no int32 holds
+    {
+        Rng r(0x3ce4);
+        o.op([&](uint64_t) {
+            fixed30_t x = {int32_t(r.next32())};
+            o.check("fix30.raw", "f30raw", moo_numfromint(x.raw), x);
+        });
+    }
+    {
+        Rng r(0x3ce5);
+        o.op([&](uint64_t i) {
+            int64_t n = (i % 4 == 0) ? int64_t(int32_t(r.next32())) + ((i % 8 == 0) ? int64_t(1) << 31 : -(int64_t(1) << 31) - 1)
+                                     : int64_t(int32_t(r.next32()));
+            if (n < INT32_MIN || n > INT32_MAX)
+                o.checkRefused<fixed30_t>("fix30.fromraw", "f30fromraw", "raw must be in [-2^31, 2^31)", moo_numfromint(n));
+            else
+                o.check("fix30.fromraw", "f30fromraw", fixed30_t{int32_t(n)}, moo_numfromint(n));
+        });
+    }
 }
 
 // every function of the layer, n cases each; the C side is the fixed function the moo function wraps, called on
@@ -1596,7 +1617,7 @@ static void runAll(Oracle& o)
     runNarrow(o);
 }
 
-const int kOps = 92; // N5: 10 math, 21 vec3, 12 quat, 8 transform; N2: 2 vec2, 18 mat3 (quat.frommatrix with them), 3 plane, 16 aabb, 3 fix30
+const int kOps = 94; // N5: 10 math, 21 vec3, 12 quat, 8 transform; N2: 2 vec2, 18 mat3 (quat.frommatrix with them), 3 plane, 16 aabb, 3 fix30; N4: 2 fix30
 
 TEST_CASE("CompleteOracle")
 {
@@ -1654,6 +1675,7 @@ TEST_CASE("CompleteOracleGoesRedOnAPlantedWrongOp")
         {"aabb.transform", "function btransform(t, a) return aabb.transform(transform.new(t.p, quat.new()), a) end"},
         {"aabb.closestpoint", "function bclosest(p, a) return aabb.center(a) end"},
         {"fix30.new", "function f30new(x) return fix30.new(-x) end"},
+        {"fix30.fromraw", "function f30fromraw(n) return fix30.fromraw(n + 1) end"},
     };
     for (const Plant& plant : plants)
     {
@@ -1722,6 +1744,10 @@ TEST_CASE("CompleteRefusals")
         {"return fix30.tonumber(1)", "invalid argument #1 to 'tonumber' (fix30 expected, got number)"},
         {"return fix30.normalizecomponent(1, 0)", "invalid argument #2 to 'normalizecomponent' (length must be positive)"},
         {"return fix30.normalizecomponent(1, -1)", "invalid argument #2 to 'normalizecomponent' (length must be positive)"},
+        {"return fix30.fromraw(2147483648)", "invalid argument #1 to 'fromraw' (raw must be in [-2^31, 2^31))"},
+        {"return fix30.fromraw(-2147483649)", "invalid argument #1 to 'fromraw' (raw must be in [-2^31, 2^31))"},
+        {"return fix30.fromraw(0.5)", "invalid argument #1 to 'fromraw' (number has no integer representation)"},
+        {"return fix30.raw(0.5)", "invalid argument #1 to 'raw' (fix30 expected, got number)"},
         {"return mat3.new() + v", "attempt to perform arithmetic (add) on mat3 and vec3"},
         {"return mat3.new() * q", "attempt to perform arithmetic (mul) on mat3 and quat"},
         {"return v * mat3.new()", "attempt to perform arithmetic (mul) on vec3 and mat3"},

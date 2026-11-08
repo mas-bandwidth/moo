@@ -25,10 +25,12 @@
 # moo: re-pinned when layer 3c N2 added the vec2, mat3, plane, aabb and fix30 libraries and quat.frommatrix: five
 # library tables and their function names interned at startup shift every creation number and move GC pacing; every
 # hash moved (docs/DESIGN.md "Layer 3c as built", the narrow types' operators and libraries).
-coroutines.luau 3507dbeef5476e91 b974f1c7adbada80
-gcchurn.luau b06391393df152ff ccc03e69e212cdcc
-library.luau 61b05cdf8b5681b7 af0e1d981f403a7d
-objectkeys.luau 0c5237aa0ec8ff98 46632e475e8038d4
-coroutines2.luau f924aa1bc23c4540 130a79e2e8e8be3a
-errors.luau 5cfd14d6dd97df0f 7de94ac54b7285fa
-math.luau 738f8db9d74853bd 31cd63ff45c43962
+# moo: re-pinned when layer 3c N4 added fix30.raw and fix30.fromraw (the wire's bits): two function names interned at
+# startup shift every creation number; every hash moved.
+coroutines.luau e1b10962ccb3fdea dc5b92b82335e207
+gcchurn.luau bced1d6f12f648fd c3da19cea190d2ab
+library.luau c8d2ba4f70bd9d57 f01f217514488310
+objectkeys.luau 16183a1f2ceb1bfd 46400bc07e88b88b
+coroutines2.luau 7639357fa1187a57 b6f825a2e8217dd8
+errors.luau 7ec1c80bc3c40e7f 164c3aecefe8bde4
+math.luau 954df9896e5940c5 6df711915955eb5f

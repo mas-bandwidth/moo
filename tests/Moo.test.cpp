@@ -305,7 +305,8 @@ TEST_CASE("ObjectKeyOrderIgnoresAddresses")
     // every creation number by five (docs/DESIGN.md "Layer 3c as built").
     // moo: re-pinned when layer 3c completed the math, vec3, quat and transform libraries (docs/DESIGN.md "Layer 3c as built").
     // moo: re-pinned when layer 3c N2 added the vec2, mat3, plane, aabb and fix30 libraries and quat.frommatrix.
-    CHECK(order == "3,41,42,28,36,19,7,31,55,57,49,48,16,10,59,56,54,2,26,8,22,46,39,35,51,12,43,60,15,18,23,47,24,45,13,6,27,50,40,9,34,29,52,44,11,58,53");
+    // moo: re-pinned when layer 3c N4 added fix30.raw and fix30.fromraw.
+    CHECK(order == "50,37,38,55,1,32,21,23,16,51,53,45,12,41,28,57,59,22,58,10,18,42,26,31,60,52,56,25,11,14,19,47,20,43,9,2,44,46,30,5,39,36,48,40,7,54,49");
 }
 
 // DETERMINISM.md 6: tostring prints the creation number, never the address.
@@ -321,7 +322,8 @@ TEST_CASE("TostringPrintsCreationNumber")
     // moo: re-pinned #415/#416 -> #420/#421 when layer 3c added five type-name strings (docs/DESIGN.md "Layer 3c as built").
     // moo: re-pinned #420/#421 -> #510/#511 when layer 3c completed the math, vec3, quat and transform libraries.
     // moo: re-pinned #510/#511 -> #570/#571 when layer 3c N2 added the five narrow libraries and quat.frommatrix.
-    CHECK(pair == "table: #570 table: #571");
+    // moo: re-pinned #570/#571 -> #574/#575 when layer 3c N4 added fix30.raw and fix30.fromraw.
+    CHECK(pair == "table: #574 table: #575");
 
     const char* const kinds = R"(
         local values = { {}, function() end, coroutine.create(function() end), buffer.create(1), newproxy() }
@@ -380,7 +382,8 @@ TEST_CASE("GcPacingIsAFunctionOfTheProgram")
     // (docs/DESIGN.md "Layer 3c as built").
     // moo: re-pinned when layer 3c completed the math, vec3, quat and transform libraries.
     // moo: re-pinned when layer 3c N2 added the five narrow libraries and quat.frommatrix.
-    CHECK(mooHash(trace) == 17649483417705017201ull);
+    // moo: re-pinned when layer 3c N4 added fix30.raw and fix30.fromraw.
+    CHECK(mooHash(trace) == 9362082282660591670ull);
 }
 
 // Replaces upstream ApiAllocationRateAfterFullGC, which checked that lua_allocationrate measures bytes
@@ -445,7 +448,8 @@ TEST_CASE("DestructorsRunInCreationOrder")
     // moo: re-pinned for layer 3c's five tags (docs/DESIGN.md "Layer 3c as built").
     // moo: re-pinned when layer 3c completed the math, vec3, quat and transform libraries.
     // moo: re-pinned when layer 3c N2 added the five narrow libraries and quat.frommatrix.
-    CHECK(mooHash(text) == 13408734571751217830ull);
+    // moo: re-pinned when layer 3c N4 added fix30.raw and fix30.fromraw.
+    CHECK(mooHash(text) == 2202602048667458607ull);
 }
 
 // DETERMINISM.md 13: which weak entries clear, and the order of what is left, under churn with object keys,
@@ -497,7 +501,8 @@ TEST_CASE("WeakTableOrderIsAFunctionOfTheProgram")
     // moo: re-pinned for layer 3c's five tags (docs/DESIGN.md "Layer 3c as built").
     // moo: re-pinned when layer 3c completed the math, vec3, quat and transform libraries.
     // moo: re-pinned when layer 3c N2 added the five narrow libraries and quat.frommatrix.
-    CHECK(mooHash(trace) == 6526306340486838376ull);
+    // moo: re-pinned when layer 3c N4 added fix30.raw and fix30.fromraw.
+    CHECK(mooHash(trace) == 6618634259739512334ull);
 }
 
 // DESIGN.md "Semantics": number is built on the vendored fixed, compiled with FIX_SATURATE.
