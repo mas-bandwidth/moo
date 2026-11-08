@@ -24,6 +24,11 @@ LUAU_FASTFLAGVARIABLE(LuauSandboxFreezesVectorMetatable)
     {"vec3", luaopen_vec3},           // moo: vec3
     {"quat", luaopen_quat},           // moo: quat
     {"transform", luaopen_transform}, // moo: transform
+    {"vec2", luaopen_vec2},           // moo: layer 3c
+    {"mat3", luaopen_mat3},
+    {"plane", luaopen_plane},
+    {"aabb", luaopen_aabb},
+    {"fix30", luaopen_fix30},
     {LUA_INTLIBNAME, luaopen_integer},
     {NULL, NULL},
 };
@@ -41,6 +46,11 @@ static const luaL_Reg lualibs_NOINTEGER[] = {
     {"vec3", luaopen_vec3},           // moo: vec3
     {"quat", luaopen_quat},           // moo: quat
     {"transform", luaopen_transform}, // moo: transform
+    {"vec2", luaopen_vec2},           // moo: layer 3c
+    {"mat3", luaopen_mat3},
+    {"plane", luaopen_plane},
+    {"aabb", luaopen_aabb},
+    {"fix30", luaopen_fix30},
     {NULL, NULL},
 };
 

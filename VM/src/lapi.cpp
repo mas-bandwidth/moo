@@ -628,6 +628,70 @@ int moo_totransform(lua_State* L, int idx, lua_Number out[7])
     return 1;
 }
 
+// moo: layer 3c, the narrow types' raw components (docs/DESIGN.md "Layer 3c as built")
+int moo_tovec2(lua_State* L, int idx, lua_Number out[2])
+{
+    StkId o = index2addr(L, idx);
+    if (!ttisvec2(o))
+        return 0;
+    out[0] = vec2value(o)->x;
+    out[1] = vec2value(o)->y;
+    return 1;
+}
+
+// moo: out is the columns cx, cy, cz, each x, y, z
+int moo_tomat3(lua_State* L, int idx, lua_Number out[9])
+{
+    StkId o = index2addr(L, idx);
+    if (!ttismat3(o))
+        return 0;
+    const MooMat3* m = mat3value(o);
+    const lua_Number r[9] = {m->cx.x, m->cx.y, m->cx.z, m->cy.x, m->cy.y, m->cy.z, m->cz.x, m->cz.y, m->cz.z};
+    for (int i = 0; i < 9; ++i)
+        out[i] = r[i];
+    return 1;
+}
+
+// moo: out is the normal x, y, z, then the offset
+int moo_toplane(lua_State* L, int idx, lua_Number out[4])
+{
+    StkId o = index2addr(L, idx);
+    if (!ttisplane(o))
+        return 0;
+    const MooPlane* p = planevalue(o);
+    out[0] = p->normal.x;
+    out[1] = p->normal.y;
+    out[2] = p->normal.z;
+    out[3] = p->offset;
+    return 1;
+}
+
+// moo: out is the lower bound x, y, z, then the upper
+int moo_toaabb(lua_State* L, int idx, lua_Number out[6])
+{
+    StkId o = index2addr(L, idx);
+    if (!ttisaabb(o))
+        return 0;
+    const MooAABB* a = aabbvalue(o);
+    out[0] = a->lower.x;
+    out[1] = a->lower.y;
+    out[2] = a->lower.z;
+    out[3] = a->upper.x;
+    out[4] = a->upper.y;
+    out[5] = a->upper.z;
+    return 1;
+}
+
+// moo: the raw Q2.30 bits
+int moo_tofix30(lua_State* L, int idx, int32_t* out)
+{
+    StkId o = index2addr(L, idx);
+    if (!ttisfix30(o))
+        return 0;
+    *out = fix30value(o)->raw;
+    return 1;
+}
+
 int lua_objlen(lua_State* L, int idx)
 {
     StkId o = index2addr(L, idx);
@@ -816,6 +880,53 @@ void moo_pushtransform(
     ensure_stack(L, 1);
     MooTransform* t = moo_transform_new(L, FIX_LITERAL(fixTransform){{px, py, pz}, {{qx, qy, qz}, qs}});
     settransformvalue(L, L->top, t);
+    api_incr_top(L);
+}
+
+// moo: layer 3c, the narrow types from raw components, never refused here (the libraries refuse by name)
+void moo_pushvec2(lua_State* L, lua_Number x, lua_Number y)
+{
+    luaC_checkGC(L);
+    luaC_threadbarrier(L);
+    ensure_stack(L, 1);
+    setvec2value(L, L->top, moo_vec2_new(L, FIX_LITERAL(fixVec2){x, y}));
+    api_incr_top(L);
+}
+
+void moo_pushmat3(lua_State* L, const lua_Number m[9])
+{
+    luaC_checkGC(L);
+    luaC_threadbarrier(L);
+    ensure_stack(L, 1);
+    setmat3value(L, L->top, moo_mat3_new(L, FIX_LITERAL(fixMatrix3){{m[0], m[1], m[2]}, {m[3], m[4], m[5]}, {m[6], m[7], m[8]}}));
+    api_incr_top(L);
+}
+
+void moo_pushplane(lua_State* L, lua_Number nx, lua_Number ny, lua_Number nz, lua_Number offset)
+{
+    luaC_checkGC(L);
+    luaC_threadbarrier(L);
+    ensure_stack(L, 1);
+    setplanevalue(L, L->top, moo_plane_new(L, FIX_LITERAL(fixPlane){{nx, ny, nz}, offset}));
+    api_incr_top(L);
+}
+
+void moo_pushaabb(lua_State* L, lua_Number lx, lua_Number ly, lua_Number lz, lua_Number ux, lua_Number uy, lua_Number uz)
+{
+    luaC_checkGC(L);
+    luaC_threadbarrier(L);
+    ensure_stack(L, 1);
+    setaabbvalue(L, L->top, moo_aabb_new(L, FIX_LITERAL(fixAABB){{lx, ly, lz}, {ux, uy, uz}}));
+    api_incr_top(L);
+}
+
+void moo_pushfix30(lua_State* L, int32_t raw)
+{
+    luaC_checkGC(L);
+    luaC_threadbarrier(L);
+    ensure_stack(L, 1);
+    fixed30_t x = {raw};
+    setfix30value(L, L->top, moo_fix30_new(L, x));
     api_incr_top(L);
 }
 
