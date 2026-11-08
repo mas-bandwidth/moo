@@ -12,6 +12,12 @@
 //
 // Both must equal tests/determinism/expected.txt on every platform and compiler. Set
 // MOO_DETERMINISM_PRINT=1 to print the lines of that file.
+//
+// A third hash, alloc, is the allocation stream the host sees: every call of the lua_Alloc callback,
+// in order, as (a block was passed, old size, new size), never an address. It must equal
+// tests/determinism/alloc.txt on every target, 32-bit ones included: every size the VM requests is
+// the canonical 64-bit size (DETERMINISM.md 5, VM/src/moo_layout.h). MOO_DETERMINISM_PRINT_ALLOC=1
+// prints the lines of that file.
 #include "lua.h"
 #include "lualib.h"
 #include "luacode.h"
@@ -60,8 +66,27 @@ struct Fnv
 };
 
 Fnv gEffects;
+Fnv gAlloc;
+uint64_t gAllocCalls = 0;
 lua_State* gHashState = nullptr;
 const int kTag = 9;
+
+// luaL_newstate's allocator (realloc and free), recording what it is asked for and never where
+void* recordingAlloc(void* ud, void* ptr, size_t osize, size_t nsize)
+{
+    (void)ud;
+    gAlloc.u64(ptr != nullptr);
+    gAlloc.u64(osize);
+    gAlloc.u64(nsize);
+    gAllocCalls++;
+
+    if (nsize == 0)
+    {
+        free(ptr);
+        return nullptr;
+    }
+    return realloc(ptr, nsize);
+}
 
 void effect(const std::string& line)
 {
@@ -246,6 +271,8 @@ struct Result
 {
     uint64_t effects;
     uint64_t state;
+    uint64_t alloc;
+    uint64_t allocCalls;
 };
 
 Result runProgram(const std::string& name)
@@ -258,9 +285,11 @@ Result runProgram(const std::string& name)
     std::string text = source.str();
 
     gEffects = Fnv();
+    gAlloc = Fnv();
+    gAllocCalls = 0;
     Fnv state;
 
-    lua_State* L = luaL_newstate();
+    lua_State* L = lua_newstate(recordingAlloc, nullptr);
     moo_setrandomseed(L, 12345);
     luaL_openlibs(L);
     lua_setuserdatadtor(L, kTag, dtorLog);
@@ -305,7 +334,7 @@ Result runProgram(const std::string& name)
     lua_close(L);
     effect("closed");
 
-    return {gEffects.h, state.h};
+    return {gEffects.h, state.h, gAlloc.h, gAllocCalls};
 }
 
 std::string hex(uint64_t v)
@@ -338,8 +367,26 @@ TEST_CASE("DeterminismSuite")
     }
     REQUIRE(!expected.empty());
 
+    // the allocation stream: program, alloc hash, number of allocator calls
+    std::ifstream allocFile(dir + "alloc.txt");
+    REQUIRE_MESSAGE(allocFile.good(), "cannot read " << dir << "alloc.txt");
+    std::map<std::string, std::pair<std::string, uint64_t>> expectedAlloc;
+    while (std::getline(allocFile, line))
+    {
+        if (line.empty() || line[0] == '#')
+            continue;
+        std::istringstream fields(line);
+        std::string name, alloc;
+        uint64_t calls = 0;
+        fields >> name >> alloc >> calls;
+        expectedAlloc[name] = {alloc, calls};
+    }
+    REQUIRE(expectedAlloc.size() == expected.size());
+
     bool print = getenv("MOO_DETERMINISM_PRINT") != nullptr;
+    bool printAlloc = getenv("MOO_DETERMINISM_PRINT_ALLOC") != nullptr;
     Fnv all;
+    Fnv allAlloc;
 
     for (const auto& entry : expected)
     {
@@ -349,18 +396,81 @@ TEST_CASE("DeterminismSuite")
         Result again = runProgram(name);
         CHECK_MESSAGE(r.effects == again.effects, name << ": effects differ between two runs in one process");
         CHECK_MESSAGE(r.state == again.state, name << ": state differs between two runs in one process");
+        CHECK_MESSAGE(r.alloc == again.alloc, name << ": allocation stream differs between two runs in one process");
 
         if (print)
             printf("%s %s %s\n", name.c_str(), hex(r.effects).c_str(), hex(r.state).c_str());
+        if (printAlloc)
+            printf("%s %s %llu\n", name.c_str(), hex(r.alloc).c_str(), (unsigned long long)r.allocCalls);
 
         CHECK_MESSAGE(hex(r.effects) == want.first, name << ": effects hash " << hex(r.effects));
         CHECK_MESSAGE(hex(r.state) == want.second, name << ": state hash " << hex(r.state));
         all.u64(r.effects);
         all.u64(r.state);
+
+        REQUIRE_MESSAGE(expectedAlloc.count(name) == 1, name << ": no line in alloc.txt");
+        const std::pair<std::string, uint64_t>& wantAlloc = expectedAlloc[name];
+        CHECK_MESSAGE(hex(r.alloc) == wantAlloc.first, name << ": alloc hash " << hex(r.alloc) << " over " << r.allocCalls << " calls");
+        CHECK_MESSAGE(r.allocCalls == wantAlloc.second, name << ": " << r.allocCalls << " allocator calls");
+        allAlloc.u64(r.alloc);
+        allAlloc.u64(r.allocCalls);
     }
 
     if (print)
         printf("# suite %s\n", hex(all.h).c_str());
+    if (printAlloc)
+        printf("# suite %s\n", hex(allAlloc.h).c_str());
+}
+
+// The GC's pacing past the heap sizes where a 32-bit size_t wraps: about 14.3 MB, where the full collection's
+// threshold multiplies the heap by 300 at the default goal and step multiplier, and 4 GiB. The heap is charged
+// for bytes it never stored (totalbytes and memory category 0 are raised by hand, and lowered again before
+// lua_close), then collected and stepped; every threshold and goal that follows is folded into one hash, which
+// must be the same on every target, wasm32 included (docs/DETERMINISM.md, 5).
+TEST_CASE("DeterminismPacingWidth")
+{
+    lua_State* L = lua_newstate(recordingAlloc, nullptr);
+    moo_setrandomseed(L, 12345);
+    luaL_openlibs(L);
+    luaL_sandbox(L);
+
+    const char* source = "local t = {} for i = 1, 2000 do t[i] = tostring(i) .. '.' end t = nil";
+    size_t size = 0;
+    char* bytecode = luau_compile(source, strlen(source), nullptr, &size);
+    REQUIRE(luau_load(L, "pacing", bytecode, size, 0) == 0);
+    free(bytecode);
+
+    global_State* g = L->global;
+    Fnv pacing;
+    const uint64_t charges[] = {15000000ull, 5ull << 30};
+    for (uint64_t charge : charges)
+    {
+        g->totalbytes += charge;
+        g->memcatbytes[0] += charge;
+
+        lua_gc(L, LUA_GCCOLLECT, 0);
+        pacing.u64(g->totalbytes);
+        pacing.u64(g->GCthreshold);
+        pacing.u64(g->gcstats.heapgoalsizebytes);
+
+        lua_pushvalue(L, -1);
+        REQUIRE(lua_pcall(L, 0, 0, 0) == 0);
+        for (int i = 0; i < 8; ++i)
+        {
+            lua_gc(L, LUA_GCSTEP, 0);
+            pacing.u64(g->GCthreshold);
+            pacing.u64(uint64_t(g->gcstate));
+        }
+        pacing.u64(g->gcstats.heapgoalsizebytes);
+        pacing.u64(g->gcstats.endtotalsizebytes);
+
+        g->totalbytes -= charge;
+        g->memcatbytes[0] -= charge;
+        CHECK(g->GCthreshold > uint64_t(4) << 20); // the charge reached the threshold, unwrapped
+    }
+    lua_close(L);
+
+    CHECK_MESSAGE(hex(pacing.h) == "97af94b8311776ee", "pacing hash " << hex(pacing.h));
 }
 
 TEST_SUITE_END();

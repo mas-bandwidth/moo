@@ -147,16 +147,16 @@ wasm32 first, then i686 and armv7: bit-identical results, hashes, GC step points
 
 | feature | moo |
 |---|:---:|
-| wasm32 build: pinned emsdk and node, -fwasm-exceptions, an 8 MiB stack | ❌ |
+| wasm32 build: pinned emsdk and node, -fwasm-exceptions, an 8 MiB stack | ✅ |
 | fixed's suite under node, both int128 arms | ❌ |
-| Canonical 64-bit allocation sizes and 64-bit GC pacing on every target | ❌ |
-| Size arithmetic audited; host inputs stated | ❌ |
-| moo's suites under node, same hashes | ❌ |
-| The wasm32 CI leg | ❌ |
+| Canonical 64-bit allocation sizes and 64-bit GC pacing on every target | ✅ |
+| Size arithmetic audited; host inputs stated | ✅ |
+| moo's suites under node, same hashes | ✅ |
+| The wasm32 CI leg | ✅ |
 | Virtual Go's scripts under node and in the web build, one fixed | ❌ |
 | i686 and armv7 legs | ❌ |
-| DETERMINISM.md and DESIGN.md say what is built | ❌ |
-| complete | 0% |
+| DETERMINISM.md and DESIGN.md say what is built | ✅ |
+| complete | 66% |
 
 [Source data](docs/roadmap.sexp)
 

@@ -1074,7 +1074,7 @@ static void rehash(lua_State* L, LuaTable* t, int newintkey)
 
 LuaTable* luaH_new(lua_State* L, int narray, int nhash)
 {
-    LuaTable* t = luaM_newgco(L, LuaTable, sizeof(LuaTable), L->activememcat, LUA_TTABLE);
+    LuaTable* t = luaM_newgco(L, LuaTable, moo_sizeof(LuaTable), L->activememcat, LUA_TTABLE); // moo: canonical size (moo_layout.h)
     luaC_init(L, t, LUA_TTABLE);
     t->metatable = NULL;
     t->tmcache = cast_byte(~0);
@@ -1114,7 +1114,7 @@ void luaH_free(lua_State* L, LuaTable* t, lua_Page* page)
             luaM_freearray(L, t->array, t->sizearray, TValue, t->memcat);
     }
 
-    luaM_freegco(L, t, sizeof(LuaTable), t->memcat, page);
+    luaM_freegco(L, t, moo_sizeof(LuaTable), t->memcat, page);
 }
 
 static LuaNode* getfreepos(LuaTable* t)
@@ -1636,7 +1636,7 @@ int luaH_getn(LuaTable* t)
 
 LuaTable* luaH_clone(lua_State* L, LuaTable* tt)
 {
-    LuaTable* t = luaM_newgco(L, LuaTable, sizeof(LuaTable), L->activememcat, LUA_TTABLE);
+    LuaTable* t = luaM_newgco(L, LuaTable, moo_sizeof(LuaTable), L->activememcat, LUA_TTABLE); // moo: canonical size (moo_layout.h)
     luaC_init(L, t, LUA_TTABLE);
     t->metatable = tt->metatable;
     t->tmcache = tt->tmcache;

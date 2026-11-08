@@ -59,6 +59,19 @@ elseif(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
     add_compile_options(/clang:-ffp-contract=off)
 endif()
 
+# moo: wasm32 (Emscripten) is a supported target, bit-identical to the 64-bit ones (docs/DETERMINISM.md, "Supported
+# platforms"). Errors are C++ exceptions there as everywhere, as native wasm exception handling on every object, so a
+# moo error takes the same path as on 64-bit; upstream's Luau.Web module uses Emscripten's JavaScript exceptions
+# instead, so the two are not built together. The C stack is 8 MiB, so recursion stops at LUAI_MAXCCALLS with moo's
+# error, never at a wasm stack trap.
+if(EMSCRIPTEN)
+    if(LUAU_BUILD_WEB)
+        message(FATAL_ERROR "moo on wasm32 builds with -fwasm-exceptions; LUAU_BUILD_WEB (upstream's Luau.Web, -fexceptions) stays OFF")
+    endif()
+    add_compile_options(-fwasm-exceptions)
+    add_link_options(-fwasm-exceptions -sSTACK_SIZE=8388608 -sALLOW_MEMORY_GROWTH=1 -sMAXIMUM_MEMORY=4GB)
+endif()
+
 if (LUAU_BUILD_SHARED)
     add_library(Luau.Common SHARED)
     add_library(Luau.CLI.lib SHARED)
@@ -404,6 +417,10 @@ if(LUAU_BUILD_TESTS)
     target_compile_definitions(Moo.Test PRIVATE DOCTEST_CONFIG_USE_STD_HEADERS LUAU_CONFORMANCE_SOURCE_DIR="${LUAU_CONFORMANCE_SOURCE_DIR}")
     target_include_directories(Moo.Test PRIVATE tests extern extern/fixed/include VM/src)
     target_link_libraries(Moo.Test PRIVATE Luau.Compiler Luau.VM)
+    if(EMSCRIPTEN)
+        # moo: under node the suite reads tests/ from the host file system and returns doctest's exit status
+        target_link_options(Moo.Test PRIVATE -sNODERAWFS=1 -sEXIT_RUNTIME=1)
+    endif()
 
     target_compile_options(Luau.CLI.Test PRIVATE ${LUAU_OPTIONS})
     target_compile_definitions(Luau.CLI.Test PRIVATE DOCTEST_CONFIG_USE_STD_HEADERS)

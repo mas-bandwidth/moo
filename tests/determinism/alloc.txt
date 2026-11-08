@@ -1,0 +1,12 @@
+# The determinism suite's pinned allocation streams: program, alloc hash, allocator calls (tests/Determinism.test.cpp).
+# The alloc hash folds every lua_Alloc call in order as (a block was passed, old size, new size), never an address.
+# Every target must produce these exact values, 32-bit ones included: the VM requests and charges the canonical
+# 64-bit size of every object and array element (VM/src/moo_layout.h; docs/DETERMINISM.md, 5).
+# Pinned from the 64-bit build before the canonical sizes were introduced, so they prove no 64-bit allocation moved.
+coroutines.luau 97c36a9c4a6eaaf8 345
+gcchurn.luau e14fc1142ef5ed7c 18532
+library.luau b95aa44852dd2dbd 126
+objectkeys.luau ffed30acce50713c 173
+coroutines2.luau a3e4352ada9d0f19 228
+errors.luau 05356d5406805b4d 275
+math.luau d2f60029fd6fdd79 161

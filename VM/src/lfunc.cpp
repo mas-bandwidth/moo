@@ -10,7 +10,7 @@ LUAU_FASTINTVARIABLE(LuauInlineHitsThreshold, 32)
 
 Proto* luaF_newproto(lua_State* L)
 {
-    Proto* f = luaM_newgco(L, Proto, sizeof(Proto), L->activememcat, LUA_TPROTO);
+    Proto* f = luaM_newgco(L, Proto, moo_sizeof(Proto), L->activememcat, LUA_TPROTO); // moo: canonical size (moo_layout.h)
 
     luaC_init(L, f, LUA_TPROTO);
 
@@ -113,7 +113,7 @@ UpVal* luaF_findupval(lua_State* L, StkId level)
     LUAU_ASSERT(L->isactive);
     LUAU_ASSERT(!isblack(obj2gco(L))); // we don't use luaC_threadbarrier because active threads never turn black
 
-    UpVal* uv = luaM_newgco(L, UpVal, sizeof(UpVal), L->activememcat, LUA_TUPVAL); // not found: create a new one
+    UpVal* uv = luaM_newgco(L, UpVal, moo_sizeof(UpVal), L->activememcat, LUA_TUPVAL); // not found: create a new one (moo: canonical size)
     luaC_init(L, uv, LUA_TUPVAL);
     uv->markedopen = 0;
     uv->v = level; // current value lives in the stack
@@ -134,7 +134,7 @@ UpVal* luaF_findupval(lua_State* L, StkId level)
 
 void luaF_freeupval(lua_State* L, UpVal* uv, lua_Page* page)
 {
-    luaM_freegco(L, uv, sizeof(UpVal), uv->memcat, page); // free upvalue
+    luaM_freegco(L, uv, moo_sizeof(UpVal), uv->memcat, page); // free upvalue
 }
 
 void luaF_close(lua_State* L, StkId level)
@@ -190,7 +190,7 @@ void luaF_freeproto(lua_State* L, Proto* f, lua_Page* page)
     if (f->feedbackvec)
         luaM_freearray(L, f->feedbackvec, f->feedbackvecsize, FeedbackVectorSlot, f->memcat);
 
-    luaM_freegco(L, f, sizeof(Proto), f->memcat, page);
+    luaM_freegco(L, f, moo_sizeof(Proto), f->memcat, page);
 }
 
 void luaF_freeclosure(lua_State* L, Closure* c, lua_Page* page)

@@ -17,7 +17,7 @@
 
 LuauClass* luaR_newblankclass(lua_State* L, TString* name, bool isopen)
 {
-    LuauClass* classobject = luaM_newgco(L, LuauClass, sizeof(LuauClass), L->activememcat, LUA_TCLASS);
+    LuauClass* classobject = luaM_newgco(L, LuauClass, moo_sizeof(LuauClass), L->activememcat, LUA_TCLASS); // moo: canonical size (moo_layout.h)
     luaC_init(L, classobject, LUA_TCLASS);
     classobject->name = name;
     classobject->super = NULL;
@@ -92,7 +92,7 @@ LuauClass* luaR_newclass(
     LuaTable* envt
 )
 {
-    LUAU_ASSERT(L->global->GCthreshold == SIZE_MAX && "GC must be paused");
+    LUAU_ASSERT(L->global->GCthreshold == UINT64_MAX && "GC must be paused"); // moo: the threshold is 64 bits wide (moo_layout.h)
     LuauClass* classobject = luaR_newblankclass(L, name, false);
 
     classobject->staticmembers = luaM_newarray(L, numberofstaticmembers, TValue, classobject->memcat);
@@ -390,7 +390,7 @@ int luaR_constructobject(lua_State* L)
     // This runs as the class's `__call` metamethod, so luaV_tryfuncTM has inserted the class being called ahead of the call arguments.
     LuauClass* classobject = classvalue(L->base);
 
-    LuauObject* self = luaM_newgco(L, LuauObject, sizeof(LuauObject), L->activememcat, LUA_TOBJECT);
+    LuauObject* self = luaM_newgco(L, LuauObject, moo_sizeof(LuauObject), L->activememcat, LUA_TOBJECT); // moo: canonical size (moo_layout.h)
     memset(self, 0, sizeof(LuauObject));
     luaC_init(L, self, LUA_TOBJECT);
     self->lclass = classobject;
@@ -492,11 +492,11 @@ void luaR_freeclass(lua_State* L, LuauClass* classobject, lua_Page* page)
     if (classobject->offsettomember)
         luaM_freearray(L, classobject->offsettomember, classobject->numberofallmembers, TString*, classobject->memcat);
 
-    luaM_freegco(L, classobject, sizeof(LuauClass), classobject->memcat, page);
+    luaM_freegco(L, classobject, moo_sizeof(LuauClass), classobject->memcat, page);
 }
 
 void luaR_freeobject(lua_State* L, LuauObject* classinstance, lua_Page* page)
 {
     luaM_freearray(L, classinstance->members, classinstance->numberofmembers, TValue, classinstance->memcat);
-    luaM_freegco(L, classinstance, sizeof(LuauObject), classinstance->memcat, page);
+    luaM_freegco(L, classinstance, moo_sizeof(LuauObject), classinstance->memcat, page);
 }
