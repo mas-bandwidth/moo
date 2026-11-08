@@ -15,10 +15,14 @@
 # moo: math.luau re-pinned when 0 ^ negative fraction became "division by zero": its effects hash moved.
 # moo: the state hashes re-pinned when a number began hashing as its raw Q48.16 bits, not that integer as a
 # double (every bit, and no implicit conversion); every effects hash held.
-coroutines.luau 5cb7f17a10d68cc4 f1ec71c0166cf7a1
-gcchurn.luau 971f095d77280529 f030bdcb1911c6f8
-library.luau b37b92ae87f532ba 7578e826effec762
-objectkeys.luau 1067f47a944c9471 bd1d9d3a27610c44
-coroutines2.luau 45af4a6f2428da59 a47963afd3b4fa82
-errors.luau f7037948e0d4bea2 be31caef4d3f8766
-math.luau 37d86b3ef9b026e5 90ffb92debe420b4
+# moo: re-pinned when layer 3c added the vec2, mat3, plane, aabb and fix30 tags: five type-name strings shift every
+# creation number by five, and global_State grows by ten tag slots (80 bytes), which moves GC pacing; every state
+# hash moved, and the effects hashes of the programs that log creation numbers or gcinfo (docs/DESIGN.md "Layer 3c
+# as built").
+coroutines.luau 114e20c491afbdc6 33d2d8f66c5e979a
+gcchurn.luau ff8c69e35aa61f7d de07f526bb2c4725
+library.luau ea1b27dc2966016e a52f943e66f732a4
+objectkeys.luau 9c2ba3898c884656 8ffc5f7678a0ceb7
+coroutines2.luau 45af4a6f2428da59 2333623472d1cf1c
+errors.luau f7037948e0d4bea2 838a08a10a0a4c6e
+math.luau 9828cd8215d55af5 b8e79e26bdf2f479

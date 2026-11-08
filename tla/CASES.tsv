@@ -11,3 +11,6 @@ MCTempReuse.cfg	TempReuse.tla	pass	-
 MCTempReuseBrokenNoTMFence.cfg	TempReuse.tla	invariant	NoVisibleMutation
 MCTempReuseBrokenNoHostFence.cfg	TempReuse.tla	invariant	NoVisibleMutation
 MCTempReuseBrokenNoCheck.cfg	TempReuse.tla	invariant	NoVisibleMutation
+MCValueKeys.cfg	ValueKeys.tla	pass	-
+MCValueKeysBrokenSweepFirst.cfg	ValueKeys.tla	invariant	NoFreedRead
+MCValueKeysBrokenDeadByValue.cfg	ValueKeys.tla	invariant	DeadKeyIdentity

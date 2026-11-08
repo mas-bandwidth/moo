@@ -6,6 +6,11 @@
 #include "moo_vec3.h" // moo: MooVec3 in union GCObject (docs/history/layer3b/moo-v2-l3b-vec3-object.md)
 #include "moo_quat.h" // moo: MooQuat in union GCObject (docs/history/layer3b/moo-v2-l3b-quat-object.md)
 #include "moo_transform.h" // moo: MooTransform in union GCObject (docs/history/layer3b/moo-v2-l3b-transform.md)
+#include "moo_vec2.h"      // moo: layer 3c narrow types in union GCObject (docs/DESIGN.md "Layer 3c as built")
+#include "moo_mat3.h"
+#include "moo_plane.h"
+#include "moo_aabb.h"
+#include "moo_fix30.h"
 #include "ltm.h"
 #include "ludata.h"
 
@@ -348,6 +353,11 @@ union GCObject
     struct MooVec3 v3;      // moo: vec3
     struct MooQuat q;       // moo: quat
     struct MooTransform tf; // moo: transform
+    struct MooVec2 v2;      // moo: layer 3c narrow types
+    struct MooMat3 m3;
+    struct MooPlane pl;
+    struct MooAABB ab;
+    struct MooFix30 f30;
 };
 
 // macros to convert a GCObject into a specific value
@@ -368,6 +378,12 @@ union GCObject
 #define gco2quat(o) check_exp((o)->gch.tt == LUA_TQUAT, &((o)->q))
 // moo: transform
 #define gco2transform(o) check_exp((o)->gch.tt == LUA_TTRANSFORM, &((o)->tf))
+// moo: layer 3c narrow types
+#define gco2vec2(o) check_exp((o)->gch.tt == LUA_TVEC2, &((o)->v2))
+#define gco2mat3(o) check_exp((o)->gch.tt == LUA_TMAT3, &((o)->m3))
+#define gco2plane(o) check_exp((o)->gch.tt == LUA_TPLANE, &((o)->pl))
+#define gco2aabb(o) check_exp((o)->gch.tt == LUA_TAABB, &((o)->ab))
+#define gco2fix30(o) check_exp((o)->gch.tt == LUA_TFIX30, &((o)->f30))
 
 // macro to convert any Lua object into a GCObject
 #define obj2gco(v) check_exp(iscollectable(v), cast_to(GCObject*, (v) + 0))
