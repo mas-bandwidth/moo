@@ -287,6 +287,11 @@ function; moo adds only the checks before the call, the formatter and the parser
   `aabb.closestpoint(point, a)`). The oracle in `tests/moo/complete.test.cpp` grows to 92 functions and operators
   with eleven more plants; `tests/conformance/moo/spec/narrow.luau` pins what a script sees. The five library tables
   and their names shift every creation number, so the frozen hashes moved again.
+- **Analyzer types (N3).** `Analysis/src/EmbeddedBuiltinDefinitions.cpp` declares `vec2`, `mat3`, `plane`, `aabb`
+  and `fix30` as extern types, as vec3 is, with exactly N2's components and mat3's operators, and the five libraries
+  and `quat.frommatrix` with the VM's argument types and counts; `fix30` has no members, so it is not a number to the
+  analyzer. `tests/MooAnalyzer.test.cpp` accepts everything the VM implements and reports each refused pairing, member
+  and argument; Conformance's `types.luau` holds every new global to its declaration.
 
 ## Representation
 

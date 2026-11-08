@@ -398,7 +398,8 @@ declare vector: {
 // transform (layer 3b)"; docs/history/layer3b/moo-v2-l3b-analyzer-types.md). Each type is declared the way upstream declares
 // vector, as an extern type, with exactly the components and operators the VM implements (VM/src/lvmutils.cpp,
 // luaV_doarithimpl and luaV_gettable) and each library with the VM's functions and argument counts
-// (VM/src/moo_vec3lib.cpp, moo_quatlib.cpp, moo_transformlib.cpp). quat.slerp is left out: the VM refuses it by name
+// (VM/src/moo_vec3lib.cpp, moo_quatlib.cpp, moo_transformlib.cpp; layer 3c's vec2, mat3, plane, aabb and fix30 from
+// VM/src/moo_narrowlib.cpp, docs/DESIGN.md "Layer 3c as built"). quat.slerp is left out: the VM refuses it by name
 // until fixed has a slerp, so the analyzer reports it as missing rather than promising a result.
 static const char* const kBuiltinDefinitionMooValueTypesSrc = R"BUILTIN_SRC(
 
@@ -434,6 +435,38 @@ declare extern type transform with
     read q: quat
     function __mul(self, other: transform): transform
     function __mul(self, other: vec3): vec3
+end
+
+declare extern type vec2 with
+    read x: number
+    read y: number
+    read X: number
+    read Y: number
+end
+
+declare extern type mat3 with
+    read cx: vec3
+    read cy: vec3
+    read cz: vec3
+    function __add(self, other: mat3): mat3
+    function __sub(self, other: mat3): mat3
+    function __mul(self, other: mat3): mat3
+    function __mul(self, other: vec3): vec3
+    function __mul(self, other: number): mat3
+    function __unm(self): mat3
+end
+
+declare extern type plane with
+    read normal: vec3
+    read offset: number
+end
+
+declare extern type aabb with
+    read lower: vec3
+    read upper: vec3
+end
+
+declare extern type fix30 with
 end
 
 declare vec3: {
@@ -483,6 +516,7 @@ declare quat: {
     betweenunitvectors: @checked (a: vec3, b: vec3) -> quat,
     isvalid: @checked (q: quat) -> boolean,
     isnormalized: @checked (q: quat) -> boolean,
+    frommatrix: @checked (m: mat3) -> quat,
 }
 
 declare transform: {
@@ -500,6 +534,51 @@ declare transform: {
     invtransformworldpoint: @checked (t: transform, p: vec3) -> vec3,
     torelative: @checked (t: transform, base: vec3) -> transform,
     isvalid: @checked (t: transform) -> boolean,
+}
+
+declare vec2: {
+    new: @checked (x: number?, y: number?) -> vec2,
+}
+
+declare mat3: {
+    new: @checked (cx: vec3?, cy: vec3?, cz: vec3?) -> mat3,
+    transpose: @checked (m: mat3) -> mat3,
+    inverse: @checked (m: mat3) -> mat3,
+    inversewide: @checked (m: mat3) -> mat3,
+    inverset: @checked (m: mat3) -> mat3,
+    solve: @checked (m: mat3, v: vec3) -> vec3,
+    solvewide: @checked (m: mat3, v: vec3) -> vec3,
+    abs: @checked (m: mat3) -> mat3,
+    det: @checked (m: mat3) -> number,
+    fromquat: @checked (q: quat) -> mat3,
+    isvalid: @checked (m: mat3) -> boolean,
+}
+
+declare plane: {
+    new: @checked (normal: vec3, offset: number?) -> plane,
+    isvalid: @checked (p: plane) -> boolean,
+}
+
+declare aabb: {
+    new: @checked (lower: vec3, upper: vec3) -> aabb,
+    frompoints: @checked (points: {vec3}, radius: number?) -> aabb,
+    contains: @checked (a: aabb, b: aabb) -> boolean,
+    area: @checked (a: aabb) -> number,
+    center: @checked (a: aabb) -> vec3,
+    extents: @checked (a: aabb) -> vec3,
+    union: @checked (a: aabb, b: aabb) -> aabb,
+    inflate: @checked (a: aabb, e: number) -> aabb,
+    overlaps: @checked (a: aabb, b: aabb) -> boolean,
+    transform: @checked (t: transform, a: aabb) -> aabb,
+    fromcenterextents: @checked (t: transform, center: vec3, extents: vec3) -> aabb,
+    closestpoint: @checked (point: vec3, a: aabb) -> vec3,
+    isvalid: @checked (a: aabb) -> boolean,
+}
+
+declare fix30: {
+    new: @checked (x: number) -> fix30,
+    tonumber: @checked (x: fix30) -> number,
+    normalizecomponent: @checked (x: number, length: number) -> fix30,
 }
 
 )BUILTIN_SRC";

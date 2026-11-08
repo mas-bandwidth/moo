@@ -78,7 +78,7 @@ edits them, except where a row above records the seam.
 | file | why |
 |---|---|
 | `Analysis/src/BuiltinDefinitions.cpp` | the analyzer declares no `os`, `vector` or `integer` global or metatable (DESIGN.md "Analyzer"). |
-| `Analysis/src/EmbeddedBuiltinDefinitions.cpp` | the embedded definitions drop `os`, `vector` and the integer type, including the buffer and integer variants (DESIGN.md "Analyzer", "integer"); layer 3b declares `vec3`, `quat` and `transform` and their libraries (DESIGN.md "Layer 3b as built"). Layer 3c declares the completed math, vec3, quat and transform functions (DESIGN.md "Layer 3c as built"). |
+| `Analysis/src/EmbeddedBuiltinDefinitions.cpp` | the embedded definitions drop `os`, `vector` and the integer type, including the buffer and integer variants (DESIGN.md "Analyzer", "integer"); layer 3b declares `vec3`, `quat` and `transform` and their libraries (DESIGN.md "Layer 3b as built"). Layer 3c declares the completed math, vec3, quat and transform functions (DESIGN.md "Layer 3c as built"), and the `vec2`, `mat3`, `plane`, `aabb` and `fix30` types and libraries and `quat.frommatrix` (DESIGN.md "Layer 3c as built", N3). |
 | `Analysis/src/GlobalTypes.cpp` | the global type table has no `integer` type (DESIGN.md "Analyzer", "integer"). |
 | `Analysis/src/Linter.cpp` | a source literal that is nonzero but rounds to zero is the below-resolution warning; out of range is left to the parser (DESIGN.md "Literals"). |
 | `Analysis/src/TypeFunctionRuntime.cpp` | the runtime pushes a zero integer instead of a zero double across the number boundary (DESIGN.md "Boundary"). |
