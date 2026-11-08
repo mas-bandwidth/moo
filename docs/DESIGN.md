@@ -269,6 +269,24 @@ function; moo adds only the checks before the call, the formatter and the parser
   with a reversed witness of eleven plants, each red on its function only. `math.lerp` keeps its layer 3 definition
   (exact at `t == 1`), so `fixLerp` is not exposed under that name; `quat.frommatrix` (`fixMakeQuatFromMatrix`) comes
   with `mat3`'s library.
+- **Operators, components and libraries (N2).** `VM/src/moo_narrowlib.cpp`, reached from `luaV_doarithimpl` and
+  `luaV_gettable` (`moo_narrow_arith`, `moo_narrow_index`) before the vec3 paths. Components read as `v.x`/`v.y`
+  (and `X`/`Y`), `m.cx`/`cy`/`cz`, `p.normal`/`p.offset`, `a.lower`/`a.upper`; a vec3 component is a new vec3. Only
+  `mat3` has operators, because only `fixMatrix3` has them in fixed: `+` and `-` (`fixAddMM`, `fixSubMM`), unary `-`
+  (`fixNegateMat3`), `mat3 * mat3` (`fixMulMM`), `mat3 * vec3` (`fixMulMV`), `mat3 * number` and `number * mat3`
+  (`fixMulSM`). `+`, `-` and the scale are per-component, so a checked build raises number's "number overflow in
+  '<op>'" when a component saturates; the products are compound and verbatim in both builds (the 3b rule). Any other
+  pairing (`vec3 * mat3`, `vec2 + vec2`) is the ordinary arithmetic error. The libraries: `vec2.new`; `mat3.new`
+  (columns, omitted ones the identity's), `transpose`, `inverse`, `inversewide`, `inverset`, `solve`, `solvewide`,
+  `abs`, `det`, `fromquat`, `isvalid`, and `quat.frommatrix`; `plane.new` (refuses a non-unit normal), `isvalid`;
+  `aabb.new` (refuses an upper corner below the lower), `frompoints` (an array of vec3 and a radius; refuses an empty
+  array), `contains`, `area`, `center`, `extents`, `union`, `inflate`, `overlaps`, `transform` and
+  `fromcenterextents` (both refuse a non-unit rotation), `closestpoint`, `isvalid`; `fix30.new` (`fix30FromFix`,
+  saturating to [-2, 2) in release, "fix30 out of range" in a checked build), `tonumber`, `normalizecomponent`
+  (refuses a length that is not positive). Arguments are in fixed's order (`aabb.transform(t, a)`,
+  `aabb.closestpoint(point, a)`). The oracle in `tests/moo/complete.test.cpp` grows to 92 functions and operators
+  with eleven more plants; `tests/conformance/moo/spec/narrow.luau` pins what a script sees. The five library tables
+  and their names shift every creation number, so the frozen hashes moved again.
 
 ## Representation
 

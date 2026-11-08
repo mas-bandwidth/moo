@@ -18,6 +18,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <map>
+#include <vector>
 #include <string>
 #include <utility>
 
@@ -237,6 +238,39 @@ struct Rng
     {
         return int(next() % 63);
     }
+
+    // a matrix of in-range columns, a rotation's matrix, the identity, a singular one (two equal columns), or
+    // full-range columns one time in eight
+    fixMatrix3 matrix()
+    {
+        uint64_t shape = next() % 8;
+        if (shape == 0)
+            return fixMat3_identity;
+        if (shape == 1)
+            return fixMakeMatrixFromQuat(rotation());
+        if (shape == 2)
+        {
+            fixVec3 c = inRangeVec();
+            return FIX_LITERAL(fixMatrix3){c, c, inRangeVec()};
+        }
+        if (shape == 3)
+            return FIX_LITERAL(fixMatrix3){fullVec(), fullVec(), fullVec()};
+        // small entries, so the inverse and the solve have room
+        return FIX_LITERAL(fixMatrix3){{within(4 * kOne), within(4 * kOne), within(4 * kOne)}, {within(4 * kOne), within(4 * kOne), within(4 * kOne)},
+            {within(4 * kOne), within(4 * kOne), within(4 * kOne)}};
+    }
+
+    // a valid box (lower <= upper on every axis) from two vectors, in range or full range one time in four, or an
+    // inverted one (the refused case for aabb.new) one time in eight
+    fixAABB box(bool allowInverted)
+    {
+        uint64_t shape = next() % 8;
+        fixVec3 a = (shape < 2) ? fullVec() : inRangeVec();
+        fixVec3 b = (shape < 2) ? fullVec() : inRangeVec();
+        if (allowInverted && shape == 7)
+            return FIX_LITERAL(fixAABB){fixVecMax(a, b), fixVecMin(a, b)};
+        return FIX_LITERAL(fixAABB){fixVecMin(a, b), fixVecMax(a, b)};
+    }
 };
 
 // Values on the Lua stack and back, raw components through the C API
@@ -263,6 +297,49 @@ void push(lua_State* L, fixed_t n)
 void push(lua_State* L, int n)
 {
     lua_pushnumber(L, moo_numfromint(n));
+}
+
+// layer 3c's narrow types (N2)
+void push(lua_State* L, fixVec2 v)
+{
+    moo_pushvec2(L, v.x, v.y);
+}
+
+void push(lua_State* L, fixMatrix3 m)
+{
+    const lua_Number r[9] = {m.cx.x, m.cx.y, m.cx.z, m.cy.x, m.cy.y, m.cy.z, m.cz.x, m.cz.y, m.cz.z};
+    moo_pushmat3(L, r);
+}
+
+void push(lua_State* L, fixPlane p)
+{
+    moo_pushplane(L, p.normal.x, p.normal.y, p.normal.z, p.offset);
+}
+
+void push(lua_State* L, fixAABB a)
+{
+    moo_pushaabb(L, a.lowerBound.x, a.lowerBound.y, a.lowerBound.z, a.upperBound.x, a.upperBound.y, a.upperBound.z);
+}
+
+void push(lua_State* L, fixed30_t x)
+{
+    moo_pushfix30(L, x.raw);
+}
+
+// an array of vec3, for aabb.frompoints
+struct Points
+{
+    std::vector<fixVec3> v;
+};
+
+void push(lua_State* L, const Points& p)
+{
+    lua_createtable(L, int(p.v.size()), 0);
+    for (size_t i = 0; i < p.v.size(); ++i)
+    {
+        push(L, p.v[i]);
+        lua_rawseti(L, -2, int(i + 1));
+    }
 }
 
 // a script boolean, read as a value
@@ -314,6 +391,46 @@ bool popOne(lua_State* L, int idx, fixed_t& n)
     return ok;
 }
 
+bool popOne(lua_State* L, int idx, fixVec2& v)
+{
+    lua_Number raw[2];
+    bool ok = moo_tovec2(L, idx, raw) == 1;
+    v = FIX_LITERAL(fixVec2){raw[0], raw[1]};
+    return ok;
+}
+
+bool popOne(lua_State* L, int idx, fixMatrix3& m)
+{
+    lua_Number r[9];
+    bool ok = moo_tomat3(L, idx, r) == 1;
+    m = FIX_LITERAL(fixMatrix3){{r[0], r[1], r[2]}, {r[3], r[4], r[5]}, {r[6], r[7], r[8]}};
+    return ok;
+}
+
+bool popOne(lua_State* L, int idx, fixPlane& p)
+{
+    lua_Number r[4];
+    bool ok = moo_toplane(L, idx, r) == 1;
+    p = FIX_LITERAL(fixPlane){{r[0], r[1], r[2]}, r[3]};
+    return ok;
+}
+
+bool popOne(lua_State* L, int idx, fixAABB& a)
+{
+    lua_Number r[6];
+    bool ok = moo_toaabb(L, idx, r) == 1;
+    a = FIX_LITERAL(fixAABB){{r[0], r[1], r[2]}, {r[3], r[4], r[5]}};
+    return ok;
+}
+
+bool popOne(lua_State* L, int idx, fixed30_t& x)
+{
+    int32_t raw = 0;
+    bool ok = moo_tofix30(L, idx, &raw) == 1;
+    x.raw = raw;
+    return ok;
+}
+
 bool popOne(lua_State* L, int idx, Flag& f)
 {
     bool ok = lua_isboolean(L, idx) != 0;
@@ -357,6 +474,31 @@ bool same(fixed_t a, fixed_t b)
     return a == b;
 }
 
+bool same(fixVec2 a, fixVec2 b)
+{
+    return a.x == b.x && a.y == b.y;
+}
+
+bool same(fixMatrix3 a, fixMatrix3 b)
+{
+    return same(a.cx, b.cx) && same(a.cy, b.cy) && same(a.cz, b.cz);
+}
+
+bool same(fixPlane a, fixPlane b)
+{
+    return same(a.normal, b.normal) && a.offset == b.offset;
+}
+
+bool same(fixAABB a, fixAABB b)
+{
+    return same(a.lowerBound, b.lowerBound) && same(a.upperBound, b.upperBound);
+}
+
+bool same(fixed30_t a, fixed30_t b)
+{
+    return a.raw == b.raw;
+}
+
 bool same(Flag a, Flag b)
 {
     return a.value == b.value;
@@ -398,6 +540,39 @@ std::string show(fixQuat q)
 std::string show(fixTransform t)
 {
     return "[" + show(t.p) + " " + show(t.q) + "]";
+}
+
+std::string show(fixVec2 v)
+{
+    return "(" + show(v.x) + ", " + show(v.y) + ")";
+}
+
+std::string show(fixMatrix3 m)
+{
+    return "[" + show(m.cx) + " " + show(m.cy) + " " + show(m.cz) + "]";
+}
+
+std::string show(fixPlane p)
+{
+    return "plane" + show(p.normal) + " " + show(p.offset);
+}
+
+std::string show(fixAABB a)
+{
+    return "aabb[" + show(a.lowerBound) + " " + show(a.upperBound) + "]";
+}
+
+std::string show(fixed30_t x)
+{
+    return show(fixed_t(x.raw)) + "q30";
+}
+
+std::string show(const Points& p)
+{
+    std::string r = "{";
+    for (const fixVec3& v : p.v)
+        r += show(v);
+    return r + "}";
 }
 
 template<typename A, typename B>
@@ -485,6 +660,50 @@ struct Oracle
             function invworldpoint(t, p) return transform.invtransformworldpoint(t, p) end
             function torelative(t, p) return transform.torelative(t, p) end
             function tisvalid(t) return transform.isvalid(t) end
+
+            function v2new(x, y) return vec2.new(x, y) end
+            function v2comp(v) return v.x, v.y end
+
+            function madd(a, b) return a + b end
+            function msub(a, b) return a - b end
+            function mneg(a) return -a end
+            function mmul(a, b) return a * b end
+            function mnew(cx, cy, cz) return mat3.new(cx, cy, cz) end
+            function mcol(m, i) if i == 0 then return m.cx elseif i == 1 then return m.cy else return m.cz end end
+            function transpose(m) return mat3.transpose(m) end
+            function inverse(m) return mat3.inverse(m) end
+            function inversewide(m) return mat3.inversewide(m) end
+            function inverset(m) return mat3.inverset(m) end
+            function solve(m, v) return mat3.solve(m, v) end
+            function solvewide(m, v) return mat3.solvewide(m, v) end
+            function mabs(m) return mat3.abs(m) end
+            function det(m) return mat3.det(m) end
+            function fromquat(q) return mat3.fromquat(q) end
+            function misvalid(m) return mat3.isvalid(m) end
+            function frommatrix(m) return quat.frommatrix(m) end
+
+            function plnew(n, d) return plane.new(n, d) end
+            function plcomp(p) return p.normal, p.offset end
+            function plisvalid(p) return plane.isvalid(p) end
+
+            function bnew(lo, hi) return aabb.new(lo, hi) end
+            function bcomp(b) return b.lower, b.upper end
+            function frompoints(p, r) return aabb.frompoints(p, r) end
+            function bcontains(a, b) return aabb.contains(a, b) end
+            function barea(a) return aabb.area(a) end
+            function bcenter(a) return aabb.center(a) end
+            function bextents(a) return aabb.extents(a) end
+            function bunion(a, b) return aabb.union(a, b) end
+            function binflate(a, e) return aabb.inflate(a, e) end
+            function boverlaps(a, b) return aabb.overlaps(a, b) end
+            function btransform(t, a) return aabb.transform(t, a) end
+            function bcenterextents(t, c, e) return aabb.fromcenterextents(t, c, e) end
+            function bclosest(p, a) return aabb.closestpoint(p, a) end
+            function bisvalid(a) return aabb.isvalid(a) end
+
+            function f30new(x) return fix30.new(x) end
+            function f30tonumber(x) return fix30.tonumber(x) end
+            function f30normalize(x, l) return fix30.normalizecomponent(x, l) end
         )");
         REQUIRE(luau_load(L, "=moo-3c-oracle", bytecode.data(), bytecode.size(), 0) == 0);
         REQUIRE(lua_pcall(L, 0, 0, 0) == 0);
@@ -565,8 +784,380 @@ struct Oracle
 
 typedef std::pair<fixed_t, fixed_t> Pair;
 typedef std::pair<fixVec3, fixed_t> VecAndLength;
+typedef std::pair<fixVec3, fixVec3> VecPair;
 
 } // namespace
+
+
+// layer 3c N2: the narrow types' operators, component reads and libraries, against fixed's C. A checked build
+// raises number's error where a per-component mat3 operator saturates, and fix30.new outside [-2, 2).
+static void runNarrow(Oracle& o)
+{
+    auto saturates9 = [](fixMatrix3 a, fixMatrix3 b, int kind) {
+        const fixed_t x[9] = {a.cx.x, a.cx.y, a.cx.z, a.cy.x, a.cy.y, a.cy.z, a.cz.x, a.cz.y, a.cz.z};
+        const fixed_t y[9] = {b.cx.x, b.cx.y, b.cx.z, b.cy.x, b.cy.y, b.cy.z, b.cz.x, b.cz.y, b.cz.z};
+        for (int i = 0; i < 9; ++i)
+            if (kind == 0 ? moo_numaddsaturates(x[i], y[i]) : kind == 1 ? moo_numsubsaturates(x[i], y[i]) : moo_nummulsaturates(x[0], y[i]))
+                return true;
+        return false;
+    };
+
+    // vec2
+    {
+        Rng r(0x3c81);
+        o.op([&](uint64_t) {
+            fixed_t x = r.full(), y = r.full();
+            o.check("vec2.new", "v2new", FIX_LITERAL(fixVec2){x, y}, x, y);
+        });
+    }
+    {
+        Rng r(0x3c82);
+        o.op([&](uint64_t) {
+            fixVec2 v = {r.full(), r.full()};
+            o.check("vec2 components", "v2comp", Pair(v.x, v.y), v);
+        });
+    }
+
+    // mat3 operators
+    {
+        Rng r(0x3c91);
+        o.op([&](uint64_t) {
+            fixMatrix3 a = r.matrix(), b = r.matrix();
+            if (MOO_OVERFLOW_ERRORS && saturates9(a, b, 0))
+                o.checkRefused<fixMatrix3>("mat3 +", "madd", "number overflow in '+'", a, b);
+            else
+                o.check("mat3 +", "madd", fixAddMM(a, b), a, b);
+        });
+    }
+    {
+        Rng r(0x3c92);
+        o.op([&](uint64_t) {
+            fixMatrix3 a = r.matrix(), b = r.matrix();
+            if (MOO_OVERFLOW_ERRORS && saturates9(a, b, 1))
+                o.checkRefused<fixMatrix3>("mat3 -", "msub", "number overflow in '-'", a, b);
+            else
+                o.check("mat3 -", "msub", fixSubMM(a, b), a, b);
+        });
+    }
+    {
+        Rng r(0x3c93);
+        o.op([&](uint64_t) {
+            fixMatrix3 a = r.matrix();
+            o.check("mat3 unary -", "mneg", fixNegateMat3(a), a);
+        });
+    }
+    {
+        Rng r(0x3c94);
+        o.op([&](uint64_t) {
+            fixMatrix3 a = r.matrix(), b = r.matrix();
+            o.check("mat3 * mat3", "mmul", fixMulMM(a, b), a, b);
+        });
+    }
+    {
+        Rng r(0x3c95);
+        o.op([&](uint64_t i) {
+            fixMatrix3 a = r.matrix();
+            fixVec3 v = (i % 4 == 3) ? r.fullVec() : r.inRangeVec();
+            o.check("mat3 * vec3", "mmul", fixMulMV(a, v), a, v);
+        });
+    }
+    {
+        Rng r(0x3c96);
+        o.op([&](uint64_t i) {
+            fixMatrix3 a = r.matrix();
+            fixed_t s = r.full();
+            fixMatrix3 sm = {{s, s, s}, {s, s, s}, {s, s, s}};
+            bool sat = MOO_OVERFLOW_ERRORS && saturates9(sm, a, 2);
+            if (i % 2 == 0)
+            {
+                if (sat)
+                    o.checkRefused<fixMatrix3>("mat3 * number", "mmul", "number overflow in '*'", a, s);
+                else
+                    o.check("mat3 * number", "mmul", fixMulSM(s, a), a, s);
+            }
+            else
+            {
+                if (sat)
+                    o.checkRefused<fixMatrix3>("mat3 * number", "mmul", "number overflow in '*'", s, a);
+                else
+                    o.check("mat3 * number", "mmul", fixMulSM(s, a), s, a);
+            }
+        });
+    }
+
+    // mat3 library
+    {
+        Rng r(0x3ca1);
+        o.op([&](uint64_t) {
+            fixMatrix3 m = r.matrix();
+            o.check("mat3.new", "mnew", m, m.cx, m.cy, m.cz);
+        });
+    }
+    {
+        Rng r(0x3ca2);
+        o.op([&](uint64_t i) {
+            fixMatrix3 m = r.matrix();
+            int c = int(i % 3);
+            o.check("mat3 columns", "mcol", c == 0 ? m.cx : c == 1 ? m.cy : m.cz, m, c);
+        });
+    }
+    struct MatFn
+    {
+        const char* name;
+        const char* fn;
+        fixMatrix3 (*f)(fixMatrix3);
+    };
+    const MatFn matfns[] = {
+        {"mat3.transpose", "transpose", fixTranspose},
+        {"mat3.inverse", "inverse", fixInvertMatrix},
+        {"mat3.inversewide", "inversewide", fixInvertMatrixWide},
+        {"mat3.inverset", "inverset", fixInvertT},
+        {"mat3.abs", "mabs", fixAbsMatrix3},
+    };
+    uint64_t stream = 0x3cb0;
+    for (const MatFn& f : matfns)
+    {
+        Rng r(++stream);
+        o.op([&](uint64_t) {
+            fixMatrix3 m = r.matrix();
+            o.check(f.name, f.fn, f.f(m), m);
+        });
+    }
+    {
+        Rng r(0x3cb8);
+        o.op([&](uint64_t) {
+            fixMatrix3 m = r.matrix();
+            fixVec3 v = r.inRangeVec();
+            o.check("mat3.solve", "solve", fixSolve3(m, v), m, v);
+        });
+    }
+    {
+        Rng r(0x3cb9);
+        o.op([&](uint64_t) {
+            fixMatrix3 m = r.matrix();
+            fixVec3 v = r.inRangeVec();
+            o.check("mat3.solvewide", "solvewide", fixSolve3Wide(m, v), m, v);
+        });
+    }
+    {
+        Rng r(0x3cba);
+        o.op([&](uint64_t) {
+            fixMatrix3 m = r.matrix();
+            o.check("mat3.det", "det", fixDet(m), m);
+        });
+    }
+    {
+        Rng r(0x3cbb);
+        o.op([&](uint64_t) {
+            fixQuat q = r.rotation();
+            o.check("mat3.fromquat", "fromquat", fixMakeMatrixFromQuat(q), q);
+        });
+    }
+    {
+        Rng r(0x3cbc);
+        o.op([&](uint64_t i) {
+            fixMatrix3 m = r.matrix();
+            if (i % 8 == 0)
+                m.cy.z = INT64_MIN;
+            o.check("mat3.isvalid", "misvalid", flag(fixIsValidMatrix3(m)), m);
+        });
+    }
+    {
+        Rng r(0x3cbd);
+        o.op([&](uint64_t) {
+            fixMatrix3 m = r.matrix();
+            o.check("quat.frommatrix", "frommatrix", fixMakeQuatFromMatrix(&m), m);
+        });
+    }
+
+    // plane
+    {
+        Rng r(0x3cc1);
+        o.op([&](uint64_t) {
+            fixPlane p = {r.unitVec(), r.full()};
+            if (!fixIsValidPlane(p))
+                o.checkRefused<fixPlane>("plane.new", "plnew", "normal must be a unit vector", p.normal, p.offset);
+            else
+                o.check("plane.new", "plnew", p, p.normal, p.offset);
+        });
+    }
+    {
+        Rng r(0x3cc2);
+        o.op([&](uint64_t) {
+            fixPlane p = {r.unitVec(), r.full()};
+            o.check("plane components", "plcomp", VecAndLength(p.normal, p.offset), p);
+        });
+    }
+    {
+        Rng r(0x3cc3);
+        o.op([&](uint64_t i) {
+            fixPlane p = {r.unitVec(), r.full()};
+            if (i % 8 == 0)
+                p.offset = INT64_MIN;
+            o.check("plane.isvalid", "plisvalid", flag(fixIsValidPlane(p)), p);
+        });
+    }
+
+    // aabb
+    {
+        Rng r(0x3cd1);
+        o.op([&](uint64_t) {
+            fixAABB a = r.box(true);
+            if (!fixIsValidAABB(a))
+                o.checkRefused<fixAABB>("aabb.new", "bnew", "upper must not be below lower", a.lowerBound, a.upperBound);
+            else
+                o.check("aabb.new", "bnew", a, a.lowerBound, a.upperBound);
+        });
+    }
+    {
+        Rng r(0x3cd2);
+        o.op([&](uint64_t) {
+            fixAABB a = r.box(false);
+            o.check("aabb components", "bcomp", VecPair(a.lowerBound, a.upperBound), a);
+        });
+    }
+    {
+        Rng r(0x3cd3);
+        o.op([&](uint64_t i) {
+            Points p;
+            size_t count = (i % 16 == 0) ? 0 : 1 + size_t(r.next() % 6);
+            for (size_t k = 0; k < count; ++k)
+                p.v.push_back((i % 4 == 3) ? r.fullVec() : r.inRangeVec());
+            fixed_t radius = (i % 3 == 0) ? 0 : r.within(kOne * 8);
+            if (count == 0)
+                o.checkRefused<fixAABB>("aabb.frompoints", "frompoints", "no points", p, radius);
+            else
+                o.check("aabb.frompoints", "frompoints", fixMakeAABB(p.v.data(), int(count), radius), p, radius);
+        });
+    }
+    struct BoxPred
+    {
+        const char* name;
+        const char* fn;
+        bool (*f)(fixAABB, fixAABB);
+    };
+    const BoxPred preds[] = {{"aabb.contains", "bcontains", fixAABB_Contains}, {"aabb.overlaps", "boverlaps", fixAABB_Overlaps}};
+    stream = 0x3cd4;
+    for (const BoxPred& f : preds)
+    {
+        Rng r(++stream);
+        o.op([&](uint64_t i) {
+            fixAABB a = r.box(false), b = r.box(false);
+            if (i % 4 == 0)
+                b = fixAABB_Inflate(a, -r.within(kOne)); // nested or overlapping, not only disjoint
+            o.check(f.name, f.fn, flag(f.f(a, b)), a, b);
+        });
+    }
+    {
+        Rng r(0x3cd7);
+        o.op([&](uint64_t) {
+            fixAABB a = r.box(false);
+            o.check("aabb.area", "barea", fixAABB_Area(a), a);
+        });
+    }
+    {
+        Rng r(0x3cd8);
+        o.op([&](uint64_t) {
+            fixAABB a = r.box(false);
+            o.check("aabb.center", "bcenter", fixAABB_Center(a), a);
+        });
+    }
+    {
+        Rng r(0x3cd9);
+        o.op([&](uint64_t) {
+            fixAABB a = r.box(false);
+            o.check("aabb.extents", "bextents", fixAABB_Extents(a), a);
+        });
+    }
+    {
+        Rng r(0x3cda);
+        o.op([&](uint64_t) {
+            fixAABB a = r.box(false), b = r.box(false);
+            o.check("aabb.union", "bunion", fixAABB_Union(a, b), a, b);
+        });
+    }
+    {
+        Rng r(0x3cdb);
+        o.op([&](uint64_t) {
+            fixAABB a = r.box(false);
+            fixed_t e = r.full();
+            o.check("aabb.inflate", "binflate", fixAABB_Inflate(a, e), a, e);
+        });
+    }
+    {
+        Rng r(0x3cdc);
+        o.op([&](uint64_t i) {
+            fixTransform t = (i % 4 == 3) ? r.wide() : r.rigid();
+            fixAABB a = r.box(false);
+            if (!fixIsNormalizedQuat(t.q))
+                o.checkRefused<fixAABB>("aabb.transform", "btransform", "rotation must be a unit quaternion", t, a);
+            else
+                o.check("aabb.transform", "btransform", fixAABB_Transform(t, a), t, a);
+        });
+    }
+    {
+        Rng r(0x3cdd);
+        o.op([&](uint64_t i) {
+            fixTransform t = (i % 4 == 3) ? r.wide() : r.rigid();
+            fixVec3 c = r.inRangeVec(), e = fixVecAbs(r.inRangeVec());
+            if (!fixIsNormalizedQuat(t.q))
+                o.checkRefused<fixAABB>("aabb.fromcenterextents", "bcenterextents", "rotation must be a unit quaternion", t, c, e);
+            else
+                o.check("aabb.fromcenterextents", "bcenterextents", fixTransformAABBCenterExtents(t, c, e), t, c, e);
+        });
+    }
+    {
+        Rng r(0x3cde);
+        o.op([&](uint64_t i) {
+            fixVec3 p = (i % 4 == 3) ? r.fullVec() : r.inRangeVec();
+            fixAABB a = r.box(false);
+            o.check("aabb.closestpoint", "bclosest", fixClosestPointToAABB(p, a), p, a);
+        });
+    }
+    {
+        Rng r(0x3cdf);
+        o.op([&](uint64_t i) {
+            fixAABB a = r.box(true);
+            if (i % 8 == 0)
+                a.upperBound.x = INT64_MIN;
+            o.check("aabb.isvalid", "bisvalid", flag(fixIsValidAABB(a)), a);
+        });
+    }
+
+    // fix30
+    {
+        Rng r(0x3ce1);
+        o.op([&](uint64_t i) {
+            fixed_t x = (i % 2 == 0) ? r.within(2 * kOne + 8) : r.full();
+            bool out = x >= 2 * kOne || x < -2 * kOne;
+            if (MOO_OVERFLOW_ERRORS && out)
+                o.checkRefused<fixed30_t>("fix30.new", "f30new", "fix30 out of range", x);
+            else
+                o.check("fix30.new", "f30new", fix30FromFix(x), x);
+        });
+    }
+    {
+        Rng r(0x3ce2);
+        o.op([&](uint64_t) {
+            fixed30_t x = {int32_t(r.next32())};
+            o.check("fix30.tonumber", "f30tonumber", fixFromFix30(x), x);
+        });
+    }
+    {
+        Rng r(0x3ce3);
+        o.op([&](uint64_t i) {
+            fixed_t x = r.full();
+            fixed_t l = (i % 8 == 0) ? -r.within(kOne) : (i % 2 == 0) ? fixAbs(x) + fixed_t(r.next() % 4096) : 1 + fixed_t(r.next() >> 1);
+            if (l <= 0)
+                o.checkRefused<fixed30_t>("fix30.normalizecomponent", "f30normalize", "length must be positive", x, l);
+            else
+            {
+                fixed30_t want = {fixNormalizeComponent30(x, uint64_t(l))};
+                o.check("fix30.normalizecomponent", "f30normalize", want, x, l);
+            }
+        });
+    }
+}
 
 // every function of the layer, n cases each; the C side is the fixed function the moo function wraps, called on
 // the same operands, or the predicted refusal
@@ -1001,9 +1592,11 @@ static void runAll(Oracle& o)
             o.check("transform.isvalid", "tisvalid", flag(fixIsValidTransform(t)), t);
         });
     }
+
+    runNarrow(o);
 }
 
-const int kOps = 51; // 10 math, 21 vec3, 12 quat, 8 transform
+const int kOps = 92; // N5: 10 math, 21 vec3, 12 quat, 8 transform; N2: 2 vec2, 18 mat3 (quat.frommatrix with them), 3 plane, 16 aabb, 3 fix30
 
 TEST_CASE("CompleteOracle")
 {
@@ -1049,6 +1642,18 @@ TEST_CASE("CompleteOracleGoesRedOnAPlantedWrongOp")
         {"quat.twistangle", "function twistangle(q) return quat.swingangle(q) end"},
         {"transform.invmul", "function tinvmul(a, b) return transform.inverse(a) * b end"},
         {"transform.torelative", "function torelative(t, p) return transform.new(t.p + p, t.q) end"},
+        // layer 3c N2
+        {"vec2 components", "function v2comp(v) return v.y, v.x end"},
+        {"mat3 +", "function madd(a, b) return a - b end"},
+        {"mat3.transpose", "function transpose(m) return m end"},
+        {"mat3.det", "function det(m) return mat3.det(m) + 1 / 65536 end"},
+        {"quat.frommatrix", "function frommatrix(m) return quat.conjugate(quat.frommatrix(m)) end"},
+        {"plane.new", "function plnew(n, d) return plane.new(n, -d) end"},
+        {"aabb.frompoints", "function frompoints(p, r) return aabb.frompoints(p, 0) end"},
+        {"aabb.contains", "function bcontains(a, b) return aabb.contains(b, a) end"},
+        {"aabb.transform", "function btransform(t, a) return aabb.transform(transform.new(t.p, quat.new()), a) end"},
+        {"aabb.closestpoint", "function bclosest(p, a) return aabb.center(a) end"},
+        {"fix30.new", "function f30new(x) return fix30.new(-x) end"},
     };
     for (const Plant& plant : plants)
     {
@@ -1100,6 +1705,29 @@ TEST_CASE("CompleteRefusals")
         {"return transform.torelative(t, t)", "invalid argument #2 to 'torelative' (vec3 expected, got transform)"},
         {"return transform.transformworldpoint(v, v)", "invalid argument #1 to 'transformworldpoint' (transform expected, got vec3)"},
         {"return transform.isvalid()", "missing argument #1 to 'isvalid' (transform expected)"},
+        // layer 3c N2
+        {"return vec2.new('a')", "invalid argument #1 to 'new' (number expected, got string)"},
+        {"return mat3.new(v, 1)", "invalid argument #2 to 'new' (vec3 expected, got number)"},
+        {"return mat3.transpose(v)", "invalid argument #1 to 'transpose' (mat3 expected, got vec3)"},
+        {"return mat3.solve(mat3.new(), q)", "invalid argument #2 to 'solve' (vec3 expected, got quat)"},
+        {"return quat.frommatrix(q)", "invalid argument #1 to 'frommatrix' (mat3 expected, got quat)"},
+        {"return plane.new(v, 1)", "invalid argument #1 to 'new' (normal must be a unit vector)"},
+        {"return plane.isvalid(v)", "invalid argument #1 to 'isvalid' (plane expected, got vec3)"},
+        {"return aabb.new(v, vec3.new())", "invalid argument #2 to 'new' (upper must not be below lower)"},
+        {"return aabb.frompoints({})", "invalid argument #1 to 'frompoints' (no points)"},
+        {"return aabb.frompoints(v)", "invalid argument #1 to 'frompoints' (table expected, got vec3)"},
+        {"return aabb.frompoints({v, 1})", "invalid point #2 to 'frompoints' (vec3 expected, got number)"},
+        {"return aabb.transform(transform.new(v, quat.new(1, 1, 1, 1)), aabb.new(v, v))", "invalid argument #1 to 'transform' (rotation must be a unit quaternion)"},
+        {"return aabb.closestpoint(aabb.new(v, v), v)", "invalid argument #1 to 'closestpoint' (vec3 expected, got aabb)"},
+        {"return fix30.tonumber(1)", "invalid argument #1 to 'tonumber' (fix30 expected, got number)"},
+        {"return fix30.normalizecomponent(1, 0)", "invalid argument #2 to 'normalizecomponent' (length must be positive)"},
+        {"return fix30.normalizecomponent(1, -1)", "invalid argument #2 to 'normalizecomponent' (length must be positive)"},
+        {"return mat3.new() + v", "attempt to perform arithmetic (add) on mat3 and vec3"},
+        {"return mat3.new() * q", "attempt to perform arithmetic (mul) on mat3 and quat"},
+        {"return v * mat3.new()", "attempt to perform arithmetic (mul) on vec3 and mat3"},
+        {"return vec2.new() + vec2.new()", "attempt to perform arithmetic (add) on vec2"},
+        {"return mat3.new().cw", "attempt to index mat3 with 'cw'"},
+        {"return plane.new(vec3.new(1, 0, 0)).x", "attempt to index plane with 'x'"},
     };
     for (const Refusal& r : refusals)
     {

@@ -52,6 +52,20 @@ LUALIB_API void moo_pushtransform(
     lua_State* L, lua_Number px, lua_Number py, lua_Number pz, lua_Number qx, lua_Number qy, lua_Number qz, lua_Number qs);
 LUALIB_API int moo_totransform(lua_State* L, int idx, lua_Number out[7]);
 
+// moo: layer 3c, the narrow types' C API in the same shape, raw components as lua_pushnumber takes them: vec2 x, y;
+// mat3 the columns cx, cy, cz, each x, y, z; plane the normal x, y, z and the offset; aabb the lower then the upper
+// bound, each x, y, z; fix30 its raw Q2.30 bits. A push never refuses (the libraries' constructors refuse by name).
+LUALIB_API void moo_pushvec2(lua_State* L, lua_Number x, lua_Number y);
+LUALIB_API int moo_tovec2(lua_State* L, int idx, lua_Number out[2]);
+LUALIB_API void moo_pushmat3(lua_State* L, const lua_Number m[9]);
+LUALIB_API int moo_tomat3(lua_State* L, int idx, lua_Number out[9]);
+LUALIB_API void moo_pushplane(lua_State* L, lua_Number nx, lua_Number ny, lua_Number nz, lua_Number offset);
+LUALIB_API int moo_toplane(lua_State* L, int idx, lua_Number out[4]);
+LUALIB_API void moo_pushaabb(lua_State* L, lua_Number lx, lua_Number ly, lua_Number lz, lua_Number ux, lua_Number uy, lua_Number uz);
+LUALIB_API int moo_toaabb(lua_State* L, int idx, lua_Number out[6]);
+LUALIB_API void moo_pushfix30(lua_State* L, int32_t raw);
+LUALIB_API int moo_tofix30(lua_State* L, int idx, int32_t* out);
+
 LUALIB_API void luaL_checkstack(lua_State* L, int sz, const char* msg);
 LUALIB_API void luaL_checktype(lua_State* L, int narg, int t);
 LUALIB_API void luaL_checkany(lua_State* L, int narg);
@@ -174,6 +188,13 @@ LUALIB_API int luaopen_quat(lua_State* L);
 
 // moo: the transform library
 LUALIB_API int luaopen_transform(lua_State* L);
+
+// moo: the layer 3c libraries
+LUALIB_API int luaopen_vec2(lua_State* L);
+LUALIB_API int luaopen_mat3(lua_State* L);
+LUALIB_API int luaopen_plane(lua_State* L);
+LUALIB_API int luaopen_aabb(lua_State* L);
+LUALIB_API int luaopen_fix30(lua_State* L);
 
 // open all builtin libraries
 LUALIB_API void luaL_openlibs(lua_State* L);

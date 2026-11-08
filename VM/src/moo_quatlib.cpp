@@ -4,6 +4,7 @@
 #include "lualib.h"
 
 #include "lobject.h"
+#include "moo_narrow.h"
 #include "moo_number.h"
 #include "moo_quat.h"
 #include "moo_vec3.h"
@@ -161,6 +162,14 @@ int quat_isnormalized(lua_State* L)
     return 1;
 }
 
+// quat.frommatrix(m): fixMakeQuatFromMatrix, verbatim (layer 3c N2, with mat3)
+int quat_frommatrix(lua_State* L)
+{
+    fixMatrix3 m = moo_mat3_check(L, 1);
+    moo_quat_push(L, fixMakeQuatFromMatrix(&m));
+    return 1;
+}
+
 const luaL_Reg quatlib[] = {
     {"new", quat_new},
     {"conjugate", quat_conjugate},
@@ -179,6 +188,7 @@ const luaL_Reg quatlib[] = {
     {"betweenunitvectors", quat_betweenunitvectors},
     {"isvalid", quat_isvalid},
     {"isnormalized", quat_isnormalized},
+    {"frommatrix", quat_frommatrix},
     {NULL, NULL},
 };
 
