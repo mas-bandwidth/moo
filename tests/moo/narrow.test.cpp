@@ -240,7 +240,7 @@ TEST_CASE("NarrowEqualByValue")
         {
             push(L, Kind(k), 0);
             push(L, Kind(j), 0);
-            CHECK(luaO_rawequalObj(L->top - 2, L->top - 1) == (k == j));
+            CHECK(luaO_rawequalObj(L->top - 2, L->top - 1) == int(k == j));
             lua_pop(L, 2);
         }
 }
