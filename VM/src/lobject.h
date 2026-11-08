@@ -93,6 +93,12 @@ typedef struct lua_TValue
 #define ttisplane(o) (ttype(o) == LUA_TPLANE)
 #define ttisaabb(o) (ttype(o) == LUA_TAABB)
 #define ttisfix30(o) (ttype(o) == LUA_TFIX30)
+// moo: layer 3d wide and time
+#define ttiswide(o) (ttype(o) == LUA_TWIDE)
+#define ttisposwide(o) (ttype(o) == LUA_TPOSWIDE)
+#define ttisworldtransformwide(o) (ttype(o) == LUA_TWORLDTRANSFORMWIDE)
+#define ttisaabbwide(o) (ttype(o) == LUA_TAABBWIDE)
+#define ttistime(o) (ttype(o) == LUA_TTIME)
 
 // Macros to access values
 #define ttype(o) ((o)->tt)
@@ -123,6 +129,12 @@ typedef struct lua_TValue
 #define planevalue(o) check_exp(ttisplane(o), &(o)->value.gc->pl)
 #define aabbvalue(o) check_exp(ttisaabb(o), &(o)->value.gc->ab)
 #define fix30value(o) check_exp(ttisfix30(o), &(o)->value.gc->f30)
+// moo: layer 3d wide and time
+#define widevalue(o) check_exp(ttiswide(o), &(o)->value.gc->wd)
+#define poswidevalue(o) check_exp(ttisposwide(o), &(o)->value.gc->pw)
+#define worldtransformwidevalue(o) check_exp(ttisworldtransformwide(o), &(o)->value.gc->tw)
+#define aabbwidevalue(o) check_exp(ttisaabbwide(o), &(o)->value.gc->bw)
+#define timevalue(o) check_exp(ttistime(o), &(o)->value.gc->tm)
 
 #define l_isfalse(o) (ttisnil(o) || (ttisboolean(o) && bvalue(o) == 0))
 
@@ -321,6 +333,12 @@ typedef struct lua_TValue
 #define setplanevalue(L, obj, x) moo_setobjvalue(L, obj, x, LUA_TPLANE)
 #define setaabbvalue(L, obj, x) moo_setobjvalue(L, obj, x, LUA_TAABB)
 #define setfix30value(L, obj, x) moo_setobjvalue(L, obj, x, LUA_TFIX30)
+// moo: layer 3d wide and time
+#define setwidevalue(L, obj, x) moo_setobjvalue(L, obj, x, LUA_TWIDE)
+#define setposwidevalue(L, obj, x) moo_setobjvalue(L, obj, x, LUA_TPOSWIDE)
+#define setworldtransformwidevalue(L, obj, x) moo_setobjvalue(L, obj, x, LUA_TWORLDTRANSFORMWIDE)
+#define setaabbwidevalue(L, obj, x) moo_setobjvalue(L, obj, x, LUA_TAABBWIDE)
+#define settimevalue(L, obj, x) moo_setobjvalue(L, obj, x, LUA_TTIME)
 
 /*
 ** different types of sets, according to destination

@@ -139,6 +139,12 @@ static_assert(sizeof(MooMat3) == 88, "size mismatch for mat3 object");
 static_assert(sizeof(MooPlane) == 48, "size mismatch for plane object");
 static_assert(sizeof(MooAABB) == 64, "size mismatch for aabb object");
 static_assert(sizeof(MooFix30) == 24, "size mismatch for fix30 object");
+// moo: layer 3d wide and time object sizes (docs/DESIGN.md "Layer 3d as built")
+static_assert(sizeof(MooFixedWide) == 32, "size mismatch for wide object");
+static_assert(sizeof(MooPosWide) == 64, "size mismatch for poswide object");
+static_assert(sizeof(MooWorldTransformWide) == 96, "size mismatch for worldtransformwide object");
+static_assert(sizeof(MooAABBWide) == 112, "size mismatch for aabbwide object");
+static_assert(sizeof(MooTime) == 24, "size mismatch for time object");
 
 // The userdata is designed to provide 16 byte alignment for 16 byte and larger userdata sizes
 static_assert(offsetof(Udata, data) == 32, "data must be at precise offset provide proper alignment");

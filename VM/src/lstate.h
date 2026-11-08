@@ -11,6 +11,7 @@
 #include "moo_plane.h"
 #include "moo_aabb.h"
 #include "moo_fix30.h"
+#include "moo_wide.h" // moo: layer 3d wide and time in union GCObject (docs/DESIGN.md "Layer 3d as built")
 #include "ltm.h"
 #include "ludata.h"
 
@@ -358,6 +359,11 @@ union GCObject
     struct MooPlane pl;
     struct MooAABB ab;
     struct MooFix30 f30;
+    struct MooFixedWide wd; // moo: layer 3d wide and time
+    struct MooPosWide pw;
+    struct MooWorldTransformWide tw;
+    struct MooAABBWide bw;
+    struct MooTime tm;
 };
 
 // macros to convert a GCObject into a specific value
@@ -384,6 +390,12 @@ union GCObject
 #define gco2plane(o) check_exp((o)->gch.tt == LUA_TPLANE, &((o)->pl))
 #define gco2aabb(o) check_exp((o)->gch.tt == LUA_TAABB, &((o)->ab))
 #define gco2fix30(o) check_exp((o)->gch.tt == LUA_TFIX30, &((o)->f30))
+// moo: layer 3d wide and time
+#define gco2wide(o) check_exp((o)->gch.tt == LUA_TWIDE, &((o)->wd))
+#define gco2poswide(o) check_exp((o)->gch.tt == LUA_TPOSWIDE, &((o)->pw))
+#define gco2worldtransformwide(o) check_exp((o)->gch.tt == LUA_TWORLDTRANSFORMWIDE, &((o)->tw))
+#define gco2aabbwide(o) check_exp((o)->gch.tt == LUA_TAABBWIDE, &((o)->bw))
+#define gco2time(o) check_exp((o)->gch.tt == LUA_TTIME, &((o)->tm))
 
 // macro to convert any Lua object into a GCObject
 #define obj2gco(v) check_exp(iscollectable(v), cast_to(GCObject*, (v) + 0))

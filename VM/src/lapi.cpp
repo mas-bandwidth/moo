@@ -738,6 +738,12 @@ const void* lua_topointer(lua_State* L, int idx)
     case LUA_TPLANE:
     case LUA_TAABB:
     case LUA_TFIX30:
+    // moo: layer 3d wide and time (docs/DESIGN.md "Layer 3d as built")
+    case LUA_TWIDE:
+    case LUA_TPOSWIDE:
+    case LUA_TWORLDTRANSFORMWIDE:
+    case LUA_TAABBWIDE:
+    case LUA_TTIME:
         return NULL;
     default:
         return iscollectable(o) ? gcvalue(o) : NULL;
