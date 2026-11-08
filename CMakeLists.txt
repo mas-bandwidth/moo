@@ -59,6 +59,19 @@ elseif(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
     add_compile_options(/clang:-ffp-contract=off)
 endif()
 
+# moo: wasm32 (Emscripten) is a supported target, bit-identical to the 64-bit ones (docs/DETERMINISM.md, "Supported
+# platforms"). Errors are C++ exceptions there as everywhere, as native wasm exception handling on every object, so a
+# moo error takes the same path as on 64-bit; upstream's Luau.Web module uses Emscripten's JavaScript exceptions
+# instead, so the two are not built together. The C stack is 8 MiB, so recursion stops at LUAI_MAXCCALLS with moo's
+# error, never at a wasm stack trap.
+if(EMSCRIPTEN)
+    if(LUAU_BUILD_WEB)
+        message(FATAL_ERROR "moo on wasm32 builds with -fwasm-exceptions; LUAU_BUILD_WEB (upstream's Luau.Web, -fexceptions) stays OFF")
+    endif()
+    add_compile_options(-fwasm-exceptions)
+    add_link_options(-fwasm-exceptions -sSTACK_SIZE=8388608 -sALLOW_MEMORY_GROWTH=1 -sMAXIMUM_MEMORY=4GB)
+endif()
+
 if (LUAU_BUILD_SHARED)
     add_library(Luau.Common SHARED)
     add_library(Luau.CLI.lib SHARED)

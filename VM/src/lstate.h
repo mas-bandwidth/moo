@@ -93,11 +93,12 @@ struct GCStats
     uint32_t triggertermpos = 0;
     int32_t triggerintegral = 0;
 
-    // moo: pacing reads no clock (docs/DETERMINISM.md, 4); every input below is an allocation count
-    size_t starttotalsizebytes = 0; // at the start of the cycle (moo: replaces starttimestamp)
-    size_t atomicstarttotalsizebytes = 0;
-    size_t endtotalsizebytes = 0;
-    size_t heapgoalsizebytes = 0;
+    // moo: pacing reads no clock (docs/DETERMINISM.md, 4); every input below is an allocation count, 64 bits wide on
+    // every target (docs/DETERMINISM.md, 5; VM/src/moo_layout.h)
+    uint64_t starttotalsizebytes = 0; // at the start of the cycle (moo: replaces starttimestamp)
+    uint64_t atomicstarttotalsizebytes = 0;
+    uint64_t endtotalsizebytes = 0;
+    uint64_t heapgoalsizebytes = 0;
 };
 
 #ifdef LUAI_GCMETRICS
@@ -202,8 +203,9 @@ typedef struct global_State
     GCObject* grayagain; // list of objects to be traversed atomically
     GCObject* weak;      // list of weak tables (to be cleared)
 
-    size_t GCthreshold;                       // when totalbytes >= GCthreshold, run GC step
-    size_t totalbytes;                        // number of bytes currently allocated
+    // moo: canonical bytes, 64 bits wide on every target, so the pacing arithmetic never wraps (docs/DETERMINISM.md, 5)
+    uint64_t GCthreshold;                     // when totalbytes >= GCthreshold, run GC step
+    uint64_t totalbytes;                      // number of bytes currently allocated
 
     int gcgoal;                               // see LUAI_GCGOAL
     int gcstepmul;                            // see LUAI_GCSTEPMUL
@@ -249,7 +251,7 @@ typedef struct global_State
     // Set of userdata __index/__newindex/__namecall metamethods for a direct access
     lua_UdataDirectAccessData udatadirect[UTAG_INTERNAL_LIMIT];
 
-    size_t memcatbytes[LUA_MEMORY_CATEGORIES]; // total amount of memory used by each memory category
+    uint64_t memcatbytes[LUA_MEMORY_CATEGORIES]; // total amount of memory used by each memory category (moo: canonical bytes)
 
     void (*udatagc[LUA_UTAG_LIMIT])(lua_State*, void*); // for each userdata tag, a gc callback to be called immediately before freeing memory
     lua_UserdataMark udatamark[LUA_UTAG_LIMIT]; // gc callbacks allowing the embedder to mark underlying native objects for the given userdata

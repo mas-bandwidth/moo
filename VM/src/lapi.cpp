@@ -1480,7 +1480,7 @@ int lua_gc(lua_State* L, int what, int data)
     {
     case LUA_GCSTOP:
     {
-        g->GCthreshold = SIZE_MAX;
+        g->GCthreshold = UINT64_MAX; // moo: the threshold is 64 bits wide (moo_layout.h)
         break;
     }
     case LUA_GCRESTART:
@@ -1506,13 +1506,14 @@ int lua_gc(lua_State* L, int what, int data)
     }
     case LUA_GCISRUNNING:
     {
-        res = (g->GCthreshold != SIZE_MAX);
+        res = (g->GCthreshold != UINT64_MAX);
         break;
     }
     case LUA_GCSTEP:
     {
-        size_t amount = (cast_to(size_t, data) << 10);
-        ptrdiff_t oldcredit = g->gcstate == GCSpause ? 0 : g->GCthreshold - g->totalbytes;
+        // moo: 64 bits wide on every target, as the pacing is (moo_layout.h)
+        uint64_t amount = (cast_to(uint64_t, data) << 10);
+        int64_t oldcredit = g->gcstate == GCSpause ? 0 : int64_t(g->GCthreshold - g->totalbytes);
 
         // temporarily adjust the threshold so that we can perform GC work
         if (amount <= g->totalbytes)
@@ -1526,11 +1527,11 @@ int lua_gc(lua_State* L, int what, int data)
 #endif
 
         // track how much work the loop will actually perform
-        size_t actualwork = 0;
+        uint64_t actualwork = 0;
 
         while (g->GCthreshold <= g->totalbytes)
         {
-            size_t stepsize = luaC_step(L, false);
+            uint64_t stepsize = luaC_step(L, false);
 
             actualwork += stepsize;
 
@@ -1569,7 +1570,7 @@ int lua_gc(lua_State* L, int what, int data)
         if (g->gcstate != GCSpause)
         {
             // if a new cycle was triggered by explicit step, old 'credit' of GC work is 0
-            ptrdiff_t newthreshold = g->totalbytes + actualwork + oldcredit;
+            int64_t newthreshold = int64_t(g->totalbytes + actualwork) + oldcredit;
             g->GCthreshold = newthreshold < 0 ? 0 : newthreshold;
         }
         break;
@@ -2246,7 +2247,9 @@ void lua_setmemcat(lua_State* L, int category)
 size_t lua_totalbytes(lua_State* L, int category)
 {
     api_check(L, category < LUA_MEMORY_CATEGORIES);
-    return category < 0 ? L->global->totalbytes : L->global->memcatbytes[category];
+    // moo: the count is 64 bits wide; a 32-bit host sees it saturated at SIZE_MAX (docs/DETERMINISM.md, 5)
+    uint64_t bytes = category < 0 ? L->global->totalbytes : L->global->memcatbytes[category];
+    return bytes > SIZE_MAX ? SIZE_MAX : size_t(bytes);
 }
 
 int64_t lua_allocationrate(lua_State* L)

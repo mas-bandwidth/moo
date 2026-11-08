@@ -3,9 +3,11 @@
 #pragma once
 
 #include "lobject.h"
+#include "moo_layout.h"
 
-#define sizeCclosure(n) (offsetof(Closure, c.upvals) + sizeof(TValue) * (n))
-#define sizeLclosure(n) (offsetof(Closure, l.uprefs) + sizeof(TValue) * (n))
+// moo: the canonical closure sizes on every target (moo_layout.h); the upvalues start at the struct's own offset
+#define sizeCclosure(n) (MOO_OFFSET_CCLOSURE_UPVALS + moo_sizeof(TValue) * (n))
+#define sizeLclosure(n) (MOO_OFFSET_LCLOSURE_UPREFS + moo_sizeof(TValue) * (n))
 #define getproto(cl) ((cl)->isC ? nullptr : (FFlag::LuauPromoteProto && cl->l.p->optimized ? luaF_promoteproto(cl) : (cl)->l.p))
 
 LUAI_FUNC Proto* luaF_newproto(lua_State* L);

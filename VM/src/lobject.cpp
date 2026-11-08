@@ -42,7 +42,7 @@ int luaO_log2(unsigned int x)
 // moo: vec3, quat and transform allocation, equality and tostring (docs/history/layer3b/moo-v2-l3b-vec3-object.md)
 MooVec3* moo_vec3_new(lua_State* L, fixed_t x, fixed_t y, fixed_t z)
 {
-    MooVec3* v = luaM_newgcofixed(L, MooVec3, sizeof(MooVec3), L->activememcat, LUA_TVEC3);
+    MooVec3* v = luaM_newgcofixed(L, MooVec3, moo_sizeof(MooVec3), L->activememcat, LUA_TVEC3);
     luaC_init(L, v, LUA_TVEC3);
     v->x = x;
     v->y = y;
@@ -72,7 +72,7 @@ char* moo_vec3_tostring(char* buf, const MooVec3* v)
 // moo: quat
 MooQuat* moo_quat_new(lua_State* L, fixed_t x, fixed_t y, fixed_t z, fixed_t s)
 {
-    MooQuat* q = luaM_newgcofixed(L, MooQuat, sizeof(MooQuat), L->activememcat, LUA_TQUAT);
+    MooQuat* q = luaM_newgcofixed(L, MooQuat, moo_sizeof(MooQuat), L->activememcat, LUA_TQUAT);
     luaC_init(L, q, LUA_TQUAT);
     q->v.x = x;
     q->v.y = y;
@@ -106,7 +106,7 @@ char* moo_quat_tostring(char* buf, const MooQuat* q)
 // moo: transform
 MooTransform* moo_transform_new(lua_State* L, fixTransform t)
 {
-    MooTransform* o = luaM_newgcofixed(L, MooTransform, sizeof(MooTransform), L->activememcat, LUA_TTRANSFORM);
+    MooTransform* o = luaM_newgcofixed(L, MooTransform, moo_sizeof(MooTransform), L->activememcat, LUA_TTRANSFORM);
     luaC_init(L, o, LUA_TTRANSFORM);
     o->p = t.p;
     o->q = t.q;

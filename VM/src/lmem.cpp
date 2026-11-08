@@ -122,20 +122,10 @@ static_assert(sizeof(TValue) == ABISWITCH(16, 16, 16), "size mismatch for value"
 static_assert(sizeof(LuaNode) == ABISWITCH(32, 32, 32), "size mismatch for table entry");
 #endif
 
-// moo: every object header grew by its 8-byte creation number (lobject.h CommonHeader)
-static_assert(sizeof(void*) == 8, "moo supports 64-bit targets only");
-static_assert(offsetof(TString, data) == 32, "size mismatch for string header");
-static_assert(sizeof(LuaTable) == 56, "size mismatch for table header");
-static_assert(offsetof(Buffer, data) == 16, "size mismatch for buffer header");
-// moo: vec3 object size (docs/history/layer3b/moo-v2-l3b-vec3-object.md, decision 2)
-static_assert(sizeof(MooVec3) == 40, "size mismatch for vec3 object");
-// moo: quat object size (docs/history/layer3b/moo-v2-l3b-quat-object.md, decision 2)
-static_assert(sizeof(MooQuat) == 48, "size mismatch for quat object");
-// moo: transform object size (docs/history/layer3b/moo-v2-l3b-transform.md)
-static_assert(sizeof(MooTransform) == 72, "size mismatch for transform object");
-
-// The userdata is designed to provide 16 byte alignment for 16 byte and larger userdata sizes
-static_assert(offsetof(Udata, data) == 32, "data must be at precise offset provide proper alignment");
+// moo: every object header grew by its 8-byte creation number (lobject.h CommonHeader), and every size the VM
+// requests here is the canonical 64-bit size on every target; moo_layout.cpp pins each struct against its canonical
+// size (exact on 64-bit, within the block on wasm32), and the userdata payload's 16-byte alignment with it
+static_assert(sizeof(void*) == 8 || MOO_TARGET_WASM32, "moo supports 64-bit targets and wasm32 only");
 
 const size_t kSizeClasses = LUA_SIZECLASSES;
 
@@ -236,12 +226,15 @@ struct lua_Page
 
     // provide additional padding based on current object size to provide 16 byte alignment of data
     // later static_assert checks that this requirement is held
-    char padding[sizeof(void*) == 8 ? 8 : 12];
+    // moo: the header is padded to the canonical 64 bytes on every target, so a page holds the same number of blocks
+    // and the host sees the same page sizes (moo_layout.h MOO_OFFSET_PAGE_DATA)
+    char padding[MOO_OFFSET_PAGE_DATA - (4 * sizeof(lua_Page*) + 2 * sizeof(int) + sizeof(void*) + 2 * sizeof(int))];
 
     char data[1];
 };
 
 static_assert(offsetof(lua_Page, data) % 16 == 0, "data must be 16 byte aligned to provide properly aligned allocation of userdata objects");
+static_assert(offsetof(lua_Page, data) == MOO_OFFSET_PAGE_DATA, "moo: the page header is the canonical size on every target");
 
 l_noret luaM_toobig(lua_State* L)
 {
