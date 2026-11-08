@@ -96,6 +96,72 @@ Layer 3b: vec3, quat and transform as first-class fixed-point value types in the
 
 <!-- nova-work:layer-3b:end -->
 
+## Every narrow fixed type first-class
+
+Layer 3c: vec2, mat3, plane, aabb and fix30 as first-class values, and every remaining fixed function on number, vec3, quat and transform, each operation fixed's own function, bit-exact against fixed's C. Approved to plan by Glenn 2026-10-27 (Virtual Go roadmap item vg-moo-fixed-types); plan: virtualgo scratch/vg-plans/moo-wide-time-plan.md.
+
+<!-- nova-work:layer-3c:start -->
+
+| feature | moo |
+|---|:---:|
+| vec2, mat3, plane, aabb and fix30 values, and the ValueKeys model | ❌ |
+| Narrow operators and libraries on fixed's functions, with a minimal oracle | ❌ |
+| Narrow C API and analyzer builtin types | ❌ |
+| Narrow oracle, reversed witness, fixed3d comparison and wire | ❌ |
+| The rest of fixed's functions on number, vec3, quat and transform | ❌ |
+| complete | 0% |
+
+[Source data](docs/roadmap.sexp)
+
+<!-- nova-work:layer-3c:end -->
+
+## Wide world space and time
+
+Layer 3d: Q112.16 wide, wide positions, wide world transforms, wide AABBs and Q32.32 time as first-class values with literals, every operation fixed's own function, bit-exact against fixed's C. Approved to plan by Glenn 2026-10-27 (Virtual Go roadmap item vg-moo-fixed-types); plan: virtualgo scratch/vg-plans/moo-wide-time-plan.md.
+
+<!-- nova-work:layer-3d:start -->
+
+| feature | moo |
+|---|:---:|
+| Wide and time on fixed_t's overflow rule, wide mul and div in fixed; pins moved in moo, fixed3d and virtualgo | ❌ |
+| The five values: tags, objects, equality, keys and the ValueKeys model | ❌ |
+| Operators with release saturation, checked errors and a minimal oracle | ❌ |
+| Literals, bytecode constants and moo bytecode version 3 | ❌ |
+| Exact formatting and parsing for Q112.16 and Q32.32 | ❌ |
+| The wide, poswide, worldtransformwide, aabbwide and time libraries | ❌ |
+| C API with no implicit conversions | ❌ |
+| The five types as analyzer builtin types | ❌ |
+| Bit-exact against fixed; reversed witness; determinism matrix | ❌ |
+| serialize.moo and the schema moo leg carry wide and time exactly | ❌ |
+| complete | 0% |
+
+[Source data](docs/roadmap.sexp)
+
+<!-- nova-work:layer-3d:end -->
+
+## moo on 32-bit targets
+
+wasm32 first, then i686 and armv7: bit-identical results, hashes, GC step points and host allocation sizes to the 64-bit targets. Approved by Glenn 2026-10-27 (Virtual Go roadmap item vg-moo-32bit); plan: virtualgo scratch/vg-plans/moo-32bit-plan.md.
+
+<!-- nova-work:targets-32:start -->
+
+| feature | moo |
+|---|:---:|
+| wasm32 build: pinned emsdk and node, -fwasm-exceptions, an 8 MiB stack | ❌ |
+| fixed's suite under node, both int128 arms | ❌ |
+| Canonical 64-bit allocation sizes and 64-bit GC pacing on every target | ❌ |
+| Size arithmetic audited; host inputs stated | ❌ |
+| moo's suites under node, same hashes | ❌ |
+| The wasm32 CI leg | ❌ |
+| Virtual Go's scripts under node and in the web build, one fixed | ❌ |
+| i686 and armv7 legs | ❌ |
+| DETERMINISM.md and DESIGN.md say what is built | ❌ |
+| complete | 0% |
+
+[Source data](docs/roadmap.sexp)
+
+<!-- nova-work:targets-32:end -->
+
 ## Nightly checks
 
 Checks too slow for every commit, run every night.
