@@ -18,6 +18,7 @@
 #include "moo_plane.h"
 #include "moo_aabb.h"
 #include "moo_fix30.h"
+#include "moo_narrow.h"     // moo: layer 3c operators and component reads
 #include "moo_tempreuse.h" // moo: expression-temporary reuse
 
 #include <string.h>
@@ -353,6 +354,8 @@ void luaV_gettable(lua_State* L, const TValue* t, TValue* key, StkId val)
             return; // moo: vec3 and quat components
         else if (ttistransform(t) && moo_transform_index(L, transformvalue(t), key, val))
             return; // moo: transform
+        else if (moo_narrow_index(L, t, key, val))
+            return; // moo: layer 3c components
         else if (ttisnil(tm = luaT_gettmbyobj(L, t, TM_INDEX)))
             luaG_indexerror(L, t, key);
         if (ttisfunction(tm))
@@ -726,6 +729,9 @@ void luaV_doarithimpl(lua_State* L, StkId ra, const TValue* rb, const TValue* rc
             mooVec3SetResult(L, ra, fixRotateVector(q, moo_vec3_payload(vec3value(rc))));
         return;
     }
+    // moo: layer 3c, mat3's operators (moo_narrowlib.cpp); mat3 * vec3 is decided before vec3's own operators
+    if (moo_narrow_arith(L, op, ra, rb, rc))
+        return;
     if (ttisvec3(rb) || ttisvec3(rc))
     {
         fixVec3 a = ttisvec3(rb) ? moo_vec3_payload(vec3value(rb)) : FIX_LITERAL(fixVec3){0, 0, 0};
