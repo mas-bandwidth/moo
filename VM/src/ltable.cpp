@@ -39,6 +39,7 @@
 #include "moo_plane.h"
 #include "moo_aabb.h"
 #include "moo_fix30.h"
+#include "moo_wide.h" // moo: layer 3d wide and time (docs/DESIGN.md "Layer 3d as built")
 
 #include <string.h>
 
@@ -258,6 +259,48 @@ unsigned int moo_fix30_hash(const MooFix30* x)
     return moo_vec3_comp_hash(x->raw);
 }
 
+// moo: layer 3d wide and time, in the same family (docs/DESIGN.md "Layer 3d as built"). They fix `next` order, so
+// they are part of the determinism guarantee. A wide coordinate is its two limbs, as vec2's two components are.
+static uint32_t moo_widelimbs_hash(MooWideLimbs l)
+{
+    return moo_vec3_comp_hash(int64_t(l.lo)) * 73856093u ^ moo_vec3_comp_hash(int64_t(l.hi)) * 19349663u;
+}
+
+// mat3's column formula on the three coordinates
+static uint32_t moo_poswide_raw_hash(MooWideLimbs x, MooWideLimbs y, MooWideLimbs z)
+{
+    return moo_widelimbs_hash(x) ^ moo_widelimbs_hash(y) * 2654435761u ^ moo_widelimbs_hash(z) * 2246822519u;
+}
+
+unsigned int moo_wide_hash(const MooFixedWide* a)
+{
+    return moo_widelimbs_hash(a->w);
+}
+
+unsigned int moo_poswide_hash(const MooPosWide* p)
+{
+    return moo_poswide_raw_hash(p->x, p->y, p->z);
+}
+
+// the transform formula: the position's hash, then the quat's (moo_quat_hash's formula) with transform's multiplier
+unsigned int moo_worldtransformwide_hash(const MooWorldTransformWide* t)
+{
+    uint32_t hq = moo_vec3_raw_hash(t->q.v) ^ moo_vec3_comp_hash(t->q.s) * 39916801u;
+    return moo_poswide_raw_hash(t->px, t->py, t->pz) ^ hq * 2654435761u;
+}
+
+// the transform formula on the two bounds
+unsigned int moo_aabbwide_hash(const MooAABBWide* b)
+{
+    return moo_poswide_raw_hash(b->lx, b->ly, b->lz) ^ moo_poswide_raw_hash(b->ux, b->uy, b->uz) * 2654435761u;
+}
+
+// the one raw through hashint's finalizer, with vec3's third prime so a time and a fix30 of one raw differ
+unsigned int moo_time_hash(const MooTime* t)
+{
+    return moo_vec3_comp_hash(t->t) * 83492791u;
+}
+
 LUAU_MAYBE_UNUSED static LuaNode* hashvec(const LuaTable* t, const float* v)
 {
     unsigned int i[LUA_VECTOR_SIZE];
@@ -348,6 +391,16 @@ static LuaNode* mainposition(const LuaTable* t, const TValue* key)
         return hashpow2(t, moo_aabb_hash(aabbvalue(key)));
     case LUA_TFIX30:
         return hashpow2(t, moo_fix30_hash(fix30value(key)));
+    case LUA_TWIDE: // moo: layer 3d wide and time
+        return hashpow2(t, moo_wide_hash(widevalue(key)));
+    case LUA_TPOSWIDE:
+        return hashpow2(t, moo_poswide_hash(poswidevalue(key)));
+    case LUA_TWORLDTRANSFORMWIDE:
+        return hashpow2(t, moo_worldtransformwide_hash(worldtransformwidevalue(key)));
+    case LUA_TAABBWIDE:
+        return hashpow2(t, moo_aabbwide_hash(aabbwidevalue(key)));
+    case LUA_TTIME:
+        return hashpow2(t, moo_time_hash(timevalue(key)));
     case LUA_TSTRING:
         return hashstr(t, tsvalue(key));
     case LUA_TBOOLEAN:
@@ -443,6 +496,36 @@ LUAU_FORCEINLINE LuaNode* mainpositiontagged<LUA_TFIX30>(const LuaTable* t, MooF
     return hashpow2(t, moo_fix30_hash(key));
 }
 
+template<> // moo: layer 3d wide and time
+LUAU_FORCEINLINE LuaNode* mainpositiontagged<LUA_TWIDE>(const LuaTable* t, MooFixedWide* key)
+{
+    return hashpow2(t, moo_wide_hash(key));
+}
+
+template<>
+LUAU_FORCEINLINE LuaNode* mainpositiontagged<LUA_TPOSWIDE>(const LuaTable* t, MooPosWide* key)
+{
+    return hashpow2(t, moo_poswide_hash(key));
+}
+
+template<>
+LUAU_FORCEINLINE LuaNode* mainpositiontagged<LUA_TWORLDTRANSFORMWIDE>(const LuaTable* t, MooWorldTransformWide* key)
+{
+    return hashpow2(t, moo_worldtransformwide_hash(key));
+}
+
+template<>
+LUAU_FORCEINLINE LuaNode* mainpositiontagged<LUA_TAABBWIDE>(const LuaTable* t, MooAABBWide* key)
+{
+    return hashpow2(t, moo_aabbwide_hash(key));
+}
+
+template<>
+LUAU_FORCEINLINE LuaNode* mainpositiontagged<LUA_TTIME>(const LuaTable* t, MooTime* key)
+{
+    return hashpow2(t, moo_time_hash(key));
+}
+
 template<>
 LUAU_FORCEINLINE LuaNode* mainpositiontagged<LUA_TSTRING>(const LuaTable* t, TString* key)
 {
@@ -529,6 +612,36 @@ template<>
 LUAU_FORCEINLINE int rawequalkeyvalue<LUA_TFIX30>(const TKey* t1, MooFix30* key)
 {
     return moo_fix30_equal(fix30value(t1), key);
+}
+
+template<> // moo: layer 3d wide and time
+LUAU_FORCEINLINE int rawequalkeyvalue<LUA_TWIDE>(const TKey* t1, MooFixedWide* key)
+{
+    return moo_wide_equal(widevalue(t1), key);
+}
+
+template<>
+LUAU_FORCEINLINE int rawequalkeyvalue<LUA_TPOSWIDE>(const TKey* t1, MooPosWide* key)
+{
+    return moo_poswide_equal(poswidevalue(t1), key);
+}
+
+template<>
+LUAU_FORCEINLINE int rawequalkeyvalue<LUA_TWORLDTRANSFORMWIDE>(const TKey* t1, MooWorldTransformWide* key)
+{
+    return moo_worldtransformwide_equal(worldtransformwidevalue(t1), key);
+}
+
+template<>
+LUAU_FORCEINLINE int rawequalkeyvalue<LUA_TAABBWIDE>(const TKey* t1, MooAABBWide* key)
+{
+    return moo_aabbwide_equal(aabbwidevalue(t1), key);
+}
+
+template<>
+LUAU_FORCEINLINE int rawequalkeyvalue<LUA_TTIME>(const TKey* t1, MooTime* key)
+{
+    return moo_time_equal(timevalue(t1), key);
 }
 
 template<>
@@ -1521,6 +1634,16 @@ const TValue* luaH_get(LuaTable* t, const TValue* key)
             return chainsearchtagged<LUA_TAABB>(t, aabbvalue(key), LUA_TAABB);
         case LUA_TFIX30:
             return chainsearchtagged<LUA_TFIX30>(t, fix30value(key), LUA_TFIX30);
+        case LUA_TWIDE: // moo: layer 3d wide and time
+            return chainsearchtagged<LUA_TWIDE>(t, widevalue(key), LUA_TWIDE);
+        case LUA_TPOSWIDE:
+            return chainsearchtagged<LUA_TPOSWIDE>(t, poswidevalue(key), LUA_TPOSWIDE);
+        case LUA_TWORLDTRANSFORMWIDE:
+            return chainsearchtagged<LUA_TWORLDTRANSFORMWIDE>(t, worldtransformwidevalue(key), LUA_TWORLDTRANSFORMWIDE);
+        case LUA_TAABBWIDE:
+            return chainsearchtagged<LUA_TAABBWIDE>(t, aabbwidevalue(key), LUA_TAABBWIDE);
+        case LUA_TTIME:
+            return chainsearchtagged<LUA_TTIME>(t, timevalue(key), LUA_TTIME);
         case LUA_TSTRING:
             return luaH_getstr(t, tsvalue(key));
         default:
@@ -1621,6 +1744,16 @@ TValue* luaH_newkey(lua_State* L, LuaTable* t, const TValue* key)
             return newkeytagged<LUA_TAABB, false>(L, t, key, aabbvalue(key), -1);
         case LUA_TFIX30:
             return newkeytagged<LUA_TFIX30, false>(L, t, key, fix30value(key), -1);
+        case LUA_TWIDE: // moo: layer 3d wide and time
+            return newkeytagged<LUA_TWIDE, false>(L, t, key, widevalue(key), -1);
+        case LUA_TPOSWIDE:
+            return newkeytagged<LUA_TPOSWIDE, false>(L, t, key, poswidevalue(key), -1);
+        case LUA_TWORLDTRANSFORMWIDE:
+            return newkeytagged<LUA_TWORLDTRANSFORMWIDE, false>(L, t, key, worldtransformwidevalue(key), -1);
+        case LUA_TAABBWIDE:
+            return newkeytagged<LUA_TAABBWIDE, false>(L, t, key, aabbwidevalue(key), -1);
+        case LUA_TTIME:
+            return newkeytagged<LUA_TTIME, false>(L, t, key, timevalue(key), -1);
         case LUA_TSTRING:
             return newkeytagged<LUA_TSTRING, false>(L, t, key, tsvalue(key), -1);
         default:

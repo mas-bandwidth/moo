@@ -34,6 +34,12 @@ static_assert(sizeof(MooMat3) == 88, "mat3 object layout changed");
 static_assert(sizeof(MooPlane) == 48, "plane object layout changed");
 static_assert(sizeof(MooAABB) == 64, "aabb object layout changed");
 static_assert(sizeof(MooFix30) == 24, "fix30 object layout changed");
+// docs/DESIGN.md "Layer 3d as built"
+static_assert(sizeof(MooFixedWide) == 32, "wide object layout changed");
+static_assert(sizeof(MooPosWide) == 64, "poswide object layout changed");
+static_assert(sizeof(MooWorldTransformWide) == 96, "worldtransformwide object layout changed");
+static_assert(sizeof(MooAABBWide) == 112, "aabbwide object layout changed");
+static_assert(sizeof(MooTime) == 24, "time object layout changed");
 static_assert(sizeof(Proto) == 224, "function prototype layout changed");
 static_assert(sizeof(LocVar) == 24, "local variable record layout changed");
 static_assert(sizeof(FeedbackVectorSlot) == 16, "feedback vector slot layout changed");
@@ -45,5 +51,5 @@ static_assert(sizeof(LuauClass) == 96, "class layout changed");
 static_assert(sizeof(LuauObject) == 48, "class object layout changed");
 static_assert(sizeof(lua_State) == 144, "thread layout changed");
 static_assert(sizeof(CallInfo) == 48, "call frame layout changed");
-// moo: layer 3c's five tags add five slots to mt[] and ttname[] (80 bytes)
-static_assert(sizeof(global_State) == 19344, "global state layout changed (the initial totalbytes includes it)");
+// moo: layer 3c's five tags add five slots to mt[] and ttname[] (80 bytes), and layer 3d's five 80 more
+static_assert(sizeof(global_State) == 19424, "global state layout changed (the initial totalbytes includes it)");

@@ -337,6 +337,12 @@ static void reallymarkobject(global_State* g, GCObject* o)
     case LUA_TPLANE:
     case LUA_TAABB:
     case LUA_TFIX30:
+    // moo: layer 3d wide and time, leaves too (docs/DESIGN.md "Layer 3d as built")
+    case LUA_TWIDE:
+    case LUA_TPOSWIDE:
+    case LUA_TWORLDTRANSFORMWIDE:
+    case LUA_TAABBWIDE:
+    case LUA_TTIME:
     {
         gray2black(o);
         return;
@@ -722,7 +728,10 @@ static int isobjcleared(GCObject* o)
         return 0;
     }
     // moo: layer 3c narrow types (docs/DESIGN.md "Layer 3c as built")
-    if (o->gch.tt == LUA_TVEC2 || o->gch.tt == LUA_TMAT3 || o->gch.tt == LUA_TPLANE || o->gch.tt == LUA_TAABB || o->gch.tt == LUA_TFIX30)
+    if (o->gch.tt == LUA_TVEC2 || o->gch.tt == LUA_TMAT3 || o->gch.tt == LUA_TPLANE || o->gch.tt == LUA_TAABB || o->gch.tt == LUA_TFIX30 ||
+        // moo: and the layer 3d values (docs/DESIGN.md "Layer 3d as built")
+        o->gch.tt == LUA_TWIDE || o->gch.tt == LUA_TPOSWIDE || o->gch.tt == LUA_TWORLDTRANSFORMWIDE || o->gch.tt == LUA_TAABBWIDE ||
+        o->gch.tt == LUA_TTIME)
     {
         stringmark(&o->gch);
         return 0;
@@ -903,6 +912,22 @@ static void freeobj(lua_State* L, GCObject* o, lua_Page* page)
         break;
     case LUA_TFIX30:
         luaM_freegcofixed(L, gco2fix30(o), sizeof(MooFix30), gco2fix30(o)->memcat, page);
+        break;
+    // moo: layer 3d wide and time (docs/DESIGN.md "Layer 3d as built")
+    case LUA_TWIDE:
+        luaM_freegcofixed(L, gco2wide(o), sizeof(MooFixedWide), gco2wide(o)->memcat, page);
+        break;
+    case LUA_TPOSWIDE:
+        luaM_freegcofixed(L, gco2poswide(o), sizeof(MooPosWide), gco2poswide(o)->memcat, page);
+        break;
+    case LUA_TWORLDTRANSFORMWIDE:
+        luaM_freegcofixed(L, gco2worldtransformwide(o), sizeof(MooWorldTransformWide), gco2worldtransformwide(o)->memcat, page);
+        break;
+    case LUA_TAABBWIDE:
+        luaM_freegcofixed(L, gco2aabbwide(o), sizeof(MooAABBWide), gco2aabbwide(o)->memcat, page);
+        break;
+    case LUA_TTIME:
+        luaM_freegcofixed(L, gco2time(o), sizeof(MooTime), gco2time(o)->memcat, page);
         break;
     default:
         LUAU_ASSERT(0);

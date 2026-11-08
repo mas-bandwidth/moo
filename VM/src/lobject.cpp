@@ -18,6 +18,8 @@
 #include "moo_plane.h"
 #include "moo_aabb.h"
 #include "moo_fix30.h"
+#include "moo_wide.h"    // moo: layer 3d wide and time (docs/DESIGN.md "Layer 3d as built")
+#include "moo_fixtext.h" // moo: moo_fixtostr
 
 #include <ctype.h>
 #include <string.h>
@@ -311,6 +313,158 @@ char* moo_fix30_tostring(char* buf, const MooFix30* x)
     return p;
 }
 
+// moo: layer 3d wide and time, allocation, equality and tostring in the 3b shape (docs/DESIGN.md "Layer 3d as built")
+MooFixedWide* moo_wide_new(lua_State* L, fixedWide_t a)
+{
+    MooFixedWide* o = luaM_newgcofixed(L, MooFixedWide, sizeof(MooFixedWide), L->activememcat, LUA_TWIDE);
+    luaC_init(L, o, LUA_TWIDE);
+    o->w = moo_wide_limbs(a);
+    return o;
+}
+
+MooPosWide* moo_poswide_new(lua_State* L, fixPosWide p)
+{
+    MooPosWide* o = luaM_newgcofixed(L, MooPosWide, sizeof(MooPosWide), L->activememcat, LUA_TPOSWIDE);
+    luaC_init(L, o, LUA_TPOSWIDE);
+    o->x = moo_wide_limbs(p.x);
+    o->y = moo_wide_limbs(p.y);
+    o->z = moo_wide_limbs(p.z);
+    return o;
+}
+
+MooWorldTransformWide* moo_worldtransformwide_new(lua_State* L, fixWorldTransformWide t)
+{
+    MooWorldTransformWide* o =
+        luaM_newgcofixed(L, MooWorldTransformWide, sizeof(MooWorldTransformWide), L->activememcat, LUA_TWORLDTRANSFORMWIDE);
+    luaC_init(L, o, LUA_TWORLDTRANSFORMWIDE);
+    o->px = moo_wide_limbs(t.p.x);
+    o->py = moo_wide_limbs(t.p.y);
+    o->pz = moo_wide_limbs(t.p.z);
+    o->q = t.q;
+    return o;
+}
+
+MooAABBWide* moo_aabbwide_new(lua_State* L, fixAABBWide b)
+{
+    MooAABBWide* o = luaM_newgcofixed(L, MooAABBWide, sizeof(MooAABBWide), L->activememcat, LUA_TAABBWIDE);
+    luaC_init(L, o, LUA_TAABBWIDE);
+    o->lx = moo_wide_limbs(b.lowerBound.x);
+    o->ly = moo_wide_limbs(b.lowerBound.y);
+    o->lz = moo_wide_limbs(b.lowerBound.z);
+    o->ux = moo_wide_limbs(b.upperBound.x);
+    o->uy = moo_wide_limbs(b.upperBound.y);
+    o->uz = moo_wide_limbs(b.upperBound.z);
+    return o;
+}
+
+MooTime* moo_time_new(lua_State* L, fixTime t)
+{
+    MooTime* o = luaM_newgcofixed(L, MooTime, sizeof(MooTime), L->activememcat, LUA_TTIME);
+    luaC_init(L, o, LUA_TTIME);
+    o->t = t;
+    return o;
+}
+
+int moo_wide_equal(const MooFixedWide* a, const MooFixedWide* b)
+{
+    return moo_wide_limbs_equal(a->w, b->w);
+}
+
+int moo_poswide_equal(const MooPosWide* a, const MooPosWide* b)
+{
+    return moo_wide_limbs_equal(a->x, b->x) && moo_wide_limbs_equal(a->y, b->y) && moo_wide_limbs_equal(a->z, b->z);
+}
+
+int moo_worldtransformwide_equal(const MooWorldTransformWide* a, const MooWorldTransformWide* b)
+{
+    return moo_wide_limbs_equal(a->px, b->px) && moo_wide_limbs_equal(a->py, b->py) && moo_wide_limbs_equal(a->pz, b->pz) &&
+           a->q.v.x == b->q.v.x && a->q.v.y == b->q.v.y && a->q.v.z == b->q.v.z && a->q.s == b->q.s;
+}
+
+int moo_aabbwide_equal(const MooAABBWide* a, const MooAABBWide* b)
+{
+    return moo_wide_limbs_equal(a->lx, b->lx) && moo_wide_limbs_equal(a->ly, b->ly) && moo_wide_limbs_equal(a->lz, b->lz) &&
+           moo_wide_limbs_equal(a->ux, b->ux) && moo_wide_limbs_equal(a->uy, b->uy) && moo_wide_limbs_equal(a->uz, b->uz);
+}
+
+int moo_time_equal(const MooTime* a, const MooTime* b)
+{
+    return a->t == b->t;
+}
+
+// a wide coordinate as its literal: the shortest decimal that reads back, then 'w'
+static char* moo_wide_limbs_tostring(char* p, MooWideLimbs l)
+{
+    p = moo_fixtostr(p, l.hi, l.lo, FIX_FRACTION_BITS);
+    *p++ = 'w';
+    return p;
+}
+
+static char* moo_poswide_tostring_raw(char* p, MooWideLimbs x, MooWideLimbs y, MooWideLimbs z)
+{
+    memcpy(p, "poswide(", 8);
+    p = moo_wide_limbs_tostring(p + 8, x);
+    *p++ = ',';
+    *p++ = ' ';
+    p = moo_wide_limbs_tostring(p, y);
+    *p++ = ',';
+    *p++ = ' ';
+    p = moo_wide_limbs_tostring(p, z);
+    *p++ = ')';
+    return p;
+}
+
+char* moo_wide_tostring(char* buf, const MooFixedWide* a)
+{
+    return moo_wide_limbs_tostring(buf, a->w);
+}
+
+char* moo_poswide_tostring(char* buf, const MooPosWide* p)
+{
+    return moo_poswide_tostring_raw(buf, p->x, p->y, p->z);
+}
+
+char* moo_worldtransformwide_tostring(char* buf, const MooWorldTransformWide* t)
+{
+    memcpy(buf, "worldtransformwide(", 19);
+    char* p = moo_poswide_tostring_raw(buf + 19, t->px, t->py, t->pz);
+    *p++ = ',';
+    *p++ = ' ';
+    memcpy(p, "quat(", 5);
+    p = moo_numtostr(p + 5, t->q.v.x);
+    *p++ = ',';
+    *p++ = ' ';
+    p = moo_numtostr(p, t->q.v.y);
+    *p++ = ',';
+    *p++ = ' ';
+    p = moo_numtostr(p, t->q.v.z);
+    *p++ = ',';
+    *p++ = ' ';
+    p = moo_numtostr(p, t->q.s);
+    *p++ = ')';
+    *p++ = ')';
+    return p;
+}
+
+char* moo_aabbwide_tostring(char* buf, const MooAABBWide* b)
+{
+    memcpy(buf, "aabbwide(", 9);
+    char* p = moo_poswide_tostring_raw(buf + 9, b->lx, b->ly, b->lz);
+    *p++ = ',';
+    *p++ = ' ';
+    p = moo_poswide_tostring_raw(p, b->ux, b->uy, b->uz);
+    *p++ = ')';
+    return p;
+}
+
+// a time as its literal: the shortest decimal of the Q32.32 seconds that reads back, then 's'
+char* moo_time_tostring(char* buf, const MooTime* t)
+{
+    char* p = moo_fixtostr(buf, t->t < 0 ? UINT64_MAX : 0, uint64_t(t->t), FIX_TIME_FRACTION_BITS);
+    *p++ = 's';
+    return p;
+}
+
 // moo: no float vector arm; vec3, quat and transform compare by value (docs/history/layer3b/moo-v2-l3b-vec3-object.md,
 // decision 3)
 int luaO_rawequalObj(const TValue* t1, const TValue* t2)
@@ -347,6 +501,17 @@ int luaO_rawequalObj(const TValue* t1, const TValue* t2)
             return moo_aabb_equal(aabbvalue(t1), aabbvalue(t2));
         case LUA_TFIX30:
             return moo_fix30_equal(fix30value(t1), fix30value(t2));
+        // moo: layer 3d wide and time, by value (docs/DESIGN.md "Layer 3d as built")
+        case LUA_TWIDE:
+            return moo_wide_equal(widevalue(t1), widevalue(t2));
+        case LUA_TPOSWIDE:
+            return moo_poswide_equal(poswidevalue(t1), poswidevalue(t2));
+        case LUA_TWORLDTRANSFORMWIDE:
+            return moo_worldtransformwide_equal(worldtransformwidevalue(t1), worldtransformwidevalue(t2));
+        case LUA_TAABBWIDE:
+            return moo_aabbwide_equal(aabbwidevalue(t1), aabbwidevalue(t2));
+        case LUA_TTIME:
+            return moo_time_equal(timevalue(t1), timevalue(t2));
         default:
             LUAU_ASSERT(iscollectable(t1));
             return gcvalue(t1) == gcvalue(t2);
@@ -387,6 +552,17 @@ int luaO_rawequalKey(const TKey* t1, const TValue* t2)
             return moo_aabb_equal(aabbvalue(t1), aabbvalue(t2));
         case LUA_TFIX30:
             return moo_fix30_equal(fix30value(t1), fix30value(t2));
+        // moo: layer 3d wide and time, by value (docs/DESIGN.md "Layer 3d as built")
+        case LUA_TWIDE:
+            return moo_wide_equal(widevalue(t1), widevalue(t2));
+        case LUA_TPOSWIDE:
+            return moo_poswide_equal(poswidevalue(t1), poswidevalue(t2));
+        case LUA_TWORLDTRANSFORMWIDE:
+            return moo_worldtransformwide_equal(worldtransformwidevalue(t1), worldtransformwidevalue(t2));
+        case LUA_TAABBWIDE:
+            return moo_aabbwide_equal(aabbwidevalue(t1), aabbwidevalue(t2));
+        case LUA_TTIME:
+            return moo_time_equal(timevalue(t1), timevalue(t2));
         default:
             LUAU_ASSERT(iscollectable(t1));
             return gcvalue(t1) == gcvalue(t2);
