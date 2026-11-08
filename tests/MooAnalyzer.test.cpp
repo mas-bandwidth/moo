@@ -49,6 +49,47 @@ local _ = {c, d, n, z, g, w, h, p, qq, k, same, names}
     LUAU_REQUIRE_NO_ERRORS(result);
 }
 
+// Layer 3c: the rest of fixed's functions on number, vec3, quat and transform (docs/DESIGN.md "Layer 3c as built"),
+// with the two-value returns typed as such.
+TEST_CASE_FIXTURE(BuiltinsFixture, "moo_value_types_accept_the_completed_libraries")
+{
+    CheckResult result = check(R"(
+--!strict
+local n: number = math.muldiv(1, 2, 3) + math.halfsum(1, 2) + math.halfdifference(1, 2) + math.unwindangle(7)
+local c: number, s: number = math.cossin(1)
+local p: number, v: number = math.smoothcriticallydamped(0, 1, 0, 1, 0.1)
+local p2: number, v2: number = math.smoothcriticallydampedupdown(0, 1, 0, 1, 2, 0.1)
+local fits: boolean = math.fits(1, 0, 2)
+local w: number = math.widen(math.narrow(1, 16), 16)
+
+local a: vec3 = vec3.new(1, 2, 3)
+local b: vec3 = vec3.new(4, 5, 6)
+local m: number = vec3.distance(a, b) + vec3.distancesquared(a, b) + vec3.lengthsquared(a)
+local e: vec3 = vec3.lerp(a, b, 0.5) + vec3.min(a, b) + vec3.max(a, b) + vec3.clamp(a, a, b) + vec3.abs(a) + vec3.sign(a)
+local f: vec3 = vec3.perp(a) + vec3.muladd(a, 2, b) + vec3.mulsub(a, 2, b) + vec3.blend2(1, a, 2, b) + vec3.safescale(a)
+local g: vec3 = vec3.subpos(a, b) + vec3.offsetpos(a, b) + vec3.lerpposition(a, b, 0.5)
+local isunit: boolean = vec3.isnormalized(a) and vec3.isvalid(a)
+local u1: vec3, l1: number = vec3.getlengthandnormalize(a)
+local u2: vec3, l2: number = vec3.normalizewithlength(a)
+
+local q: quat = quat.new(0, 0, 0.6, 0.8)
+local r: quat = quat.normalize(q) * quat.invmul(q, q) * quat.negate(q) * quat.fromaxisangle(vec3.new(0, 0, 1), 1)
+local r2: quat = quat.betweenunitvectors(vec3.new(1, 0, 0), vec3.new(0, 1, 0))
+local axis: vec3, radians: number = quat.axisangle(q)
+local angles: number = quat.dot(q, r) + quat.angle(q) + quat.twistangle(q) + quat.swingangle(q)
+local qok: boolean = quat.isvalid(q) and quat.isnormalized(q)
+
+local t: transform = transform.new(a, q)
+local t2: transform = transform.invmul(t, t) * transform.makeworld(t) * transform.mulworld(t, t) * transform.invmulworld(t, t)
+local t3: transform = transform.torelative(t, a)
+local pt: vec3 = transform.transformworldpoint(t, a) + transform.invtransformworldpoint(t, a)
+local tok: boolean = transform.isvalid(t)
+local _ = {n, c, s, p, v, p2, v2, fits, w, m, e, f, g, isunit, u1, l1, u2, l2, r, r2, axis, radians, angles, qok, t2, t3, pt, tok}
+)");
+
+    LUAU_REQUIRE_NO_ERRORS(result);
+}
+
 // Each operation the VM refuses (tests/moo/vec3.test.cpp, quat.test.cpp and transform.test.cpp, the Refusals cases) is a type error here, and
 // quat.slerp, which the VM refuses by name until fixed has a slerp, is absent.
 TEST_CASE_FIXTURE(BuiltinsFixture, "moo_value_types_report_what_the_vm_refuses")
@@ -74,6 +115,14 @@ TEST_CASE_FIXTURE(BuiltinsFixture, "moo_value_types_report_what_the_vm_refuses")
         {"local _ = transform.point(t, q)", "Expected this to be 'vec3', but got 'quat'"},
         {"local _ = quat.nlerp(q, q)", "Argument count mismatch"},
         {"local _ = vec3.dot(a, q)", "Expected this to be 'vec3', but got 'quat'"},
+        // layer 3c
+        {"local _ = vec3.lerp(a, a)", "Argument count mismatch"},
+        {"local _ = vec3.muladd(a, a, a)", "Expected this to be 'number', but got 'vec3'"},
+        {"local _ = quat.fromaxisangle(q, 1)", "Expected this to be 'vec3', but got 'quat'"},
+        {"local _ = quat.invmul(q, a)", "Expected this to be 'quat', but got 'vec3'"},
+        {"local _ = transform.torelative(t, q)", "Expected this to be 'vec3', but got 'quat'"},
+        {"local _: vec3 = math.cossin(1)", "Expected this to be 'vec3', but got 'number'"},
+        {"local _: quat = quat.axisangle(q)", "Expected this to be 'quat', but got 'vec3'"},
     };
     for (const Case& c : cases)
     {

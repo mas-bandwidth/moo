@@ -19,10 +19,13 @@
 # creation number by five, and global_State grows by ten tag slots (80 bytes), which moves GC pacing; every state
 # hash moved, and the effects hashes of the programs that log creation numbers or gcinfo (docs/DESIGN.md "Layer 3c
 # as built").
-coroutines.luau 114e20c491afbdc6 33d2d8f66c5e979a
-gcchurn.luau ff8c69e35aa61f7d de07f526bb2c4725
-library.luau ea1b27dc2966016e a52f943e66f732a4
-objectkeys.luau 9c2ba3898c884656 8ffc5f7678a0ceb7
-coroutines2.luau 45af4a6f2428da59 2333623472d1cf1c
-errors.luau f7037948e0d4bea2 838a08a10a0a4c6e
-math.luau 9828cd8215d55af5 b8e79e26bdf2f479
+# moo: re-pinned when layer 3c completed the math, vec3, quat and transform libraries: 51 new function names
+# interned at startup shift every creation number and move GC pacing; every hash moved (docs/DESIGN.md "Layer 3c
+# as built", the completed libraries).
+coroutines.luau fe6a79c9c0de7a72 c87342813dc01b4d
+gcchurn.luau b617ba449c8c6959 d80cd37bb378ee00
+library.luau 0cce67e879954940 48d9c8a498411ada
+objectkeys.luau c1dc78999d9e3643 8bf0512a15b6889d
+coroutines2.luau b612f21126942530 3c3a5888b327e3ce
+errors.luau 9c73278bca3d7c5b 0937da1b30064222
+math.luau 7d25b94dc944203a 3b25cac6e9becc50
