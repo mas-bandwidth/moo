@@ -145,6 +145,7 @@ edits them, except where a row above records the seam.
 | `tests/Normalize.test.cpp` | three upstream `#if 0` cases say, with `moo:`, that upstream disables them, so tools/moo-check-skips.sh accounts for them (DESIGN.md "Tests"). |
 | `tests/Parser.test.cpp` | the double-literal and hex/binary-beyond-range cases are skipped because moo parses exactly to Q48.16 (DESIGN.md "Literals"). |
 | `tests/PrettyPrinter.test.cpp` | the cases that print literals beyond the range are skipped because those are parse errors in moo (DESIGN.md "Literals"). |
+| `tests/Repl.test.cpp` | the `math.m` completion also finds layer 3c's `math.muldiv` (DESIGN.md "Layer 3c as built"). |
 | `tests/Sccp.test.cpp` | folded constants are raw Q48.16 values and the NaN cases are skipped because moo has no NaN (DESIGN.md "Literals", "Representation"). |
 | `tests/StringUtils.test.cpp` | an upstream `#if 0` benchmark says, with `moo:`, that upstream disables it, so tools/moo-check-skips.sh accounts for it (DESIGN.md "Tests"). |
 | `tests/TypeFunction.test.cpp` | an upstream `#if 0` case says, with `moo:`, that upstream disables it, so tools/moo-check-skips.sh accounts for it (DESIGN.md "Tests"). |

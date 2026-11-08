@@ -181,11 +181,13 @@ TEST_CASE_FIXTURE(ReplFixture, "CompleteGlobalVariables")
         CompletionSet completions = getCompletionSet("math.m");
 
         std::string prefix = "math.";
-        CHECK(completions.size() == 4);
+        // moo: layer 3c adds math.muldiv (DESIGN.md "Layer 3c as built", the completed libraries)
+        CHECK(completions.size() == 5);
         CHECK(checkCompletion(completions, prefix, "max("));
         CHECK(checkCompletion(completions, prefix, "min("));
         CHECK(checkCompletion(completions, prefix, "modf("));
         CHECK(checkCompletion(completions, prefix, "map("));
+        CHECK(checkCompletion(completions, prefix, "muldiv("));
     }
 }
 
