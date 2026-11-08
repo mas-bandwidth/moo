@@ -27,7 +27,7 @@ void luaU_freeudata(lua_State* L, Udata* u, lua_Page* page)
     if (u->tag < LUA_UTAG_LIMIT)
         dtor = L->global->udatagc[u->tag];
     else if (u->tag == UTAG_IDTOR)
-        memcpy(&dtor, &u->data + u->len - sizeof(dtor), sizeof(dtor));
+        memcpy(&dtor, &u->data + u->len - MOO_SIZEOF_DTOR_SLOT, sizeof(dtor)); // moo: the canonical slot (moo_layout.h)
 
     // TODO: access to L here is highly unsafe since this is called during internal GC traversal
     // certain operations such as lua_getthreaddata are okay, but by and large this risks crashes on improper use
@@ -46,7 +46,7 @@ bool luaU_hasdtor(lua_State* L, Udata* u)
     if (u->tag == UTAG_IDTOR)
     {
         lua_Destructor dtor = nullptr;
-        memcpy(&dtor, &u->data + u->len - sizeof(dtor), sizeof(dtor));
+        memcpy(&dtor, &u->data + u->len - MOO_SIZEOF_DTOR_SLOT, sizeof(dtor)); // moo: the canonical slot (moo_layout.h)
         return dtor != nullptr;
     }
 

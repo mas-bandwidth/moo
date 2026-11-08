@@ -1747,8 +1747,10 @@ void* lua_newuserdatadtor(lua_State* L, size_t sz, lua_Destructor dtor)
     luaC_checkGC(L);
     luaC_threadbarrier(L);
     ensure_stack(L, 1);
-    // make sure sz + sizeof(dtor) doesn't overflow; luaU_newdata will reject SIZE_MAX correctly
-    size_t as = sz < SIZE_MAX - sizeof(dtor) ? sz + sizeof(dtor) : SIZE_MAX;
+    // make sure sz + the destructor slot doesn't overflow; luaU_newdata will reject SIZE_MAX correctly
+    // moo: the slot is the canonical 8 bytes on every target, so a 32-bit host allocates what a 64-bit one does
+    // (moo_layout.h); the pointer is stored at its start
+    size_t as = sz < SIZE_MAX - MOO_SIZEOF_DTOR_SLOT ? sz + MOO_SIZEOF_DTOR_SLOT : SIZE_MAX;
     Udata* u = luaU_newudata(L, as, UTAG_IDTOR);
     memcpy(&u->data + sz, &dtor, sizeof(dtor));
     setuvalue(L, L->top, u);

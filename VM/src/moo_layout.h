@@ -98,6 +98,11 @@ MOO_CANONICAL(global_State, 19264);
 // the main thread and the global state are one allocation (lstate.cpp LG)
 #define MOO_SIZEOF_LG (moo_sizeof(lua_State) + moo_sizeof(global_State))
 
+// the slot after a userdata with an inline destructor (lapi.cpp lua_newuserdatadtor): the function pointer is stored
+// at its start, and the slot is 8 bytes on every target, so the userdata's length and size are the 64-bit ones
+#define MOO_SIZEOF_DTOR_SLOT 8
+static_assert(sizeof(void (*)(void*)) <= MOO_SIZEOF_DTOR_SLOT, "a destructor pointer fits its slot");
+
 // the data offset of a lua_Page (lmem.cpp): the blocks per page follow from it
 #define MOO_OFFSET_PAGE_DATA 64
 

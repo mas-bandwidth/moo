@@ -422,4 +422,55 @@ TEST_CASE("DeterminismSuite")
         printf("# suite %s\n", hex(allAlloc.h).c_str());
 }
 
+// The GC's pacing past the heap sizes where a 32-bit size_t wraps: about 14.3 MB, where the full collection's
+// threshold multiplies the heap by 300 at the default goal and step multiplier, and 4 GiB. The heap is charged
+// for bytes it never stored (totalbytes and memory category 0 are raised by hand, and lowered again before
+// lua_close), then collected and stepped; every threshold and goal that follows is folded into one hash, which
+// must be the same on every target, wasm32 included (docs/DETERMINISM.md, 5).
+TEST_CASE("DeterminismPacingWidth")
+{
+    lua_State* L = lua_newstate(recordingAlloc, nullptr);
+    moo_setrandomseed(L, 12345);
+    luaL_openlibs(L);
+    luaL_sandbox(L);
+
+    const char* source = "local t = {} for i = 1, 2000 do t[i] = tostring(i) .. '.' end t = nil";
+    size_t size = 0;
+    char* bytecode = luau_compile(source, strlen(source), nullptr, &size);
+    REQUIRE(luau_load(L, "pacing", bytecode, size, 0) == 0);
+    free(bytecode);
+
+    global_State* g = L->global;
+    Fnv pacing;
+    const uint64_t charges[] = {15000000ull, 5ull << 30};
+    for (uint64_t charge : charges)
+    {
+        g->totalbytes += charge;
+        g->memcatbytes[0] += charge;
+
+        lua_gc(L, LUA_GCCOLLECT, 0);
+        pacing.u64(g->totalbytes);
+        pacing.u64(g->GCthreshold);
+        pacing.u64(g->gcstats.heapgoalsizebytes);
+
+        lua_pushvalue(L, -1);
+        REQUIRE(lua_pcall(L, 0, 0, 0) == 0);
+        for (int i = 0; i < 8; ++i)
+        {
+            lua_gc(L, LUA_GCSTEP, 0);
+            pacing.u64(g->GCthreshold);
+            pacing.u64(uint64_t(g->gcstate));
+        }
+        pacing.u64(g->gcstats.heapgoalsizebytes);
+        pacing.u64(g->gcstats.endtotalsizebytes);
+
+        g->totalbytes -= charge;
+        g->memcatbytes[0] -= charge;
+        CHECK(g->GCthreshold > uint64_t(4) << 20); // the charge reached the threshold, unwrapped
+    }
+    lua_close(L);
+
+    CHECK_MESSAGE(hex(pacing.h) == "97af94b8311776ee", "pacing hash " << hex(pacing.h));
+}
+
 TEST_SUITE_END();

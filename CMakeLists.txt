@@ -417,6 +417,10 @@ if(LUAU_BUILD_TESTS)
     target_compile_definitions(Moo.Test PRIVATE DOCTEST_CONFIG_USE_STD_HEADERS LUAU_CONFORMANCE_SOURCE_DIR="${LUAU_CONFORMANCE_SOURCE_DIR}")
     target_include_directories(Moo.Test PRIVATE tests extern extern/fixed/include VM/src)
     target_link_libraries(Moo.Test PRIVATE Luau.Compiler Luau.VM)
+    if(EMSCRIPTEN)
+        # moo: under node the suite reads tests/ from the host file system and returns doctest's exit status
+        target_link_options(Moo.Test PRIVATE -sNODERAWFS=1 -sEXIT_RUNTIME=1)
+    endif()
 
     target_compile_options(Luau.CLI.Test PRIVATE ${LUAU_OPTIONS})
     target_compile_definitions(Luau.CLI.Test PRIVATE DOCTEST_CONFIG_USE_STD_HEADERS)
