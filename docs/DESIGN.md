@@ -277,6 +277,27 @@ section states what is built, layer by layer.
 - **Determinism hashes.** Five more type-name strings shift every creation number by five and `global_State` grows by
   ten more tag slots (80 bytes, 19344 -> 19424), so moo's frozen hashes are re-cut by name, and Virtual Go's
   `kPinnedHash`/`kPinnedFixedHash` move on the pin bump that brings this layer.
+- **fixed's rule (W0).** `extern/fixed` is fixed v1.6.0 (fixed #68), where the wide and time types follow `fixed_t`'s
+  overflow rule: add, subtract, negate, offset and multiply saturate under `FIX_SATURATE` (moo's build), division
+  and narrowing saturate always, divisions truncate toward zero, and `fixWideMul`/`fixWideDiv` work on 256-bit
+  intermediates. Wide saturates to +-(2^127 - 1), time to +-INT64_MAX, a narrowing to `FIX_MIN`/`FIX_MAX`.
+- **Operators (W2).** Each is one fixed function (`VM/src/lvmutils.cpp`, `mooLayer3dArith`): `wide + - * /` and
+  unary `-` (`fixWideAdd/Sub/Mul/Div/Neg`); `wide + number`, `wide - number` (`fixWideOffset`); `wide * number`,
+  `number * wide` (`fixWideMulFixed`); `wide / number` (`fixWideDivFixed`); `poswide + vec3`, `poswide - vec3`
+  (`fixPosWideOffset`); `poswide - poswide` -> vec3 (`fixPosWideSub`); `worldtransformwide * transform`
+  (`fixMulWorldTransformsWide`) and `* vec3` -> poswide (`fixTransformWorldPointWide`); `time + -` and unary `-`
+  (`fixTimeAdd/Sub/Neg`); `time * number` (`fixTimeMulFixed`); `time / number` (`fixTimeDivFixed`); `time / time` ->
+  number (`fixTimeDiv`); `< <=` on wide (`fixWideLt/Le`) and time. Release saturates where fixed does. A checked
+  build raises where release saturates: `wide overflow in '<op>'`, `time overflow in '<op>'`,
+  `poswide overflow in '+'` (and `'-'`), `poswide difference out of local range`, each test made on the exact
+  intermediate (add and subtract against the defined wrap). `/` by a zero wide, number or time is
+  `division by zero` in both builds. Negation never saturates (no value is the reserved minimum). The world
+  transform operators are compounds of fixed functions, so they are verbatim with no named error (the 3b rule).
+  Every other pairing is the ordinary error: no `number + wide`, `time + number`, `time * time` or cross-type
+  comparison, and `1w ~= 1`. Results allocate (expression-temporary reuse covers the layer 3b kinds only).
+  `tests/moo/wide_ops.test.cpp` is the layer's oracle: every operator through script functions called through the C
+  API, against fixed's C and an exact 256-bit reference on 64-bit limbs, over the edge set and 2^12 cases
+  (`MOO_ORACLE_WIDE_N`), in release and checked builds, with the checked-prefix property on accumulation.
 - **Exact text (W4, the formatter and the parser).** `Common/include/moo_fixtext.h` is `moo_format.h`'s shortest
   round-trip formatter and `moo_parse.h`'s exact parser, generalised over the raw's width (64 or 128 bits) and its
   fraction bits (16 or 32), in integer arithmetic with no libc, locale or float. `moo_fixtostr` prints the shortest

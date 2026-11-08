@@ -505,6 +505,10 @@ int luaV_lessthan(lua_State* L, const TValue* l, const TValue* r)
         return luai_numlt(nvalue(l), nvalue(r));
     else if (ttisstring(l))
         return luaV_strcmp(tsvalue(l), tsvalue(r)) < 0;
+    else if (ttiswide(l)) // moo: wide and time are ordered (fixWideLt; a time is an int64)
+        return fixWideLt(moo_wide_payload(widevalue(l)), moo_wide_payload(widevalue(r)));
+    else if (ttistime(l))
+        return moo_time_payload(timevalue(l)) < moo_time_payload(timevalue(r));
     else
         return call_orderTM(L, l, r, TM_LT, /* error= */ true);
 }
@@ -518,6 +522,10 @@ int luaV_lessequal(lua_State* L, const TValue* l, const TValue* r)
         return luai_numle(nvalue(l), nvalue(r));
     else if (ttisstring(l))
         return luaV_strcmp(tsvalue(l), tsvalue(r)) <= 0;
+    else if (ttiswide(l)) // moo: as luaV_lessthan
+        return fixWideLe(moo_wide_payload(widevalue(l)), moo_wide_payload(widevalue(r)));
+    else if (ttistime(l))
+        return moo_time_payload(timevalue(l)) <= moo_time_payload(timevalue(r));
     else if ((res = call_orderTM(L, l, r, TM_LE)) != -1) // first try `le'
         return res;
     else if ((res = call_orderTM(L, r, l, TM_LT)) == -1) // error if not `lt'
@@ -699,9 +707,321 @@ void mooVec3SetResult(lua_State* L, StkId ra, fixVec3 v)
 
 } // namespace
 
+// moo: the layer 3d operators (docs/DESIGN.md "Layer 3d as built", W2). Each is one fixed function, which under
+// FIX_SATURATE saturates where the exact result is out of range; a checked build raises where release saturates.
+// Division by zero is named first in every build, as number's is.
+namespace
+{
+
+#if MOO_OVERFLOW_ERRORS
+// the checked build's tests: each is true exactly when the fixed function beside it in mooLayer3dArith saturates. Add
+// and subtract compare against the defined wrap (they differ whenever the exact result is out of range, and the wrap
+// of an in-range result is the result); products and quotients are tested on the exact intermediate, as fixed forms it
+// (fixed_wide.h fixWideRoundProduct and fixWideDiv, fixed_time.h fixTimeMulFixed and fixTimeDivFixed).
+bool mooWideAddSaturates(fixedWide_t a, fixedWide_t b)
+{
+    return !fixInt128Eq(fixWideAdd(a, b), fixInt128Add(a, b));
+}
+
+bool mooWideSubSaturates(fixedWide_t a, fixedWide_t b)
+{
+    return !fixInt128Eq(fixWideSub(a, b), fixInt128Sub(a, b));
+}
+
+bool mooWideProductSaturates(fixUInt256 product)
+{
+    fixUInt256 r = fixInt256Shr(fixUInt256Add(product, fixUInt256FromU64(uint64_t(FIX_HALF))), FIX_FRACTION_BITS);
+    bool negative = fixInt256IsNegative(r);
+    fixUInt128 extension = negative ? fixUInt128Not(FIX_UINT128_ZERO) : FIX_UINT128_ZERO;
+    fixedWide_t low = fixInt128FromUnsigned(r.lo);
+    return !fixUInt128Eq(r.hi, extension) || fixInt128IsNegative(low) != negative || !fixIsValidWideCoord(low);
+}
+
+// b is not zero
+bool mooWideQuotientSaturates(fixedWide_t a, fixedWide_t b)
+{
+    fixUInt256 numerator = fixUInt256Shl(fixUInt256FromU128(fixWideMagnitude(a)), FIX_FRACTION_BITS);
+    fixUInt256 quotient, remainder;
+    fixUInt256DivMod(numerator, fixUInt256FromU128(fixWideMagnitude(b)), &quotient, &remainder);
+    return !fixUInt128Eq(quotient.hi, FIX_UINT128_ZERO) || fixUInt128Gt(quotient.lo, fixInt128ToUnsigned(FIX_WIDE_MAX));
+}
+
+// the exact difference is outside number's range (fixWideSubToFixed narrows it to FIX_MIN or FIX_MAX)
+bool mooWideDifferenceSaturates(fixedWide_t a, fixedWide_t b)
+{
+    fixedWide_t difference = fixInt128Sub(a, b);
+    bool negative = fixInt128IsNegative(a);
+    if (negative != fixInt128IsNegative(b) && negative != fixInt128IsNegative(difference))
+        return true;
+    return fixInt128Gt(difference, fixInt128FromI64(FIX_MAX)) || fixInt128Lt(difference, fixInt128FromI64(FIX_MIN));
+}
+
+bool mooTimeAddSaturates(fixTime t, fixTime u)
+{
+    return fixTimeAdd(t, u) != fixTime(uint64_t(t) + uint64_t(u));
+}
+
+bool mooTimeSubSaturates(fixTime t, fixTime u)
+{
+    return fixTimeSub(t, u) != fixTime(uint64_t(t) - uint64_t(u));
+}
+
+// time's range and number's are the same, +-INT64_MAX
+bool mooTimeOutOfRange(fixInt128 q)
+{
+    return fixInt128Gt(q, fixInt128FromI64(FIX_TIME_MAX)) || fixInt128Lt(q, fixInt128FromI64(FIX_TIME_MIN));
+}
+
+bool mooTimeMulSaturates(fixTime t, fixed_t s)
+{
+    return mooTimeOutOfRange(
+        fixInt128Shr(fixInt128Add(fixInt128MulI64(t, s), fixInt128FromI64(FIX_HALF)), FIX_FRACTION_BITS));
+}
+
+// d is not zero; the quotient of fixTimeDivFixed (d a number) and of fixTimeDiv (d a time)
+bool mooTimeQuotientSaturates(fixTime t, int64_t d)
+{
+    return mooTimeOutOfRange(
+        fixInt128Div(fixInt128ShiftLeft(fixInt128FromI64(t), FIX_FRACTION_BITS), fixInt128FromI64(d)));
+}
+#endif
+
+void mooWideSetResult(lua_State* L, StkId ra, fixedWide_t w)
+{
+    MooFixedWide* out = moo_wide_new(L, w);
+    setwidevalue(L, ra, out);
+    luaC_checkGC(L); // after the store: ra is not valid after a GC step (mooVec3SetResult)
+}
+
+void mooPosWideSetResult(lua_State* L, StkId ra, fixPosWide p)
+{
+    MooPosWide* out = moo_poswide_new(L, p);
+    setposwidevalue(L, ra, out);
+    luaC_checkGC(L);
+}
+
+void mooTimeSetResult(lua_State* L, StkId ra, fixTime t)
+{
+    MooTime* out = moo_time_new(L, t);
+    settimevalue(L, ra, out);
+    luaC_checkGC(L);
+}
+
+bool mooIsLayer3d(const TValue* o)
+{
+    return unsigned(ttype(o) - LUA_TWIDE) <= unsigned(LUA_TTIME - LUA_TWIDE);
+}
+
+// the layer 3d operators; false for any other operand pair, which takes the ordinary path (and its error)
+template<TMS op>
+bool mooLayer3dArith(lua_State* L, StkId ra, const TValue* rb, const TValue* rc)
+{
+    if (ttiswide(rb) && (op == TM_UNM || ttiswide(rc)))
+    {
+        fixedWide_t a = moo_wide_payload(widevalue(rb));
+        fixedWide_t b = moo_wide_payload(widevalue(rc));
+        switch (op)
+        {
+        case TM_UNM:
+            // never saturates: no wide value is the reserved minimum (fixIsValidWideCoord)
+            mooWideSetResult(L, ra, fixWideNeg(a));
+            return true;
+        case TM_ADD:
+#if MOO_OVERFLOW_ERRORS
+            if (mooWideAddSaturates(a, b))
+                luaG_runerror(L, "wide overflow in '+'");
+#endif
+            mooWideSetResult(L, ra, fixWideAdd(a, b));
+            return true;
+        case TM_SUB:
+#if MOO_OVERFLOW_ERRORS
+            if (mooWideSubSaturates(a, b))
+                luaG_runerror(L, "wide overflow in '-'");
+#endif
+            mooWideSetResult(L, ra, fixWideSub(a, b));
+            return true;
+        case TM_MUL:
+#if MOO_OVERFLOW_ERRORS
+            if (mooWideProductSaturates(fixInt256MulI128(a, b)))
+                luaG_runerror(L, "wide overflow in '*'");
+#endif
+            mooWideSetResult(L, ra, fixWideMul(a, b));
+            return true;
+        case TM_DIV:
+            if (fixInt128Eq(b, FIX_INT128_ZERO))
+                luaG_runerror(L, "division by zero");
+#if MOO_OVERFLOW_ERRORS
+            if (mooWideQuotientSaturates(a, b))
+                luaG_runerror(L, "wide overflow in '/'");
+#endif
+            mooWideSetResult(L, ra, fixWideDiv(a, b));
+            return true;
+        default:
+            return false;
+        }
+    }
+    if (ttiswide(rb) && ttisnumber(rc))
+    {
+        fixedWide_t a = moo_wide_payload(widevalue(rb));
+        fixed_t s = nvalue(rc);
+        switch (op)
+        {
+        case TM_ADD:
+        case TM_SUB:
+        {
+            // a number is never INT64_MIN, so -s is exact
+            fixed_t d = op == TM_ADD ? s : -s;
+#if MOO_OVERFLOW_ERRORS
+            if (mooWideAddSaturates(a, fixInt128FromI64(d)))
+                luaG_runerror(L, "wide overflow in '%s'", op == TM_ADD ? "+" : "-");
+#endif
+            mooWideSetResult(L, ra, fixWideOffset(a, d));
+            return true;
+        }
+        case TM_MUL:
+#if MOO_OVERFLOW_ERRORS
+            if (mooWideProductSaturates(fixInt256MulI128ByI64(a, s)))
+                luaG_runerror(L, "wide overflow in '*'");
+#endif
+            mooWideSetResult(L, ra, fixWideMulFixed(a, s));
+            return true;
+        case TM_DIV:
+            if (s == 0)
+                luaG_runerror(L, "division by zero");
+#if MOO_OVERFLOW_ERRORS
+            if (mooWideQuotientSaturates(a, fixWideFromFixed(s)))
+                luaG_runerror(L, "wide overflow in '/'");
+#endif
+            mooWideSetResult(L, ra, fixWideDivFixed(a, s));
+            return true;
+        default:
+            return false;
+        }
+    }
+    if (op == TM_MUL && ttisnumber(rb) && ttiswide(rc))
+    {
+        fixed_t s = nvalue(rb);
+        fixedWide_t a = moo_wide_payload(widevalue(rc));
+#if MOO_OVERFLOW_ERRORS
+        if (mooWideProductSaturates(fixInt256MulI128ByI64(a, s)))
+            luaG_runerror(L, "wide overflow in '*'");
+#endif
+        mooWideSetResult(L, ra, fixWideMulFixed(a, s));
+        return true;
+    }
+    if (ttisposwide(rb) && (op == TM_ADD || op == TM_SUB) && ttisvec3(rc))
+    {
+        fixPosWide p = moo_poswide_payload(poswidevalue(rb));
+        fixVec3 v = moo_vec3_payload(vec3value(rc));
+        // a number is never INT64_MIN, so negating the components is exact
+        fixVec3 d = op == TM_ADD ? v : fixVecNeg(v);
+#if MOO_OVERFLOW_ERRORS
+        if (mooWideAddSaturates(p.x, fixInt128FromI64(d.x)) || mooWideAddSaturates(p.y, fixInt128FromI64(d.y)) ||
+            mooWideAddSaturates(p.z, fixInt128FromI64(d.z)))
+            luaG_runerror(L, "poswide overflow in '%s'", op == TM_ADD ? "+" : "-");
+#endif
+        mooPosWideSetResult(L, ra, fixPosWideOffset(p, d));
+        return true;
+    }
+    if (op == TM_SUB && ttisposwide(rb) && ttisposwide(rc))
+    {
+        fixPosWide a = moo_poswide_payload(poswidevalue(rb));
+        fixPosWide b = moo_poswide_payload(poswidevalue(rc));
+#if MOO_OVERFLOW_ERRORS
+        if (mooWideDifferenceSaturates(a.x, b.x) || mooWideDifferenceSaturates(a.y, b.y) ||
+            mooWideDifferenceSaturates(a.z, b.z))
+            luaG_runerror(L, "poswide difference out of local range");
+#endif
+        mooVec3SetResult(L, ra, fixPosWideSub(a, b));
+        return true;
+    }
+    if (op == TM_MUL && ttisworldtransformwide(rb) && (ttistransform(rc) || ttisvec3(rc)))
+    {
+        // compounds of fixed functions, verbatim with no named error (the 3b rule)
+        fixWorldTransformWide t = moo_worldtransformwide_payload(worldtransformwidevalue(rb));
+        if (ttistransform(rc))
+        {
+            MooWorldTransformWide* out =
+                moo_worldtransformwide_new(L, fixMulWorldTransformsWide(t, moo_transform_payload(transformvalue(rc))));
+            setworldtransformwidevalue(L, ra, out);
+            luaC_checkGC(L);
+        }
+        else
+            mooPosWideSetResult(L, ra, fixTransformWorldPointWide(t, moo_vec3_payload(vec3value(rc))));
+        return true;
+    }
+    if (ttistime(rb) && (op == TM_UNM || ttistime(rc)))
+    {
+        fixTime t = moo_time_payload(timevalue(rb));
+        fixTime u = moo_time_payload(timevalue(rc));
+        switch (op)
+        {
+        case TM_UNM:
+            // never saturates: no time value is the reserved INT64_MIN
+            mooTimeSetResult(L, ra, fixTimeNeg(t));
+            return true;
+        case TM_ADD:
+#if MOO_OVERFLOW_ERRORS
+            if (mooTimeAddSaturates(t, u))
+                luaG_runerror(L, "time overflow in '+'");
+#endif
+            mooTimeSetResult(L, ra, fixTimeAdd(t, u));
+            return true;
+        case TM_SUB:
+#if MOO_OVERFLOW_ERRORS
+            if (mooTimeSubSaturates(t, u))
+                luaG_runerror(L, "time overflow in '-'");
+#endif
+            mooTimeSetResult(L, ra, fixTimeSub(t, u));
+            return true;
+        case TM_DIV:
+            // the ratio of two times is a number
+            if (u == 0)
+                luaG_runerror(L, "division by zero");
+#if MOO_OVERFLOW_ERRORS
+            if (mooTimeQuotientSaturates(t, u))
+                luaG_runerror(L, "time overflow in '/'");
+#endif
+            setnvalue(ra, fixTimeDiv(t, u));
+            return true;
+        default:
+            return false;
+        }
+    }
+    if (ttistime(rb) && ttisnumber(rc) && (op == TM_MUL || op == TM_DIV))
+    {
+        fixTime t = moo_time_payload(timevalue(rb));
+        fixed_t s = nvalue(rc);
+        if (op == TM_MUL)
+        {
+#if MOO_OVERFLOW_ERRORS
+            if (mooTimeMulSaturates(t, s))
+                luaG_runerror(L, "time overflow in '*'");
+#endif
+            mooTimeSetResult(L, ra, fixTimeMulFixed(t, s));
+            return true;
+        }
+        if (s == 0)
+            luaG_runerror(L, "division by zero");
+#if MOO_OVERFLOW_ERRORS
+        if (mooTimeQuotientSaturates(t, s))
+            luaG_runerror(L, "time overflow in '/'");
+#endif
+        mooTimeSetResult(L, ra, fixTimeDivFixed(t, s));
+        return true;
+    }
+    return false;
+}
+
+} // namespace
+
 template<TMS op>
 void luaV_doarithimpl(lua_State* L, StkId ra, const TValue* rb, const TValue* rc)
 {
+    // moo: layer 3d (wide, poswide, worldtransformwide, aabbwide, time); one range compare when neither operand is one
+    if ((mooIsLayer3d(rb) || mooIsLayer3d(rc)) && mooLayer3dArith<op>(L, ra, rb, rc))
+        return;
+
     TValue tempb, tempc;
     const TValue *b, *c;
 
