@@ -178,6 +178,22 @@ Checks too slow for every commit, run every night.
 
 <!-- nova-work:nightly:end -->
 
+## Known defects
+
+Bugs found in use that are not fixed yet, each with its evidence.
+
+<!-- nova-work:defects:start -->
+
+| feature | moo |
+|---|:---:|
+| moo-analyze is safe on its default worker threads | ❌ |
+| moo_numformat refuses a precision its buffers cannot hold | ❌ |
+| complete | 0% |
+
+[Source data](docs/roadmap.sexp)
+
+<!-- nova-work:defects:end -->
+
 ## About this page
 
 Each table lists the features of one area: ✅ is built, tested and landed, with the evidence in the source data; ❌ is not yet. The open rows were sprint cards when the sprint stopped for its pit stop on 2026-10-20; each one names its card, its archived brief and any pushed head in the source data, so the work can be picked up again.
