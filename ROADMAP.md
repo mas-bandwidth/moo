@@ -187,6 +187,7 @@ Bugs found in use that are not fixed yet, each with its evidence.
 | feature | moo |
 |---|:---:|
 | moo-analyze is safe on its default worker threads | ❌ |
+| moo_numformat refuses a precision its buffers cannot hold | ❌ |
 | complete | 0% |
 
 [Source data](docs/roadmap.sexp)

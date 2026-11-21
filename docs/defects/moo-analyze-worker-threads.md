@@ -75,6 +75,10 @@ reading of two stack traces, not a finding.
   is a workaround, not a fix.
 - Still on the default threads: mas-bandwidth/schema's moo leg (`make/moo*.mk` and
   `internal/codegen/moo`) and moo's own CI (`ci.yml` and `nightly.yml` run `build/moo-analyze`).
+- moo's own CI is not a reliable alarm for this yet. PR #76 found that GitHub's `ubuntu-latest`
+  moved to GCC 15.2 on 2026-11-10 and moo's nightly then stayed red for twelve days without anyone
+  noticing, so an analyzer crash in the nightly would also have gone unseen. A test written to
+  catch this bug has to fail somewhere that is watched.
 
 ## Not known yet
 
