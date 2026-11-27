@@ -301,7 +301,7 @@
   (:id "layer-3d/fixed-contract" :type :work-set :children ("moo-l3d-fixed-contract"))
   (:id "moo-l3d-representation" :type :task :title "The five values: tags, objects, equality, keys and the ValueKeys model" :state :todo :evidence () :note "W1; time boxed (decided); tla/ValueKeys.tla with two plants; virtualgo kPinnedHash and kPinnedFixedHash move on the pin bump.")
   (:id "layer-3d/representation" :type :work-set :children ("moo-l3d-representation"))
-  (:id "moo-l3d-operators" :type :task :title "Operators with release saturation, checked errors and a minimal oracle" :state :todo :evidence () :note "W2.")
+  (:id "moo-l3d-operators" :type :task :title "Operators with release saturation, checked errors and a minimal oracle" :state :done :evidence ("tests/moo/wide_ops.test.cpp" "mas-bandwidth/moo#73") :note "W2.")
   (:id "layer-3d/operators" :type :work-set :children ("moo-l3d-operators"))
   (:id "moo-l3d-literals" :type :task :title "Literals, bytecode constants and moo bytecode version 3" :state :todo :evidence () :note "W3: literal spelling 1.5w and 0.25s (proposed to Glenn); LBC_CONSTANT_MOO_WIDE 0x80 and LBC_CONSTANT_MOO_TIME 0x81 in a moo-reserved range; named refusals in the VM loader and BytecodeGraph; wide and time never K operands. moo bytecode is at version 2 since v1.3.0, so literals make it 3.")
   (:id "layer-3d/literals" :type :work-set :children ("moo-l3d-literals"))
