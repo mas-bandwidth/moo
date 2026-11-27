@@ -15,9 +15,9 @@
 set -eu
 
 FIXED3D_REPO="https://github.com/mas-bandwidth/fixed3d.git"
-# fixed3d main after #111: vendors fixed 8dda4fc, the same pin as tools/revendor-fixed.sh, and BOX3D_FIXED_SATURATE
+# fixed3d main after #121: vendors fixed v1.6.0 (d537f4e), the same pin as tools/revendor-fixed.sh, and BOX3D_FIXED_SATURATE
 # defines FIX_SATURATE before fixed/fixed.h is included.
-FIXED3D_PIN="ae0e52d8b9c6eb7f4c9496d4050cf0da30e0e00d"
+FIXED3D_PIN="35619f20169a70a01b977d9039259e6eea15b138"
 
 if [ "$#" -lt 1 ]; then
     echo "usage: tools/moo-fixed3d-compare.sh <build dir> [c++ compiler]" >&2
