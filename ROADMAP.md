@@ -125,7 +125,7 @@ Layer 3d: Q112.16 wide, wide positions, wide world transforms, wide AABBs and Q3
 |---|:---:|
 | Wide and time on fixed_t's overflow rule, wide mul and div in fixed; pins moved in moo, fixed3d and virtualgo | ❌ |
 | The five values: tags, objects, equality, keys and the ValueKeys model | ❌ |
-| Operators with release saturation, checked errors and a minimal oracle | ❌ |
+| Operators with release saturation, checked errors and a minimal oracle | ✅ |
 | Literals, bytecode constants and moo bytecode version 3 | ❌ |
 | Exact formatting and parsing for Q112.16 and Q32.32 | ❌ |
 | The wide, poswide, worldtransformwide, aabbwide and time libraries | ❌ |
@@ -133,7 +133,7 @@ Layer 3d: Q112.16 wide, wide positions, wide world transforms, wide AABBs and Q3
 | The five types as analyzer builtin types | ❌ |
 | Bit-exact against fixed; reversed witness; determinism matrix | ❌ |
 | serialize.moo and the schema moo leg carry wide and time exactly | ❌ |
-| complete | 0% |
+| complete | 10% |
 
 [Source data](docs/roadmap.sexp)
 
