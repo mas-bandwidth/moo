@@ -9,6 +9,8 @@
 #include "lnumutils.h"
 
 #include "fixed/fixed_math.h"
+#include "fixed/fixed_quantize.h" // moo: layer 3c, the integer raw-value helpers
+#include "fixed/fixed_vec.h"      // moo: layer 3c, fixHalfSum and fixHalfDifference
 
 #include <limits>
 #include <math.h>
@@ -679,6 +681,122 @@ static int math_isfinite(lua_State* L)
     return 1;
 }
 
+// moo: layer 3c, the rest of fixed's number functions (docs/DESIGN.md "Layer 3c as built"). Each is one fixed call
+// on the raw value; where fixed asserts a precondition the argument is refused by name, otherwise fixed's own
+// result, saturation included, is the answer in release and checked builds alike.
+
+// a * b / c with the product exact at 128 bits and one truncation toward zero; c == 0 saturates by the product's sign
+static int math_muldiv(lua_State* L)
+{
+    fixed_t a = luaL_checknumber(L, 1);
+    fixed_t b = luaL_checknumber(L, 2);
+    fixed_t c = luaL_checknumber(L, 3);
+    lua_pushnumber(L, fixMulDiv(a, b, c));
+    return 1;
+}
+
+// (a + b) / 2 and (a - b) / 2 without an intermediate that can leave the range, fixed's half-up forms
+static int math_halfsum(lua_State* L)
+{
+    fixed_t a = luaL_checknumber(L, 1);
+    fixed_t b = luaL_checknumber(L, 2);
+    lua_pushnumber(L, fixHalfSum(a, b));
+    return 1;
+}
+
+static int math_halfdifference(lua_State* L)
+{
+    fixed_t a = luaL_checknumber(L, 1);
+    fixed_t b = luaL_checknumber(L, 2);
+    lua_pushnumber(L, fixHalfDifference(a, b));
+    return 1;
+}
+
+// any angle into [-pi, pi]
+static int math_unwindangle(lua_State* L)
+{
+    lua_pushnumber(L, fixUnwindAngle(luaL_checknumber(L, 1)));
+    return 1;
+}
+
+// cos and sin as two values, fixComputeCosSinPrecise: within one ulp over the whole range. math.cos and math.sin
+// stay on fixComputeCosSin, so math.cossin(x) is the precise pair and not always the same bits as them.
+static int math_cossin(lua_State* L)
+{
+    fixCosSin cs = fixComputeCosSinPrecise(luaL_checknumber(L, 1));
+    lua_pushnumber(L, cs.cosine);
+    lua_pushnumber(L, cs.sine);
+    return 2;
+}
+
+// critically damped smoothing; the velocity is a value in and a value out, so the result is (position, velocity)
+static int math_smoothcriticallydamped(lua_State* L)
+{
+    fixed_t current = luaL_checknumber(L, 1);
+    fixed_t target = luaL_checknumber(L, 2);
+    fixed_t velocity = luaL_checknumber(L, 3);
+    fixed_t smoothTime = luaL_checknumber(L, 4);
+    fixed_t deltaTime = luaL_checknumber(L, 5);
+    fixed_t result = fixSmoothCriticallyDamped(current, target, &velocity, smoothTime, deltaTime);
+    lua_pushnumber(L, result);
+    lua_pushnumber(L, velocity);
+    return 2;
+}
+
+static int math_smoothcriticallydampedupdown(lua_State* L)
+{
+    fixed_t current = luaL_checknumber(L, 1);
+    fixed_t target = luaL_checknumber(L, 2);
+    fixed_t velocity = luaL_checknumber(L, 3);
+    fixed_t smoothTimeUp = luaL_checknumber(L, 4);
+    fixed_t smoothTimeDown = luaL_checknumber(L, 5);
+    fixed_t deltaTime = luaL_checknumber(L, 6);
+    fixed_t result = fixSmoothCriticallyDampedUpDown(current, target, &velocity, smoothTimeUp, smoothTimeDown, deltaTime);
+    lua_pushnumber(L, result);
+    lua_pushnumber(L, velocity);
+    return 2;
+}
+
+// the integer raw-value helpers of fixed_quantize.h, on the number's raw Q48.16 bits: fits is the domain predicate,
+// narrow drops shift fraction bits rounding half up, widen adds them exactly. The shift is a whole number in
+// [0, 63), and the raw value must be inside the range fixed asserts, else the argument is refused by name.
+static int math_fits(lua_State* L)
+{
+    fixed_t raw = luaL_checknumber(L, 1);
+    fixed_t minRaw = luaL_checknumber(L, 2);
+    fixed_t maxRaw = luaL_checknumber(L, 3);
+    lua_pushboolean(L, fixFits(raw, minRaw, maxRaw));
+    return 1;
+}
+
+static int math_shiftarg(lua_State* L, int idx)
+{
+    int shift = luaL_checkinteger(L, idx);
+    luaL_argcheck(L, shift >= 0 && shift < 63, idx, "shift must be in [0, 63)");
+    return shift;
+}
+
+static int math_narrow(lua_State* L)
+{
+    fixed_t raw = luaL_checknumber(L, 1);
+    int shift = math_shiftarg(L, 2);
+    const int64_t half = ((int64_t)1 << shift) >> 1;
+    luaL_argcheck(L, raw <= INT64_MAX - half, 1, "value out of range for 'narrow'");
+    lua_pushnumber(L, fixNarrow(raw, shift));
+    return 1;
+}
+
+static int math_widen(lua_State* L)
+{
+    fixed_t raw = luaL_checknumber(L, 1);
+    int shift = math_shiftarg(L, 2);
+    // symmetric, so the widened value stays inside the number's domain (never INT64_MIN)
+    const int64_t bound = INT64_MAX >> shift;
+    luaL_argcheck(L, raw >= -bound && raw <= bound, 1, "value out of range for 'widen'");
+    lua_pushnumber(L, fixWiden(raw, shift));
+    return 1;
+}
+
 static const luaL_Reg mathlib[] = {
     {"abs", math_abs},
     {"acos", math_acos},
@@ -717,6 +835,17 @@ static const luaL_Reg mathlib[] = {
     {"isnan", math_isnan},
     {"isinf", math_isinf},
     {"isfinite", math_isfinite},
+    // moo: layer 3c
+    {"muldiv", math_muldiv},
+    {"halfsum", math_halfsum},
+    {"halfdifference", math_halfdifference},
+    {"unwindangle", math_unwindangle},
+    {"cossin", math_cossin},
+    {"smoothcriticallydamped", math_smoothcriticallydamped},
+    {"smoothcriticallydampedupdown", math_smoothcriticallydampedupdown},
+    {"fits", math_fits},
+    {"narrow", math_narrow},
+    {"widen", math_widen},
     {NULL, NULL},
 };
 
