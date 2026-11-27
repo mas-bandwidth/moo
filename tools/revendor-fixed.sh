@@ -25,9 +25,9 @@ FIXED_REPO="https://github.com/mas-bandwidth/fixed.git"
 # fixed main after #68: wide (Q112.16) and time (Q32.32) follow fixed_t's overflow rule (wrap by
 # default, saturate under FIX_SATURATE; division and narrowing always saturate), and fixWideMul /
 # fixWideDiv go through 256-bit intermediates. fixed_t and its vectors are unchanged from v1.5.0.
-# fixed v1.6.0, pinned by immutable commit rather than a branch.
+# fixed v1.6.0 (the tag's commit d537f4e; its vendored files are identical to 1df4ea4), pinned by immutable commit rather than a branch.
 # moo: the commit fixed3d vendors; move both together.
-FIXED_PIN="1df4ea417c865bb623c08b0446e3bd5587721985"
+FIXED_PIN="d537f4e9c9ef2061734a28cd1c0aaf66900c1646"
 FIXED_VERSION="v1.6.0"
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

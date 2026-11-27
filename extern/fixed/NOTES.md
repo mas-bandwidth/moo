@@ -4,9 +4,9 @@ A **generated copy** of [mas-bandwidth/fixed](https://github.com/mas-bandwidth/f
 deterministic fixed-point library that moo's `number` is built on (docs/DESIGN.md,
 "Semantics").
 
-    Pinned at: v1.6.0  (1df4ea417c865bb623c08b0446e3bd5587721985)
+    Pinned at: v1.6.0  (d537f4e9c9ef2061734a28cd1c0aaf66900c1646)
 
-fixed main after #68: the wide (Q112.16) and time (Q32.32) types follow `fixed_t`'s overflow rule
+fixed v1.6.0 (fixed #68): the wide (Q112.16) and time (Q32.32) types follow `fixed_t`'s overflow rule
 (add, subtract, negate, offset and multiply wrap by default and saturate under `FIX_SATURATE`; division
 and narrowing always saturate) and `fixWideMul` / `fixWideDiv` use 256-bit intermediates. `fixed_t`
 and its vectors are bit-identical to v1.5.0. This is the commit fixed3d vendors, so a moo program and
