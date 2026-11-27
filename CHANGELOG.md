@@ -1,5 +1,39 @@
 # moo changelog
 
+## v1.4.0
+
+New value types for Virtual Go's wide-world and time plan, the rest of fixed's functions, and moo
+on wasm32 bit-identical to 64-bit. Ten new value kinds (five narrow, five wide/time), each an
+immutable GC leaf with raw-bit equality and pinned key hashes. Determinism hashes are re-cut by
+name (new interned type and function names shift creation numbers and `global_State` grows); no
+arithmetic result on an existing type moves. `moo --version` prints `moo 1.4.0 (Luau 0.741)`.
+
+### Added
+
+- Layer 3c, narrow types (#67, #72): `vec2`, `mat3`, `plane`, `aabb` and `fix30` values, their
+  component reads, mat3 operators, the `vec2`, `mat3`, `plane`, `aabb` and `fix30` libraries and
+  `quat.frommatrix`, with analyzer types. `tla/ValueKeys.tla` models table keys for the new kinds.
+- Layer 3c, the rest of fixed's functions (#70): 51 functions on number, vec3, quat and
+  transform, each one fixed call, checked against fixed's C (92 functions and operators with #72,
+  zero mismatches).
+- Layer 3d W1 (#71): `wide`, `poswide`, `worldtransformwide`, `aabbwide` and `time` values, with
+  `type` names and literal-form `tostring`. Their operators are not in this release.
+- Layer 3d W4 (#68): `moo_fixtext.h`, exact shortest round-trip text for Q112.16 and Q32.32 raws.
+- 32-bit targets (#69): every allocation size is the 64-bit size and GC pacing is 64-bit on every
+  target, so moo on wasm32 (Emscripten, under node) is bit-identical to 64-bit; a wasm32 CI job.
+  The host-visible allocation stream is pinned in `tests/determinism/alloc.txt`.
+
+### Fixed
+
+- `moo_format.h`: `putUint`'s destination is sized for any uint64, which GCC 15 refused under
+  `-Werror` (#76).
+
+### Other
+
+- CI runs on every pull request, sprint bases included (#65).
+- Known defect recorded: `moo-analyze` can corrupt its heap on its default worker threads; `-j1`
+  avoids it (#75, `docs/defects/moo-analyze-worker-threads.md`).
+
 ## v1.3.0 — 2026-10-28
 
 Cut from f60f0239f41c6c0a827ecee44a7f9539c5798068. 3 pull requests since v1.2.1.
