@@ -1,5 +1,31 @@
 # moo changelog
 
+## v1.4.0 — 2026-11-27
+
+Cut from 9b6b3084f655fd546e13cfca4ffad5f74c2e66b9. 12 pull requests since v1.3.0.
+
+Dogfood gate waived: moo is a language runtime, not a nova tool: it has no nova CLI reference or dogfood receipts, and no sprint spend store or provider spend
+
+Spend gate waived: moo is a language runtime, not a nova tool: it has no nova CLI reference or dogfood receipts, and no sprint spend store or provider spend (window 2026-10-28T00:00:00Z..2026-11-27T17:26:19Z)
+- unread: --spend-store <addr> names no sprint store, so the recorded spend cannot be read
+
+- #64 changelog: the v1.3.0 cut record
+- #65 ci: ci on every pull request (sprint bases included)
+- #66 roadmap: layer 3c, layer 3d and the 32-bit targets, from the Virtual Go plans
+- #69 targets-32: moo on wasm32, bit-identical to 64-bit (canonical sizes, 64-bit pacing, node in CI)
+- #76 moo_format: size putUint's destination for any uint64_t
+- #75 roadmap: record the moo-analyze worker-thread memory corruption
+  - members: #76
+- #67 layer 3c N1: vec2, mat3, plane, aabb and fix30 values, and the ValueKeys model
+- #68 layer 3d W4: exact text for Q112.16 and Q32.32 raws (moo_fixtext.h)
+- #70 layer 3c N5: the rest of fixed's functions on number, vec3, quat and transform
+  - members: #420, #421, #510, #511
+- #71 layer 3d W1: wide, poswide, worldtransformwide, aabbwide and time values
+  - members: #67, #68
+- #72 layer 3c N2+N3: narrow-type operators, components, libraries and analyzer types
+  - members: #510, #511, #570, #571, #67, #68, #70
+- #77 release readiness for v1.4.0: version and CHANGELOG
+
 ## v1.4.0
 
 New value types for Virtual Go's wide-world and time plan, the rest of fixed's functions, and moo
