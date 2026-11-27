@@ -516,6 +516,15 @@ conformance/moo/spec/math_oracle.luau O1 g2 c98dfde0db716be3
 conformance/moo/spec/math_oracle.luau O2 g0 913b76d18103d0d5
 conformance/moo/spec/math_oracle.luau O2 g1 794e6e26f8336f0c
 conformance/moo/spec/math_oracle.luau O2 g2 517432a5636fbd99
+conformance/moo/spec/narrow.luau O0 g0 ae749f96dcf04d24
+conformance/moo/spec/narrow.luau O0 g1 e772e49de5bca1fb
+conformance/moo/spec/narrow.luau O0 g2 8cc2231557bc1343
+conformance/moo/spec/narrow.luau O1 g0 50bf371a7c648388
+conformance/moo/spec/narrow.luau O1 g1 58ad1377e845f3d9
+conformance/moo/spec/narrow.luau O1 g2 a52a4017bb512900
+conformance/moo/spec/narrow.luau O2 g0 0cb208aedac8515f
+conformance/moo/spec/narrow.luau O2 g1 edc88dabb6ee3c6a
+conformance/moo/spec/narrow.luau O2 g2 f0631d13f423026e
 conformance/moo/spec/number.luau O0 g0 321ff99c63cf74c3
 conformance/moo/spec/number.luau O0 g1 6c2c0faaebab4d55
 conformance/moo/spec/number.luau O0 g2 e61fdba3934205f4

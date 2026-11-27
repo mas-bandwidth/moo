@@ -90,6 +90,55 @@ local _ = {n, c, s, p, v, p2, v2, fits, w, m, e, f, g, isunit, u1, l1, u2, l2, r
     LUAU_REQUIRE_NO_ERRORS(result);
 }
 
+// Layer 3c N3: vec2, mat3, plane, aabb and fix30 with exactly the components, operators and libraries of
+// VM/src/moo_narrowlib.cpp (docs/DESIGN.md "Layer 3c as built").
+TEST_CASE_FIXTURE(BuiltinsFixture, "moo_narrow_types_accept_everything_the_vm_implements")
+{
+    CheckResult result = check(R"(
+--!strict
+local v2: vec2 = vec2.new(1, 2)
+local v2z: vec2 = vec2.new()
+local v2n: number = v2.x + v2.y + v2.X + v2.Y
+
+local a: vec3 = vec3.new(1, 2, 3)
+local m: mat3 = mat3.new(a, a, a)
+local i: mat3 = mat3.new()
+local mm: mat3 = m + i - m * i + (-m) + m * 2 + 2 * m
+local mv: vec3 = m * a
+local cols: vec3 = m.cx + m.cy + m.cz
+local inv: mat3 = mat3.transpose(m) + mat3.inverse(m) + mat3.inversewide(m) + mat3.inverset(m) + mat3.abs(m)
+local sol: vec3 = mat3.solve(m, a) + mat3.solvewide(m, a)
+local det: number = mat3.det(m)
+local fq: mat3 = mat3.fromquat(quat.new())
+local q: quat = quat.frommatrix(m)
+local mok: boolean = mat3.isvalid(m)
+
+local p: plane = plane.new(vec3.new(0, 1, 0), 2)
+local p0: plane = plane.new(vec3.new(0, 1, 0))
+local pn: vec3 = p.normal
+local pd: number = p.offset
+local pok: boolean = plane.isvalid(p)
+
+local b: aabb = aabb.new(a, a)
+local bp: aabb = aabb.frompoints({a, a}, 1)
+local bp0: aabb = aabb.frompoints({a})
+local corners: vec3 = b.lower + b.upper + aabb.center(b) + aabb.extents(b) + aabb.closestpoint(a, b)
+local area: number = aabb.area(b)
+local tests: boolean = aabb.contains(b, bp) and aabb.overlaps(b, bp) and aabb.isvalid(b)
+local t: transform = transform.new()
+local boxes: aabb = aabb.union(aabb.inflate(b, 1), aabb.transform(t, b))
+local ce: aabb = aabb.fromcenterextents(t, a, a)
+
+local f: fix30 = fix30.new(0.5)
+local fn: number = fix30.tonumber(f)
+local f2: fix30 = fix30.normalizecomponent(3, 4)
+
+local _ = {v2, v2z, v2n, mm, mv, cols, inv, sol, det, fq, q, mok, p, p0, pn, pd, pok, corners, area, tests, boxes, ce, fn, f2}
+)");
+
+    LUAU_REQUIRE_NO_ERRORS(result);
+}
+
 // Each operation the VM refuses (tests/moo/vec3.test.cpp, quat.test.cpp and transform.test.cpp, the Refusals cases) is a type error here, and
 // quat.slerp, which the VM refuses by name until fixed has a slerp, is absent.
 TEST_CASE_FIXTURE(BuiltinsFixture, "moo_value_types_report_what_the_vm_refuses")
@@ -123,6 +172,25 @@ TEST_CASE_FIXTURE(BuiltinsFixture, "moo_value_types_report_what_the_vm_refuses")
         {"local _ = transform.torelative(t, q)", "Expected this to be 'vec3', but got 'quat'"},
         {"local _: vec3 = math.cossin(1)", "Expected this to be 'vec3', but got 'number'"},
         {"local _: quat = quat.axisangle(q)", "Expected this to be 'quat', but got 'vec3'"},
+        // layer 3c N3: the narrow types
+        {"local _ = vec2.new(1, 2) + vec2.new(1, 2)", "Operator '+' could not be applied to operands of types vec2 and vec2"},
+        {"local _ = vec2.new(1, 2).z", "Key 'z' not found in external type 'vec2'"},
+        {"local _ = mat3.new() + a", "Operator '+' could not be applied to operands of types mat3 and vec3"},
+        {"local _ = mat3.new() * q", "Operator '*' could not be applied to operands of types mat3 and quat"},
+        {"local _ = mat3.new() / mat3.new()", "Operator '/' could not be applied to operands of types mat3 and mat3"},
+        {"local _ = mat3.new().cw", "Key 'cw' not found in external type 'mat3'"},
+        {"local _ = mat3.new(1)", "Expected this to be 'vec3?', but got 'number'"},
+        {"local _ = mat3.solve(mat3.new(), q)", "Expected this to be 'vec3', but got 'quat'"},
+        {"local _ = quat.frommatrix(q)", "Expected this to be 'mat3', but got 'quat'"},
+        {"local _ = plane.new(a, 1).x", "Key 'x' not found in external type 'plane'"},
+        {"local _ = plane.new(a, 1) + plane.new(a, 1)", "Operator '+' could not be applied to operands of types plane and plane"},
+        {"local _ = aabb.new(a)", "Argument count mismatch"},
+        {"local _ = aabb.frompoints(a)", "Expected this to be '{vec3}', but got 'vec3'"},
+        {"local _ = aabb.closestpoint(aabb.new(a, a), a)", "Expected this to be 'vec3', but got 'aabb'"},
+        {"local _ = aabb.transform(aabb.new(a, a), t)", "Expected this to be 'transform', but got 'aabb'"},
+        {"local _ = fix30.new(1) + 1", "Operator '+' could not be applied to operands of types fix30 and number"},
+        {"local _: number = fix30.new(1)", "Expected this to be 'number', but got 'fix30'"},
+        {"local _ = fix30.tonumber(1)", "Expected this to be 'fix30', but got 'number'"},
     };
     for (const Case& c : cases)
     {

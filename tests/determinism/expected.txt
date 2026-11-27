@@ -27,10 +27,14 @@
 # 19344 -> 19424); every state hash moved, and the effects hashes of the programs that log creation numbers or
 # gcinfo (docs/DESIGN.md "Layer 3d as built").
 # moo: re-pinned when layer 3d W1 (#71) met layer 3c N5 (#70) on main: their creation-number shifts add.
-coroutines.luau 6e10c34fb138cab1 c6144a0a19a29a38
-gcchurn.luau eff2c8fe9bc904c3 c8433513c9cc0d4f
-library.luau 31ca014c98fb9e6f 47bc47fc20cbdfda
-objectkeys.luau d79cab1ccdf87ca2 f74d3555ce065fd4
-coroutines2.luau 3777d74069d1b1a7 17ecb8251a102417
-errors.luau 72a915caa39dae85 e1c519768e6d8002
-math.luau 17504f380f0bab39 3c9d0407e1f83541
+# moo: re-pinned when layer 3c N2 added the vec2, mat3, plane, aabb and fix30 libraries and quat.frommatrix: five
+# library tables and their function names interned at startup shift every creation number and move GC pacing; every
+# hash moved (docs/DESIGN.md "Layer 3c as built", the narrow types' operators and libraries).
+# moo: re-pinned when layer 3c N2+N3 (#72) met layer 3d W1 (#71) on main: their creation-number shifts add.
+coroutines.luau eeeefbede8c945cc 1a6b17ac138b817d
+gcchurn.luau 958aaeb361ca21e4 28be9f7607784e7c
+library.luau 2940bd23ea712ac4 a8bd3958743c6e8f
+objectkeys.luau 049f7b69994874c0 c2ec8b2c1d198aae
+coroutines2.luau cd027ac2d176ee7b 7fbf1551a91435a6
+errors.luau dc46792c93379bd2 380a5d0ce9bcfd62
+math.luau 8cf670b8cd4a6c04 8df08d7b2b6e7de1

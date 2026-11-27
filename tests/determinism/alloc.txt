@@ -8,10 +8,12 @@
 # Re-cut again for layer 3c N5 (mas-bandwidth/moo#70): 51 more library function names are interned when the libraries open.
 # Re-cut again for layer 3d W1 (mas-bandwidth/moo#71): five more tags grow global_State to 19424 and intern five more type names.
 # Re-cut with N5 and W1 together (#70 then #71 on main).
-coroutines.luau 359e498fdc7ecf55 351
-gcchurn.luau ceab16c95e512ee0 18562
-library.luau 0de32098e4a04d30 132
-objectkeys.luau 4228d8d387d98ca1 175
-coroutines2.luau 4bcdb4f3e559c5c8 230
-errors.luau cc7224297a51a62d 275
-math.luau c4c0f61075351a44 155
+# Re-cut for layer 3c N2+N3 (mas-bandwidth/moo#72): the five narrow libraries and their function names are interned at open.
+# Re-cut with N2+N3 and W1 together (#71 then #72 on main).
+coroutines.luau a3d5a67e283cd6e5 347
+gcchurn.luau 033f69789415b374 18541
+library.luau 650d5ff7ed59de44 128
+objectkeys.luau e9fc0d0fdbee719d 175
+coroutines2.luau b14597a4c0abca4c 230
+errors.luau 2a6454fd7876667c 281
+math.luau 3fa2cf7365ff24e4 159
