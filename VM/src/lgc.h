@@ -133,7 +133,7 @@
     }
 
 LUAI_FUNC void luaC_freeall(lua_State* L);
-LUAI_FUNC size_t luaC_step(lua_State* L, bool assist);
+LUAI_FUNC uint64_t luaC_step(lua_State* L, bool assist); // moo: 64-bit work on every target (moo_layout.h)
 LUAI_FUNC void luaC_fullgc(lua_State* L);
 LUAI_FUNC void luaC_upvalclosed(lua_State* L, UpVal* uv);
 LUAI_FUNC void luaC_barrierf(lua_State* L, GCObject* o, GCObject* v);

@@ -96,8 +96,9 @@ their `Luau.*` names, the C++ namespace stays `Luau`, and the configuration file
 `moo --version` prints moo's version and the Luau release it is forked from; the C API has
 `MOO_VERSION` in `VM/include/moo.h`. Releases are listed in [CHANGELOG.md](CHANGELOG.md).
 
-Supported for moo: Linux (gcc and clang), macOS arm64 and Windows (MSVC and clang-cl),
-64-bit only; Windows is nightly-only. With gcc and clang moo compiles everything with
+Supported for moo: Linux (gcc and clang), macOS arm64 and Windows (MSVC and clang-cl) on
+64-bit targets, and wasm32 (Emscripten, `emcmake cmake`, run under node or in a browser), which
+gives the same bits as the 64-bit targets (docs/DETERMINISM.md, 5); Windows is nightly-only. With gcc and clang moo compiles everything with
 `-ffp-contract=off`, so the compiler never fuses a multiply and an add into one FMA (which
 rounds differently); on Windows only the vendored `fixed` gets the flag under clang-cl. The
 VM computes no floating point either way: the number is integer arithmetic. The upstream `Makefile` is kept and builds the same

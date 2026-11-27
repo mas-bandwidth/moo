@@ -30,10 +30,13 @@ inline uint64_t divEven(uint64_t n, uint64_t d)
     return q;
 }
 
-// writes the decimal digits of v (at least one) and returns the end
+// the most decimal digits a uint64_t has: UINT64_MAX is 18446744073709551615
+const int kUintDigits = 20;
+
+// writes the decimal digits of v (at least one, at most kUintDigits) and returns the end; p has room for kUintDigits
 inline char* putUint(char* p, uint64_t v)
 {
-    char tmp[24];
+    char tmp[kUintDigits];
     int n = 0;
     do
     {
@@ -136,7 +139,7 @@ inline int moo_numformat(char* out, size_t cap, const char* spec, char conv, fix
     uint64_t frac16 = (m & 0xffff) * kPow5[16];
 
     // the exact value as a digit string: integer digits, then 16 fraction digits; point after nint digits
-    char digits[40];
+    char digits[kUintDigits + 16];
     char* e = putUint(digits, ip);
     int nint = int(e - digits);
     e = putUintPadded(e, frac16, 16);
@@ -266,7 +269,7 @@ inline int moo_numformat(char* out, size_t cap, const char* spec, char conv, fix
         int ax = x < 0 ? -x : x;
         if (ax < 10)
             body[blen++] = '0';
-        char t[8];
+        char t[kUintDigits];
         char* te = putUint(t, uint64_t(ax));
         for (char* q = t; q < te; ++q)
             body[blen++] = *q;

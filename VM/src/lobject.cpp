@@ -47,7 +47,7 @@ int luaO_log2(unsigned int x)
 // moo: vec3, quat and transform allocation, equality and tostring (docs/history/layer3b/moo-v2-l3b-vec3-object.md)
 MooVec3* moo_vec3_new(lua_State* L, fixed_t x, fixed_t y, fixed_t z)
 {
-    MooVec3* v = luaM_newgcofixed(L, MooVec3, sizeof(MooVec3), L->activememcat, LUA_TVEC3);
+    MooVec3* v = luaM_newgcofixed(L, MooVec3, moo_sizeof(MooVec3), L->activememcat, LUA_TVEC3);
     luaC_init(L, v, LUA_TVEC3);
     v->x = x;
     v->y = y;
@@ -77,7 +77,7 @@ char* moo_vec3_tostring(char* buf, const MooVec3* v)
 // moo: quat
 MooQuat* moo_quat_new(lua_State* L, fixed_t x, fixed_t y, fixed_t z, fixed_t s)
 {
-    MooQuat* q = luaM_newgcofixed(L, MooQuat, sizeof(MooQuat), L->activememcat, LUA_TQUAT);
+    MooQuat* q = luaM_newgcofixed(L, MooQuat, moo_sizeof(MooQuat), L->activememcat, LUA_TQUAT);
     luaC_init(L, q, LUA_TQUAT);
     q->v.x = x;
     q->v.y = y;
@@ -111,7 +111,7 @@ char* moo_quat_tostring(char* buf, const MooQuat* q)
 // moo: transform
 MooTransform* moo_transform_new(lua_State* L, fixTransform t)
 {
-    MooTransform* o = luaM_newgcofixed(L, MooTransform, sizeof(MooTransform), L->activememcat, LUA_TTRANSFORM);
+    MooTransform* o = luaM_newgcofixed(L, MooTransform, moo_sizeof(MooTransform), L->activememcat, LUA_TTRANSFORM);
     luaC_init(L, o, LUA_TTRANSFORM);
     o->p = t.p;
     o->q = t.q;
@@ -165,7 +165,7 @@ static char* moo_vec3_tostring_raw(char* p, fixVec3 v)
 
 MooVec2* moo_vec2_new(lua_State* L, fixVec2 v)
 {
-    MooVec2* o = luaM_newgcofixed(L, MooVec2, sizeof(MooVec2), L->activememcat, LUA_TVEC2);
+    MooVec2* o = luaM_newgcofixed(L, MooVec2, moo_sizeof(MooVec2), L->activememcat, LUA_TVEC2);
     luaC_init(L, o, LUA_TVEC2);
     o->x = v.x;
     o->y = v.y;
@@ -190,7 +190,7 @@ char* moo_vec2_tostring(char* buf, const MooVec2* v)
 
 MooMat3* moo_mat3_new(lua_State* L, fixMatrix3 m)
 {
-    MooMat3* o = luaM_newgcofixed(L, MooMat3, sizeof(MooMat3), L->activememcat, LUA_TMAT3);
+    MooMat3* o = luaM_newgcofixed(L, MooMat3, moo_sizeof(MooMat3), L->activememcat, LUA_TMAT3);
     luaC_init(L, o, LUA_TMAT3);
     o->cx = m.cx;
     o->cy = m.cy;
@@ -220,7 +220,7 @@ char* moo_mat3_tostring(char* buf, const MooMat3* m)
 
 MooPlane* moo_plane_new(lua_State* L, fixPlane pl)
 {
-    MooPlane* o = luaM_newgcofixed(L, MooPlane, sizeof(MooPlane), L->activememcat, LUA_TPLANE);
+    MooPlane* o = luaM_newgcofixed(L, MooPlane, moo_sizeof(MooPlane), L->activememcat, LUA_TPLANE);
     luaC_init(L, o, LUA_TPLANE);
     o->normal = pl.normal;
     o->offset = pl.offset;
@@ -245,7 +245,7 @@ char* moo_plane_tostring(char* buf, const MooPlane* pl)
 
 MooAABB* moo_aabb_new(lua_State* L, fixAABB a)
 {
-    MooAABB* o = luaM_newgcofixed(L, MooAABB, sizeof(MooAABB), L->activememcat, LUA_TAABB);
+    MooAABB* o = luaM_newgcofixed(L, MooAABB, moo_sizeof(MooAABB), L->activememcat, LUA_TAABB);
     luaC_init(L, o, LUA_TAABB);
     o->lower = a.lowerBound;
     o->upper = a.upperBound;
@@ -271,7 +271,7 @@ char* moo_aabb_tostring(char* buf, const MooAABB* a)
 
 MooFix30* moo_fix30_new(lua_State* L, fixed30_t x)
 {
-    MooFix30* o = luaM_newgcofixed(L, MooFix30, sizeof(MooFix30), L->activememcat, LUA_TFIX30);
+    MooFix30* o = luaM_newgcofixed(L, MooFix30, moo_sizeof(MooFix30), L->activememcat, LUA_TFIX30);
     luaC_init(L, o, LUA_TFIX30);
     o->raw = x.raw;
     return o;

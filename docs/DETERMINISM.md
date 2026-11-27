@@ -24,7 +24,9 @@ deterministic, it is removed.
   messages and tracebacks), the order of table iteration, which weak references are cleared
   and when, and the order and timing of userdata destructors.
 - **Supported platforms** are Linux (gcc and clang), macOS arm64 and Windows (MSVC and
-  clang-cl), 64-bit only.
+  clang-cl) on 64-bit targets, and wasm32 (Emscripten, run under node or in a browser). wasm32 gives
+  the same bits as the 64-bit targets: the same values, effects, state and allocation stream the host
+  sees (5, "Canonical sizes"). Other 32-bit targets do not build.
 
 The conformance layer (layer 5 in [DESIGN.md](DESIGN.md)) checks the guarantee: every program
 in the determinism suite runs on each platform and compiler, and the full VM state hash and
@@ -60,7 +62,7 @@ test in `tests/Moo.test.cpp`. This table is the state of `main`:
 The creation number costs 8 bytes in every object (16 in a userdata, whose data stays 16-byte
 aligned at offset 32): a table header is 56 bytes (was 48), a string header 32 (24), a closure
 72 (64), an upvalue 48 (40), a buffer header 16 (8), a vec3 40 (32), a quat 48 (40), a transform 72 (64). The static asserts in `VM/src/lmem.cpp` pin
-these sizes, and moo now refuses to build for a 32-bit target.
+these sizes; on wasm32, the one 32-bit target, every one of them is charged at this 64-bit size (5).
 
 **Allocation units (5), as built.** The proposal below was a separate unit counter with its own
 per-kind formula. What is built keeps one counter, `totalbytes`, because it already is a fixed
@@ -71,6 +73,25 @@ sizes are what C does not guarantee, so `VM/src/moo_layout.cpp` pins every one o
 means no second set of conversions in the GC's work accounting (which is also in these bytes), and
 no change to the hot allocation path. `lua_gc` and `gcinfo` report it, so both are deterministic.
 `lua_allocationrate` returns -1 (cannot be measured), always.
+
+**Canonical sizes (5, 15), as built.** A 32-bit target lays the structs out smaller (a pointer is 4
+bytes), so `sizeof` would give it other sizes, other GC step points and another allocation stream.
+Every size the VM requests from `lua_Alloc` or charges to `totalbytes` is therefore the **canonical
+size**, the size the struct has on the 64-bit targets: `VM/src/moo_layout.h` names it for every type
+that allocates (`moo_sizeof`, the header offsets of strings, userdata, buffers and closures, the
+64-byte page header, the main thread with the global state, and the 8-byte slot of an inline userdata
+destructor), and a type without one does not compile into an allocation. On a 64-bit target each
+canonical size equals `sizeof`, asserted in `VM/src/moo_layout.cpp`, so nothing moved there
+(`tests/determinism/alloc.txt` was pinned before the change). On wasm32 each struct fits its block
+and the rest is padding. The pacing arithmetic (`totalbytes`, `GCthreshold`, `memcatbytes`, GC work,
+the step, goal and trigger, `lua_gc`'s step) is `uint64_t` on every target; a 32-bit `size_t`
+wrapped the full collection's threshold past about 14.3 MB of heap. `lua_totalbytes` returns a
+`size_t`, so a 32-bit host sees it saturated past 4 GiB. wasm32 builds every object with
+`-fwasm-exceptions` (a moo error is a C++ exception there too, never a `longjmp`) and an 8 MiB C stack
+(`CMakeLists.txt`), so recursion stops at `LUAI_MAXCCALLS` with moo's own error. CI's `wasm32` job
+builds `Moo.Test` with a pinned emsdk and runs all of it under node: the determinism suite there
+gives the same effects, state and allocation hashes as the 64-bit jobs, and
+`DeterminismPacingWidth` the same thresholds past 14.3 MB and 5 GiB of charged heap.
 
 **The determinism suite.** `tests/Determinism.test.cpp` (doctest `DeterminismSuite`, in
 `Moo.Test`) runs each adversarial program in `tests/determinism` in a fresh VM with a fixed
@@ -393,8 +414,10 @@ type, which has no FMA. For the C++ compiler, the fork already builds everything
   doubles can be computed in 80-bit registers and rounded at spill points the compiler
   chooses.
 
-**Fix:** moo supports 64-bit targets only. Once floats are gone from the VM, x87 cannot
-affect it.
+**Fix:** no float is left in the VM, so x87 cannot affect it. The 32-bit question that remains is
+layout: moo builds for the 64-bit targets and for wasm32, where every allocation is charged at its
+canonical 64-bit size (5, "Canonical sizes"). Other 32-bit targets (i686, armv7) do not build until
+each has its own CI leg.
 
 ### 16. Table length (`#`) on tables with holes
 
@@ -476,7 +499,11 @@ plants (close of a normal coroutine, resume of a normal one) each break their in
   measurements of the native stack, so they are deterministic.
 
 **Fix:** document memory limits as a host input; the allocation-unit counter (5) lets a
-host set a deterministic limit.
+host set a deterministic limit. On wasm32 the 4 GiB address space is one such host limit, and a light
+userdata is 32 bits wide (a host there cannot pass more). Every size limit the VM itself enforces is a
+constant below where a 32-bit `size_t` could wrap (strings and buffers 2^30 bytes, a table part 2^26
+slots), so each refuses at the same point with the same error everywhere
+(`ErrorSizeLimitsAreTheSameEverywhere`).
 
 ### 23. The `integer` type
 
