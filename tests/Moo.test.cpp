@@ -545,7 +545,7 @@ TEST_CASE("MooVersion")
     char parts[32];
     snprintf(parts, sizeof(parts), "%d.%d.%d", MOO_VERSION_MAJOR, MOO_VERSION_MINOR, MOO_VERSION_PATCH);
     CHECK(std::string(MOO_VERSION) == parts);
-    CHECK(std::string(MOO_VERSION) == "1.3.0");
+    CHECK(std::string(MOO_VERSION) == "1.4.0");
     CHECK(std::string(MOO_LUAU_VERSION) == "0.741");
 
     lua_State* L = luaL_newstate();
