@@ -251,6 +251,20 @@ function; moo adds only the checks before the call, the formatter and the parser
   ten tag slots (80 bytes, 19344), so moo's frozen hashes and Virtual Go's `kPinnedHash`/`kPinnedFixedHash` move on the
   pin bump that brings this layer, although no existing program uses the types.
 
+## Layer 3d as built
+
+Wide world space and time (roadmap layer-3d): Q112.16 `wide` and Q32.32 `time`, and the wide position, world
+transform and AABB built on them. The plan is Virtual Go's `scratch/vg-plans/moo-wide-time-plan.md` (W0-W9); this
+section states what is built, layer by layer.
+
+- **Exact text (W4, the formatter and the parser).** `Common/include/moo_fixtext.h` is `moo_format.h`'s shortest
+  round-trip formatter and `moo_parse.h`'s exact parser, generalised over the raw's width (64 or 128 bits) and its
+  fraction bits (16 or 32), in integer arithmetic with no libc, locale or float. `moo_fixtostr` prints the shortest
+  decimal that `moo_fixparse` reads back to the same raw; `moo_fixparse` rounds the exact rational once, ties to
+  even, over a symmetric range (the reserved minimum is never a value). At Q48.16 both agree with number's byte for
+  byte (`FixTextNumberAgreement`); `FixTextRoundtrip` checks each output against the exact expansion computed
+  independently and checks that no shorter correctly rounded prefix reads back.
+
 ## Representation
 
 There is one number type. Its value is the raw signed 64-bit Q48.16 integer, `fixed_t`
