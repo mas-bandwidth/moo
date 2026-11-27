@@ -5,10 +5,11 @@
 # Pinned from the 64-bit build before the canonical sizes were introduced, so they prove no 64-bit allocation moved.
 # Re-cut 2026-11-27 for layer 3c (mas-bandwidth/moo#67): five new tags grow global_State by 80 bytes (its
 # canonical size, 19264 -> 19344, is charged at startup) and intern five more type names, so every stream moves.
-coroutines.luau f21151270cbdbf30 345
-gcchurn.luau 8a94a5489df8bc51 18555
-library.luau 303bb8f099a1d6dd 126
-objectkeys.luau 869f3a31066c9acd 171
-coroutines2.luau eadca8934706f8c1 228
-errors.luau 499ed30a1034533d 275
-math.luau cd57b6985ba958e9 161
+# Re-cut again for layer 3d W1 (mas-bandwidth/moo#71): five more tags grow global_State to 19424 and intern five more type names.
+coroutines.luau 1cd54bad7e7a9b10 345
+gcchurn.luau 2f226d24ac66ef6d 18550
+library.luau c7a3522805a0f39d 126
+objectkeys.luau f41e1ef2132e06a0 173
+coroutines2.luau 0c000314c1f087c1 228
+errors.luau dc8beae3137628bd 275
+math.luau aaf2324ca261f8c9 161
