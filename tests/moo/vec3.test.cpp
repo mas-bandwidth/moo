@@ -670,11 +670,13 @@ TEST_CASE("Vec3TagSlotIsAfterObject")
     CHECK(int(LUA_TVEC3) == int(LUA_TOBJECT) + 1);
     CHECK(int(LUA_TQUAT) == int(LUA_TVEC3) + 1);
     CHECK(int(LUA_TTRANSFORM) == int(LUA_TQUAT) + 1);
-    CHECK(int(LUA_TDEADKEY) == int(LUA_TTRANSFORM) + 1);
-    CHECK(int(LUA_T_COUNT) == 17);
+    // moo: layer 3c's five narrow tags follow transform (tests/moo/narrow.test.cpp), so LUA_TDEADKEY is 22
+    CHECK(int(LUA_TVEC2) == int(LUA_TTRANSFORM) + 1);
+    CHECK(int(LUA_TDEADKEY) == int(LUA_TFIX30) + 1);
+    CHECK(int(LUA_T_COUNT) == 22);
     CHECK(int(LUA_TVEC3) < int(LUA_T_COUNT));
     CHECK(int(LUA_TVEC3) >= int(LUA_TSTRING));
-    // a table key's tag lives in TKey::tt, now 5 bits: LUA_TDEADKEY is 17 (note, decision 1, item 4; quat widens it)
+    // a table key's tag lives in TKey::tt, now 5 bits: LUA_TDEADKEY is 22 (note, decision 1, item 4; quat widens it)
     CHECK(int(LUA_TDEADKEY) <= 31);
     CHECK(strcmp(luaT_typenames[LUA_TVEC3], "vec3") == 0);
 }

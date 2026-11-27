@@ -732,6 +732,12 @@ const void* lua_topointer(lua_State* L, int idx)
     case LUA_TVEC3:
     case LUA_TQUAT:
     case LUA_TTRANSFORM:
+    // moo: layer 3c narrow types (docs/DESIGN.md "Layer 3c as built")
+    case LUA_TVEC2:
+    case LUA_TMAT3:
+    case LUA_TPLANE:
+    case LUA_TAABB:
+    case LUA_TFIX30:
         return NULL;
     default:
         return iscollectable(o) ? gcvalue(o) : NULL;

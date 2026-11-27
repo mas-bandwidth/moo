@@ -42,6 +42,11 @@ struct global_State;
 struct MooVec3;
 struct MooQuat;
 struct MooTransform;
+struct MooVec2;
+struct MooMat3;
+struct MooPlane;
+struct MooAABB;
+struct MooFix30;
 
 // the canonical size of T; a type without a specialization does not allocate
 template<class T>
@@ -72,6 +77,11 @@ MOO_CANONICAL(FeedbackVectorSlot, 16);
 MOO_CANONICAL(MooVec3, 40);
 MOO_CANONICAL(MooQuat, 48);
 MOO_CANONICAL(MooTransform, 72);
+MOO_CANONICAL(MooVec2, 32);
+MOO_CANONICAL(MooMat3, 88);
+MOO_CANONICAL(MooPlane, 48);
+MOO_CANONICAL(MooAABB, 64);
+MOO_CANONICAL(MooFix30, 24);
 
 // smaller on wasm32
 MOO_CANONICAL(LuaTable, 56);
@@ -82,7 +92,7 @@ MOO_CANONICAL(LuauClass, 96);
 MOO_CANONICAL(LuauObject, 48);
 MOO_CANONICAL(CallInfo, 48);
 MOO_CANONICAL(lua_State, 144);
-MOO_CANONICAL(global_State, 19264);
+MOO_CANONICAL(global_State, 19344); // layer 3c: five more tags, five more mt[] and ttname[] slots
 
 #undef MOO_CANONICAL
 

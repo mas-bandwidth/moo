@@ -13,6 +13,11 @@
 #include "moo_vec3.h"      // moo: vec3, quat and transform operators
 #include "moo_quat.h"      // moo: quat
 #include "moo_transform.h" // moo: transform
+#include "moo_vec2.h"      // moo: layer 3c narrow types (docs/DESIGN.md "Layer 3c as built")
+#include "moo_mat3.h"
+#include "moo_plane.h"
+#include "moo_aabb.h"
+#include "moo_fix30.h"
 #include "moo_tempreuse.h" // moo: expression-temporary reuse
 
 #include <string.h>
@@ -541,6 +546,16 @@ int luaV_equalval(lua_State* L, const TValue* t1, const TValue* t2)
         return moo_quat_equal(quatvalue(t1), quatvalue(t2));
     case LUA_TTRANSFORM: // moo: transform
         return moo_transform_equal(transformvalue(t1), transformvalue(t2));
+    case LUA_TVEC2: // moo: layer 3c narrow types (docs/DESIGN.md "Layer 3c as built")
+        return moo_vec2_equal(vec2value(t1), vec2value(t2));
+    case LUA_TMAT3:
+        return moo_mat3_equal(mat3value(t1), mat3value(t2));
+    case LUA_TPLANE:
+        return moo_plane_equal(planevalue(t1), planevalue(t2));
+    case LUA_TAABB:
+        return moo_aabb_equal(aabbvalue(t1), aabbvalue(t2));
+    case LUA_TFIX30:
+        return moo_fix30_equal(fix30value(t1), fix30value(t2));
     case LUA_TUSERDATA:
     {
         tm = get_compTM(L, uvalue(t1)->metatable, uvalue(t2)->metatable, TM_EQ);
