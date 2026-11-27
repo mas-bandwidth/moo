@@ -22,10 +22,15 @@
 # moo: re-pinned when layer 3c completed the math, vec3, quat and transform libraries: 51 new function names
 # interned at startup shift every creation number and move GC pacing; every hash moved (docs/DESIGN.md "Layer 3c
 # as built", the completed libraries).
-coroutines.luau fe6a79c9c0de7a72 c87342813dc01b4d
-gcchurn.luau b617ba449c8c6959 d80cd37bb378ee00
-library.luau 0cce67e879954940 48d9c8a498411ada
-objectkeys.luau c1dc78999d9e3643 8bf0512a15b6889d
-coroutines2.luau b612f21126942530 3c3a5888b327e3ce
-errors.luau 9c73278bca3d7c5b 0937da1b30064222
-math.luau 7d25b94dc944203a 3b25cac6e9becc50
+# moo: re-pinned when layer 3d added the wide, poswide, worldtransformwide, aabbwide and time tags: five more
+# type-name strings shift every creation number by five and global_State grows by ten more tag slots (80 bytes,
+# 19344 -> 19424); every state hash moved, and the effects hashes of the programs that log creation numbers or
+# gcinfo (docs/DESIGN.md "Layer 3d as built").
+# moo: re-pinned when layer 3d W1 (#71) met layer 3c N5 (#70) on main: their creation-number shifts add.
+coroutines.luau 6e10c34fb138cab1 c6144a0a19a29a38
+gcchurn.luau eff2c8fe9bc904c3 c8433513c9cc0d4f
+library.luau 31ca014c98fb9e6f 47bc47fc20cbdfda
+objectkeys.luau d79cab1ccdf87ca2 f74d3555ce065fd4
+coroutines2.luau 3777d74069d1b1a7 17ecb8251a102417
+errors.luau 72a915caa39dae85 e1c519768e6d8002
+math.luau 17504f380f0bab39 3c9d0407e1f83541

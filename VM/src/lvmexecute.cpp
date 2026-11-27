@@ -22,6 +22,7 @@
 #include "moo_plane.h"
 #include "moo_aabb.h"
 #include "moo_fix30.h"
+#include "moo_wide.h" // moo: layer 3d wide and time (docs/DESIGN.md "Layer 3d as built")
 #include "moo_tempreuse.h" // moo: expression-temporary reuse
 
 #include <string.h>
@@ -1473,6 +1474,37 @@ reentry:
                         VM_NEXT();
                         break;
 
+                    // moo: and the layer 3d values (docs/DESIGN.md "Layer 3d as built")
+                    case LUA_TWIDE:
+                        pc += moo_wide_equal(widevalue(ra), widevalue(rb)) ? LUAU_INSN_D(insn) : 1;
+                        VM_ASSERT_PC(pc);
+                        VM_NEXT();
+                        break;
+
+                    case LUA_TPOSWIDE:
+                        pc += moo_poswide_equal(poswidevalue(ra), poswidevalue(rb)) ? LUAU_INSN_D(insn) : 1;
+                        VM_ASSERT_PC(pc);
+                        VM_NEXT();
+                        break;
+
+                    case LUA_TWORLDTRANSFORMWIDE:
+                        pc += moo_worldtransformwide_equal(worldtransformwidevalue(ra), worldtransformwidevalue(rb)) ? LUAU_INSN_D(insn) : 1;
+                        VM_ASSERT_PC(pc);
+                        VM_NEXT();
+                        break;
+
+                    case LUA_TAABBWIDE:
+                        pc += moo_aabbwide_equal(aabbwidevalue(ra), aabbwidevalue(rb)) ? LUAU_INSN_D(insn) : 1;
+                        VM_ASSERT_PC(pc);
+                        VM_NEXT();
+                        break;
+
+                    case LUA_TTIME:
+                        pc += moo_time_equal(timevalue(ra), timevalue(rb)) ? LUAU_INSN_D(insn) : 1;
+                        VM_ASSERT_PC(pc);
+                        VM_NEXT();
+                        break;
+
                     // Class objects are only ever physically equal, so check
                     // for pointer equality.
                     case LUA_TCLASS:
@@ -1649,6 +1681,37 @@ reentry:
 
                     case LUA_TFIX30:
                         pc += !moo_fix30_equal(fix30value(ra), fix30value(rb)) ? LUAU_INSN_D(insn) : 1;
+                        VM_ASSERT_PC(pc);
+                        VM_NEXT();
+                        break;
+
+                    // moo: and the layer 3d values (docs/DESIGN.md "Layer 3d as built")
+                    case LUA_TWIDE:
+                        pc += !moo_wide_equal(widevalue(ra), widevalue(rb)) ? LUAU_INSN_D(insn) : 1;
+                        VM_ASSERT_PC(pc);
+                        VM_NEXT();
+                        break;
+
+                    case LUA_TPOSWIDE:
+                        pc += !moo_poswide_equal(poswidevalue(ra), poswidevalue(rb)) ? LUAU_INSN_D(insn) : 1;
+                        VM_ASSERT_PC(pc);
+                        VM_NEXT();
+                        break;
+
+                    case LUA_TWORLDTRANSFORMWIDE:
+                        pc += !moo_worldtransformwide_equal(worldtransformwidevalue(ra), worldtransformwidevalue(rb)) ? LUAU_INSN_D(insn) : 1;
+                        VM_ASSERT_PC(pc);
+                        VM_NEXT();
+                        break;
+
+                    case LUA_TAABBWIDE:
+                        pc += !moo_aabbwide_equal(aabbwidevalue(ra), aabbwidevalue(rb)) ? LUAU_INSN_D(insn) : 1;
+                        VM_ASSERT_PC(pc);
+                        VM_NEXT();
+                        break;
+
+                    case LUA_TTIME:
+                        pc += !moo_time_equal(timevalue(ra), timevalue(rb)) ? LUAU_INSN_D(insn) : 1;
                         VM_ASSERT_PC(pc);
                         VM_NEXT();
                         break;

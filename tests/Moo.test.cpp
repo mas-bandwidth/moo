@@ -303,8 +303,9 @@ TEST_CASE("ObjectKeyOrderIgnoresAddresses")
     // (docs/history/layer3b/moo-v2-l3b-quat.md).
     // moo: re-pinned when layer 3c added the vec2, mat3, plane, aabb and fix30 tags: five type-name strings shift
     // every creation number by five (docs/DESIGN.md "Layer 3c as built").
-    // moo: re-pinned when layer 3c completed the math, vec3, quat and transform libraries (docs/DESIGN.md "Layer 3c as built").
-    CHECK(order == "54,19,22,35,13,58,8,18,30,60,7,15,17,49,2,42,57,47,44,51,11,55,41,5,52,56,50,20,48,34,27,32,59,37,25,45,43,14,33,26,39,28,10,46,4,16,53");
+    // moo: re-pinned when layer 3c completed the math, vec3, quat and transform libraries, and again when layer 3d
+    // added the wide, poswide, worldtransformwide, aabbwide and time tags (docs/DESIGN.md "Layer 3c as built", "Layer 3d as built").
+    CHECK(order == "49,14,17,43,8,1,53,52,13,7,2,35,12,44,31,60,58,42,57,6,47,36,55,45,51,50,15,24,56,22,46,54,23,20,40,38,59,9,28,21,34,29,5,41,27,11,48");
 }
 
 // DETERMINISM.md 6: tostring prints the creation number, never the address.
@@ -318,8 +319,9 @@ TEST_CASE("TostringPrintsCreationNumber")
     // when the vec3 library added its table and names (docs/history/layer3b/moo-v2-l3b-vec3-ops.md).
     // moo: re-pinned #391/#392 -> #401/#402 when layer 3b added the quat tag and library (docs/history/layer3b/moo-v2-l3b-quat.md).
     // moo: re-pinned #415/#416 -> #420/#421 when layer 3c added five type-name strings (docs/DESIGN.md "Layer 3c as built").
-    // moo: re-pinned #420/#421 -> #510/#511 when layer 3c completed the math, vec3, quat and transform libraries.
-    CHECK(pair == "table: #510 table: #511");
+    // moo: re-pinned when layer 3c completed the math, vec3, quat and transform libraries, and again when layer 3d
+    // added the wide, poswide, worldtransformwide, aabbwide and time tags (docs/DESIGN.md "Layer 3c as built", "Layer 3d as built").
+    CHECK(pair == "table: #515 table: #516");
 
     const char* const kinds = R"(
         local values = { {}, function() end, coroutine.create(function() end), buffer.create(1), newproxy() }
@@ -376,8 +378,9 @@ TEST_CASE("GcPacingIsAFunctionOfTheProgram")
     // moo: re-pinned for the quat tag and library (docs/history/layer3b/moo-v2-l3b-quat.md).
     // moo: re-pinned for layer 3c's five tags: five type-name strings and 80 more bytes of global_State move the pacing
     // (docs/DESIGN.md "Layer 3c as built").
-    // moo: re-pinned when layer 3c completed the math, vec3, quat and transform libraries.
-    CHECK(mooHash(trace) == 14933273651996102739ull);
+    // moo: re-pinned when layer 3c completed the math, vec3, quat and transform libraries, and again when layer 3d
+    // added the wide, poswide, worldtransformwide, aabbwide and time tags (docs/DESIGN.md "Layer 3c as built", "Layer 3d as built").
+    CHECK(mooHash(trace) == 6128479028178547165ull);
 }
 
 // Replaces upstream ApiAllocationRateAfterFullGC, which checked that lua_allocationrate measures bytes
@@ -440,8 +443,9 @@ TEST_CASE("DestructorsRunInCreationOrder")
     // moo: re-pinned when layer 3b added the vec3 type-name string (docs/history/layer3b/moo-v2-l3b-vec3-object.md).
     // moo: re-pinned for the quat tag and library (docs/history/layer3b/moo-v2-l3b-quat.md).
     // moo: re-pinned for layer 3c's five tags (docs/DESIGN.md "Layer 3c as built").
-    // moo: re-pinned when layer 3c completed the math, vec3, quat and transform libraries.
-    CHECK(mooHash(text) == 17973028329704955468ull);
+    // moo: re-pinned when layer 3c completed the math, vec3, quat and transform libraries, and again when layer 3d
+    // added the wide, poswide, worldtransformwide, aabbwide and time tags (docs/DESIGN.md "Layer 3c as built", "Layer 3d as built").
+    CHECK(mooHash(text) == 1539302905827557573ull);
 }
 
 // DETERMINISM.md 13: which weak entries clear, and the order of what is left, under churn with object keys,
@@ -491,8 +495,9 @@ TEST_CASE("WeakTableOrderIsAFunctionOfTheProgram")
     // moo: re-pinned when layer 3b added the vec3 type-name string (docs/history/layer3b/moo-v2-l3b-vec3-object.md).
     // moo: re-pinned for the quat tag and library (docs/history/layer3b/moo-v2-l3b-quat.md).
     // moo: re-pinned for layer 3c's five tags (docs/DESIGN.md "Layer 3c as built").
-    // moo: re-pinned when layer 3c completed the math, vec3, quat and transform libraries.
-    CHECK(mooHash(trace) == 15254404172389237648ull);
+    // moo: re-pinned when layer 3c completed the math, vec3, quat and transform libraries, and again when layer 3d
+    // added the wide, poswide, worldtransformwide, aabbwide and time tags (docs/DESIGN.md "Layer 3c as built", "Layer 3d as built").
+    CHECK(mooHash(trace) == 2030083889842917775ull);
 }
 
 // DESIGN.md "Semantics": number is built on the vendored fixed, compiled with FIX_SATURATE.

@@ -18,6 +18,7 @@
 #include "moo_plane.h"
 #include "moo_aabb.h"
 #include "moo_fix30.h"
+#include "moo_wide.h" // moo: layer 3d wide and time (docs/DESIGN.md "Layer 3d as built")
 #include "moo_tempreuse.h" // moo: expression-temporary reuse
 
 #include <string.h>
@@ -556,6 +557,16 @@ int luaV_equalval(lua_State* L, const TValue* t1, const TValue* t2)
         return moo_aabb_equal(aabbvalue(t1), aabbvalue(t2));
     case LUA_TFIX30:
         return moo_fix30_equal(fix30value(t1), fix30value(t2));
+    case LUA_TWIDE: // moo: layer 3d wide and time (docs/DESIGN.md "Layer 3d as built")
+        return moo_wide_equal(widevalue(t1), widevalue(t2));
+    case LUA_TPOSWIDE:
+        return moo_poswide_equal(poswidevalue(t1), poswidevalue(t2));
+    case LUA_TWORLDTRANSFORMWIDE:
+        return moo_worldtransformwide_equal(worldtransformwidevalue(t1), worldtransformwidevalue(t2));
+    case LUA_TAABBWIDE:
+        return moo_aabbwide_equal(aabbwidevalue(t1), aabbwidevalue(t2));
+    case LUA_TTIME:
+        return moo_time_equal(timevalue(t1), timevalue(t2));
     case LUA_TUSERDATA:
     {
         tm = get_compTM(L, uvalue(t1)->metatable, uvalue(t2)->metatable, TM_EQ);

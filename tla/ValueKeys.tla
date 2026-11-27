@@ -1,7 +1,9 @@
 ------------------------------- MODULE ValueKeys -------------------------------
-\* moo: value-keyed objects as table keys (docs/DESIGN.md "Layer 3c as built"; VM/src/ltable.cpp, lobject.cpp,
-\* lgc.cpp). vec3, quat, transform and the layer 3c kinds vec2, mat3, plane, aabb and fix30 are GC objects that
-\* compare by their bits: two objects of equal bits are one key. The GC turns the key of an entry whose value is nil
+\* moo: value-keyed objects as table keys (docs/DESIGN.md "Layer 3c as built" and "Layer 3d as built";
+\* VM/src/ltable.cpp, lobject.cpp, lgc.cpp). vec3, quat, transform, the layer 3c kinds vec2, mat3, plane, aabb and
+\* fix30, and the layer 3d kinds wide, poswide, worldtransformwide, aabbwide and time are GC objects that compare by
+\* their bits: two objects of equal bits are one key. The kind is part of the bits (no kind equals another), so one
+\* abstract value set covers every kind and adding kinds adds no state. The GC turns the key of an entry whose value is nil
 \* into LUA_TDEADKEY (removeentry) before the sweep frees anything, and a dead key keeps only the object's identity:
 \* next() continues from a dead key only when given the very same object, and never reads the object, which the
 \* sweep may already have freed.
