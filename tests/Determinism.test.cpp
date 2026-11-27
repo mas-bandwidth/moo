@@ -500,7 +500,7 @@ TEST_CASE("DeterminismPacingWidth")
     }
     lua_close(L);
 
-    CHECK_MESSAGE(hex(pacing.h) == "4f1aaafcd6e96e8a", "pacing hash " << hex(pacing.h));
+    CHECK_MESSAGE(hex(pacing.h) == "149f6a0e8308f586", "pacing hash " << hex(pacing.h));
 }
 
 TEST_SUITE_END();

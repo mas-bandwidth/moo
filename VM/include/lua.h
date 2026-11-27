@@ -118,6 +118,14 @@ enum lua_Type
     LUA_TAABB,
     LUA_TFIX30,
 
+    // moo: layer 3d, Q112.16 wide world space and Q32.32 time, immutable GC values after the 3c tags (docs/DESIGN.md
+    // "Layer 3d as built")
+    LUA_TWIDE,
+    LUA_TPOSWIDE,
+    LUA_TWORLDTRANSFORMWIDE,
+    LUA_TAABBWIDE,
+    LUA_TTIME,
+
     // values below this line are used in GCObject tags but may never show up in TValue type tags
 
     // LUA_TDEADKEY is used in TKey to identify Luau table entries that have the value set to nil,

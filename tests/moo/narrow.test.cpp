@@ -167,7 +167,7 @@ TEST_CASE("NarrowTagsFollowTransform")
     CHECK(int(LUA_TPLANE) == int(LUA_TMAT3) + 1);
     CHECK(int(LUA_TAABB) == int(LUA_TPLANE) + 1);
     CHECK(int(LUA_TFIX30) == int(LUA_TAABB) + 1);
-    CHECK(int(LUA_TDEADKEY) == int(LUA_TFIX30) + 1);
+    CHECK(int(LUA_TDEADKEY) > int(LUA_TFIX30)); // layer 3d's tags follow (tests/moo/wide.test.cpp)
     CHECK(int(LUA_TDEADKEY) <= 31);
     for (int k = 0; k < kKinds; ++k)
         CHECK(strcmp(luaT_typenames[kTags[k]], kNames[k]) == 0);

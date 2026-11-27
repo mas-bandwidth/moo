@@ -17,6 +17,7 @@
 #include "moo_plane.h"
 #include "moo_aabb.h"
 #include "moo_fix30.h"
+#include "moo_wide.h" // moo: layer 3d wide and time (docs/DESIGN.md "Layer 3d as built")
 
 #include <string.h>
 
@@ -702,6 +703,42 @@ const char* luaL_tolstring(lua_State* L, int idx, size_t* len)
     {
         char s[MOO_FIX30_TOSTR_MAX];
         char* e = moo_fix30_tostring(s, fix30value(luaA_toobject(L, idx)));
+        lua_pushlstring(L, s, e - s);
+        break;
+    }
+    // moo: layer 3d wide and time, each in its literal-like form (docs/DESIGN.md "Layer 3d as built")
+    case LUA_TWIDE:
+    {
+        char s[MOO_WIDE_TOSTR_MAX];
+        char* e = moo_wide_tostring(s, widevalue(luaA_toobject(L, idx)));
+        lua_pushlstring(L, s, e - s);
+        break;
+    }
+    case LUA_TPOSWIDE:
+    {
+        char s[MOO_POSWIDE_TOSTR_MAX];
+        char* e = moo_poswide_tostring(s, poswidevalue(luaA_toobject(L, idx)));
+        lua_pushlstring(L, s, e - s);
+        break;
+    }
+    case LUA_TWORLDTRANSFORMWIDE:
+    {
+        char s[MOO_WORLDTRANSFORMWIDE_TOSTR_MAX];
+        char* e = moo_worldtransformwide_tostring(s, worldtransformwidevalue(luaA_toobject(L, idx)));
+        lua_pushlstring(L, s, e - s);
+        break;
+    }
+    case LUA_TAABBWIDE:
+    {
+        char s[MOO_AABBWIDE_TOSTR_MAX];
+        char* e = moo_aabbwide_tostring(s, aabbwidevalue(luaA_toobject(L, idx)));
+        lua_pushlstring(L, s, e - s);
+        break;
+    }
+    case LUA_TTIME:
+    {
+        char s[MOO_TIME_TOSTR_MAX];
+        char* e = moo_time_tostring(s, timevalue(luaA_toobject(L, idx)));
         lua_pushlstring(L, s, e - s);
         break;
     }

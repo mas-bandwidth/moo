@@ -41,6 +41,12 @@ static_assert(sizeof(MooMat3) == moo_sizeof(MooMat3), "mat3 object layout change
 static_assert(sizeof(MooPlane) == moo_sizeof(MooPlane), "plane object layout changed");
 static_assert(sizeof(MooAABB) == moo_sizeof(MooAABB), "aabb object layout changed");
 static_assert(sizeof(MooFix30) == moo_sizeof(MooFix30), "fix30 object layout changed");
+// docs/DESIGN.md "Layer 3d as built"
+static_assert(sizeof(MooFixedWide) == moo_sizeof(MooFixedWide), "wide object layout changed");
+static_assert(sizeof(MooPosWide) == moo_sizeof(MooPosWide), "poswide object layout changed");
+static_assert(sizeof(MooWorldTransformWide) == moo_sizeof(MooWorldTransformWide), "worldtransformwide object layout changed");
+static_assert(sizeof(MooAABBWide) == moo_sizeof(MooAABBWide), "aabbwide object layout changed");
+static_assert(sizeof(MooTime) == moo_sizeof(MooTime), "time object layout changed");
 static_assert(offsetof(Buffer, data) == MOO_OFFSET_BUFFER_DATA, "buffer header layout changed");
 
 // the structs with pointers: exact on 64-bit, within the canonical block on wasm32
@@ -56,7 +62,7 @@ MOO_LAYOUT_PIN(sizeof(LuauClass), moo_sizeof(LuauClass), "class layout changed")
 MOO_LAYOUT_PIN(sizeof(LuauObject), moo_sizeof(LuauObject), "class object layout changed");
 MOO_LAYOUT_PIN(sizeof(lua_State), moo_sizeof(lua_State), "thread layout changed");
 MOO_LAYOUT_PIN(sizeof(CallInfo), moo_sizeof(CallInfo), "call frame layout changed");
-// moo: layer 3c's five tags add five slots to mt[] and ttname[] (80 bytes)
+// moo: layer 3c's five tags add five slots to mt[] and ttname[] (80 bytes), and layer 3d's five 80 more
 MOO_LAYOUT_PIN(sizeof(global_State), moo_sizeof(global_State), "global state layout changed (the initial totalbytes includes it)");
 
 // every canonical block is a multiple of 8 and a struct needs no more than that, so a block laid out for 64-bit
@@ -67,6 +73,7 @@ static_assert(alignof(UpVal) <= 8 && alignof(Closure) <= 8 && alignof(LuauClass)
 static_assert(alignof(lua_State) <= 8 && alignof(CallInfo) <= 8 && alignof(FeedbackVectorSlot) <= 8, "object alignment");
 static_assert(alignof(MooVec3) <= 8 && alignof(MooQuat) <= 8 && alignof(MooTransform) <= 8 && alignof(LuauVector) <= 8, "object alignment");
 static_assert(alignof(MooVec2) <= 8 && alignof(MooMat3) <= 8 && alignof(MooPlane) <= 8 && alignof(MooAABB) <= 8 && alignof(MooFix30) <= 8, "object alignment");
+static_assert(alignof(MooFixedWide) <= 8 && alignof(MooPosWide) <= 8 && alignof(MooWorldTransformWide) <= 8 && alignof(MooAABBWide) <= 8 && alignof(MooTime) <= 8, "object alignment");
 // global_State carries alignas(16) storage; it is the host allocator's one block of that alignment (lstate.cpp LG)
 static_assert(alignof(global_State) <= 16, "global state alignment");
 

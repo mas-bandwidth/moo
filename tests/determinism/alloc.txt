@@ -6,11 +6,14 @@
 # Re-cut 2026-11-27 for layer 3c (mas-bandwidth/moo#67): five new tags grow global_State by 80 bytes (its
 # canonical size, 19264 -> 19344, is charged at startup) and intern five more type names, so every stream moves.
 # Re-cut again for layer 3c N5 (mas-bandwidth/moo#70): 51 more library function names are interned when the libraries open.
+# Re-cut again for layer 3d W1 (mas-bandwidth/moo#71): five more tags grow global_State to 19424 and intern five more type names.
+# Re-cut with N5 and W1 together (#70 then #71 on main).
 # Re-cut for layer 3c N2+N3 (mas-bandwidth/moo#72): the five narrow libraries and their function names are interned at open.
-coroutines.luau 4e5191b541cb7075 347
-gcchurn.luau 3a604abb71b3e8f5 18560
-library.luau 84bc7dd86581a084 128
-objectkeys.luau 89dd1dda6520865d 171
-coroutines2.luau 05be5d48dfa958a0 230
-errors.luau 1229da7a5e50eb3c 283
-math.luau 5a3243e097cad724 159
+# Re-cut with N2+N3 and W1 together (#71 then #72 on main).
+coroutines.luau a3d5a67e283cd6e5 347
+gcchurn.luau 033f69789415b374 18541
+library.luau 650d5ff7ed59de44 128
+objectkeys.luau e9fc0d0fdbee719d 175
+coroutines2.luau b14597a4c0abca4c 230
+errors.luau 2a6454fd7876667c 281
+math.luau 3fa2cf7365ff24e4 159

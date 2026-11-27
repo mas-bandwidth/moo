@@ -53,6 +53,12 @@ const char* const luaT_typenames[] = {
     "plane",
     "aabb",
     "fix30",
+    // moo: layer 3d (docs/DESIGN.md "Layer 3d as built"); five more names interned at startup
+    "wide",
+    "poswide",
+    "worldtransformwide",
+    "aabbwide",
+    "time",
 };
 
 const char* const luaT_eventname[] = {
