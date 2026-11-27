@@ -141,4 +141,22 @@ TEST_CASE("ErrorStackOverflow")
     lua_close(L);
 }
 
+// DETERMINISM.md 5: the size limits are constants (strings and buffers 2^30 bytes, a table's array and hash parts
+// 2^26 slots), below where a 32-bit size_t could wrap, so each limit refuses at the same program point with the same
+// error on every target, wasm32 included. The whole result is pinned, so the wasm32 job compares it byte for byte.
+TEST_CASE("ErrorSizeLimitsAreTheSameEverywhere")
+{
+    lua_State* L = luaL_newstate();
+    REQUIRE(L != nullptr);
+    luaL_openlibs(L);
+
+    CHECK(mooRun(L, "return string.rep('x', 2^30 + 1)") == "error: moo:1: resulting string too large");
+    CHECK(mooRun(L, "return string.rep('xy', 2^29 + 1)") == "error: moo:1: resulting string too large");
+    CHECK(mooRun(L, "return buffer.create(2^30 + 1)") == "error: memory allocation error: block too big");
+    CHECK(mooRun(L, "return table.create(2^26 + 1)") == "error: table overflow");
+    CHECK(mooRun(L, "return string.format('%2147483647d', 1)") == "error: moo:1: invalid format (width or precision too long)");
+
+    lua_close(L);
+}
+
 TEST_SUITE_END();

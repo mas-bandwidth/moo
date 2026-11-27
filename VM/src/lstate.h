@@ -6,6 +6,11 @@
 #include "moo_vec3.h" // moo: MooVec3 in union GCObject (docs/history/layer3b/moo-v2-l3b-vec3-object.md)
 #include "moo_quat.h" // moo: MooQuat in union GCObject (docs/history/layer3b/moo-v2-l3b-quat-object.md)
 #include "moo_transform.h" // moo: MooTransform in union GCObject (docs/history/layer3b/moo-v2-l3b-transform.md)
+#include "moo_vec2.h"      // moo: layer 3c narrow types in union GCObject (docs/DESIGN.md "Layer 3c as built")
+#include "moo_mat3.h"
+#include "moo_plane.h"
+#include "moo_aabb.h"
+#include "moo_fix30.h"
 #include "ltm.h"
 #include "ludata.h"
 
@@ -93,11 +98,12 @@ struct GCStats
     uint32_t triggertermpos = 0;
     int32_t triggerintegral = 0;
 
-    // moo: pacing reads no clock (docs/DETERMINISM.md, 4); every input below is an allocation count
-    size_t starttotalsizebytes = 0; // at the start of the cycle (moo: replaces starttimestamp)
-    size_t atomicstarttotalsizebytes = 0;
-    size_t endtotalsizebytes = 0;
-    size_t heapgoalsizebytes = 0;
+    // moo: pacing reads no clock (docs/DETERMINISM.md, 4); every input below is an allocation count, 64 bits wide on
+    // every target (docs/DETERMINISM.md, 5; VM/src/moo_layout.h)
+    uint64_t starttotalsizebytes = 0; // at the start of the cycle (moo: replaces starttimestamp)
+    uint64_t atomicstarttotalsizebytes = 0;
+    uint64_t endtotalsizebytes = 0;
+    uint64_t heapgoalsizebytes = 0;
 };
 
 #ifdef LUAI_GCMETRICS
@@ -202,8 +208,9 @@ typedef struct global_State
     GCObject* grayagain; // list of objects to be traversed atomically
     GCObject* weak;      // list of weak tables (to be cleared)
 
-    size_t GCthreshold;                       // when totalbytes >= GCthreshold, run GC step
-    size_t totalbytes;                        // number of bytes currently allocated
+    // moo: canonical bytes, 64 bits wide on every target, so the pacing arithmetic never wraps (docs/DETERMINISM.md, 5)
+    uint64_t GCthreshold;                     // when totalbytes >= GCthreshold, run GC step
+    uint64_t totalbytes;                      // number of bytes currently allocated
 
     int gcgoal;                               // see LUAI_GCGOAL
     int gcstepmul;                            // see LUAI_GCSTEPMUL
@@ -249,7 +256,7 @@ typedef struct global_State
     // Set of userdata __index/__newindex/__namecall metamethods for a direct access
     lua_UdataDirectAccessData udatadirect[UTAG_INTERNAL_LIMIT];
 
-    size_t memcatbytes[LUA_MEMORY_CATEGORIES]; // total amount of memory used by each memory category
+    uint64_t memcatbytes[LUA_MEMORY_CATEGORIES]; // total amount of memory used by each memory category (moo: canonical bytes)
 
     void (*udatagc[LUA_UTAG_LIMIT])(lua_State*, void*); // for each userdata tag, a gc callback to be called immediately before freeing memory
     lua_UserdataMark udatamark[LUA_UTAG_LIMIT]; // gc callbacks allowing the embedder to mark underlying native objects for the given userdata
@@ -348,6 +355,11 @@ union GCObject
     struct MooVec3 v3;      // moo: vec3
     struct MooQuat q;       // moo: quat
     struct MooTransform tf; // moo: transform
+    struct MooVec2 v2;      // moo: layer 3c narrow types
+    struct MooMat3 m3;
+    struct MooPlane pl;
+    struct MooAABB ab;
+    struct MooFix30 f30;
 };
 
 // macros to convert a GCObject into a specific value
@@ -368,6 +380,12 @@ union GCObject
 #define gco2quat(o) check_exp((o)->gch.tt == LUA_TQUAT, &((o)->q))
 // moo: transform
 #define gco2transform(o) check_exp((o)->gch.tt == LUA_TTRANSFORM, &((o)->tf))
+// moo: layer 3c narrow types
+#define gco2vec2(o) check_exp((o)->gch.tt == LUA_TVEC2, &((o)->v2))
+#define gco2mat3(o) check_exp((o)->gch.tt == LUA_TMAT3, &((o)->m3))
+#define gco2plane(o) check_exp((o)->gch.tt == LUA_TPLANE, &((o)->pl))
+#define gco2aabb(o) check_exp((o)->gch.tt == LUA_TAABB, &((o)->ab))
+#define gco2fix30(o) check_exp((o)->gch.tt == LUA_TFIX30, &((o)->f30))
 
 // macro to convert any Lua object into a GCObject
 #define obj2gco(v) check_exp(iscollectable(v), cast_to(GCObject*, (v) + 0))

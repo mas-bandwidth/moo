@@ -65,7 +65,7 @@ struct TempBuffer
 struct ScopedSetGCThreshold
 {
 public:
-    ScopedSetGCThreshold(global_State* global, size_t newThreshold) noexcept
+    ScopedSetGCThreshold(global_State* global, uint64_t newThreshold) noexcept // moo: the threshold is 64 bits wide (moo_layout.h)
         : global{global}
     {
         originalThreshold = global->GCthreshold;
@@ -85,7 +85,7 @@ public:
 
 private:
     global_State* global = nullptr;
-    size_t originalThreshold = 0;
+    uint64_t originalThreshold = 0;
 };
 
 void luaV_getimport(lua_State* L, LuaTable* env, TValue* k, StkId res, uint32_t id, bool propagatenil)
@@ -865,7 +865,7 @@ int luau_load(lua_State* L, const char* chunkname, const char* data, size_t size
     luaC_checkGC(L);
 
     // pause GC for the duration of deserialization - some objects we're creating aren't rooted
-    const ScopedSetGCThreshold pauseGC{L->global, SIZE_MAX};
+    const ScopedSetGCThreshold pauseGC{L->global, UINT64_MAX};
 
     struct LoadContext
     {

@@ -165,7 +165,7 @@ LUAU_DYNAMIC_FASTFLAGVARIABLE(LuauGcHeapShrinkFix, false)
     }
 
 #ifdef LUAI_GCMETRICS
-static void recordGcStateStep(global_State* g, int startgcstate, double seconds, bool assist, size_t work)
+static void recordGcStateStep(global_State* g, int startgcstate, double seconds, bool assist, uint64_t work)
 {
     switch (startgcstate)
     {
@@ -327,6 +327,16 @@ static void reallymarkobject(global_State* g, GCObject* o)
     }
     // moo: transform
     case LUA_TTRANSFORM:
+    {
+        gray2black(o);
+        return;
+    }
+    // moo: layer 3c narrow types, leaves too (docs/DESIGN.md "Layer 3c as built")
+    case LUA_TVEC2:
+    case LUA_TMAT3:
+    case LUA_TPLANE:
+    case LUA_TAABB:
+    case LUA_TFIX30:
     {
         gray2black(o);
         return;
@@ -569,7 +579,7 @@ static void shrinkstackprotected(lua_State* L)
 ** traverse one gray object, turning it to black.
 ** Returns `quantity' traversed.
 */
-static size_t propagatemark(global_State* g)
+static uint64_t propagatemark(global_State* g) // moo: GC work is counted in 64 bits on every target (moo_layout.h)
 {
     GCObject* o = g->gray;
     LUAU_ASSERT(isgray(o));
@@ -583,7 +593,7 @@ static size_t propagatemark(global_State* g)
         if (traversetable(g, h)) // table is weak?
             black2gray(o);       // keep it gray
 
-        return sizeof(LuaTable) + sizeof(TValue) * h->sizearray + sizeof(LuaNode) * (h->node == &luaH_dummynode ? 0 : sizenode(h));
+        return moo_sizeof(LuaTable) + moo_sizeof(TValue) * h->sizearray + moo_sizeof(LuaNode) * (h->node == &luaH_dummynode ? 0 : sizenode(h));
     }
     case LUA_TFUNCTION:
     {
@@ -619,7 +629,7 @@ static size_t propagatemark(global_State* g)
         if (g->gcstate == GCSpropagate)
             shrinkstackprotected(th);
 
-        return sizeof(lua_State) + sizeof(TValue) * th->stacksize + sizeof(CallInfo) * th->size_ci;
+        return moo_sizeof(lua_State) + moo_sizeof(TValue) * th->stacksize + moo_sizeof(CallInfo) * th->size_ci;
     }
     case LUA_TPROTO:
     {
@@ -627,8 +637,8 @@ static size_t propagatemark(global_State* g)
         g->gray = p->gclist;
         traverseproto(g, p);
 
-        return sizeof(Proto) + sizeof(Instruction) * p->sizecode + sizeof(Proto*) * p->sizep + sizeof(TValue) * p->sizek + p->sizelineinfo +
-               sizeof(LocVar) * p->sizelocvars + sizeof(TString*) * p->sizeupvalues + p->sizetypeinfo;
+        return moo_sizeof(Proto) + moo_sizeof(Instruction) * p->sizecode + moo_sizeof(Proto*) * p->sizep + moo_sizeof(TValue) * p->sizek + p->sizelineinfo +
+               moo_sizeof(LocVar) * p->sizelocvars + moo_sizeof(TString*) * p->sizeupvalues + p->sizetypeinfo;
     }
     case LUA_TCLASS:
     {
@@ -636,11 +646,11 @@ static size_t propagatemark(global_State* g)
         g->gray = classobject->gclist;
         traverseclass(g, classobject);
         // We've traversed the "object" itself ...
-        return sizeof(LuauClass) +
+        return moo_sizeof(LuauClass) +
                // ... plus the method closures, each a `TValue` wide ...
-               ((classobject->numberofallmembers - classobject->numberofinstancemembers) * sizeof(TValue)) +
+               ((classobject->numberofallmembers - classobject->numberofinstancemembers) * moo_sizeof(TValue)) +
                // ... plus a string pointer for each method or property, each a pointer wide.
-               (classobject->numberofallmembers * sizeof(TString*));
+               (classobject->numberofallmembers * moo_sizeof(TString*));
     }
     case LUA_TOBJECT:
     {
@@ -648,9 +658,9 @@ static size_t propagatemark(global_State* g)
         g->gray = classinst->gclist;
         traverseobject(g, classinst);
         // We've traversed the instance ...
-        return sizeof(LuauObject) +
+        return moo_sizeof(LuauObject) +
                // ... plus all of the instance fields.
-               classinst->numberofmembers * sizeof(TValue);
+               classinst->numberofmembers * moo_sizeof(TValue);
     }
     default:
         LUAU_ASSERT(0);
@@ -669,9 +679,9 @@ static void embeddermarkref(lua_State* L, int ref)
         reallymarkobject(L->global, gcvalue(slot));
 }
 
-static size_t propagateall(global_State* g)
+static uint64_t propagateall(global_State* g)
 {
-    size_t work = 0;
+    uint64_t work = 0;
     while (g->gray)
     {
         work += propagatemark(g);
@@ -707,6 +717,12 @@ static int isobjcleared(GCObject* o)
     }
     // moo: transform
     if (o->gch.tt == LUA_TTRANSFORM)
+    {
+        stringmark(&o->gch);
+        return 0;
+    }
+    // moo: layer 3c narrow types (docs/DESIGN.md "Layer 3c as built")
+    if (o->gch.tt == LUA_TVEC2 || o->gch.tt == LUA_TMAT3 || o->gch.tt == LUA_TPLANE || o->gch.tt == LUA_TAABB || o->gch.tt == LUA_TFIX30)
     {
         stringmark(&o->gch);
         return 0;
@@ -756,14 +772,14 @@ static void rebuildmetacache(lua_State* L, LuaTable* h)
 /*
 ** clear collected entries from weaktables
 */
-static size_t cleartable(lua_State* L, GCObject* l)
+static uint64_t cleartable(lua_State* L, GCObject* l)
 {
-    size_t work = 0;
+    uint64_t work = 0;
     while (l)
     {
         LuaTable* h = gco2h(l);
 
-        work += sizeof(LuaTable) + sizeof(TValue) * h->sizearray + sizeof(LuaNode) * (h->node == &luaH_dummynode ? 0 : sizenode(h));
+        work += moo_sizeof(LuaTable) + moo_sizeof(TValue) * h->sizearray + moo_sizeof(LuaNode) * (h->node == &luaH_dummynode ? 0 : sizenode(h));
 
         int i = h->sizearray;
         while (i--)
@@ -862,15 +878,31 @@ static void freeobj(lua_State* L, GCObject* o, lua_Page* page)
         break;
     // moo: vec3
     case LUA_TVEC3:
-        luaM_freegcofixed(L, gco2vec3(o), sizeof(MooVec3), gco2vec3(o)->memcat, page);
+        luaM_freegcofixed(L, gco2vec3(o), moo_sizeof(MooVec3), gco2vec3(o)->memcat, page);
         break;
     // moo: quat
     case LUA_TQUAT:
-        luaM_freegcofixed(L, gco2quat(o), sizeof(MooQuat), gco2quat(o)->memcat, page);
+        luaM_freegcofixed(L, gco2quat(o), moo_sizeof(MooQuat), gco2quat(o)->memcat, page);
         break;
     // moo: transform
     case LUA_TTRANSFORM:
-        luaM_freegcofixed(L, gco2transform(o), sizeof(MooTransform), gco2transform(o)->memcat, page);
+        luaM_freegcofixed(L, gco2transform(o), moo_sizeof(MooTransform), gco2transform(o)->memcat, page);
+        break;
+    // moo: layer 3c narrow types (docs/DESIGN.md "Layer 3c as built")
+    case LUA_TVEC2:
+        luaM_freegcofixed(L, gco2vec2(o), moo_sizeof(MooVec2), gco2vec2(o)->memcat, page);
+        break;
+    case LUA_TMAT3:
+        luaM_freegcofixed(L, gco2mat3(o), moo_sizeof(MooMat3), gco2mat3(o)->memcat, page);
+        break;
+    case LUA_TPLANE:
+        luaM_freegcofixed(L, gco2plane(o), moo_sizeof(MooPlane), gco2plane(o)->memcat, page);
+        break;
+    case LUA_TAABB:
+        luaM_freegcofixed(L, gco2aabb(o), moo_sizeof(MooAABB), gco2aabb(o)->memcat, page);
+        break;
+    case LUA_TFIX30:
+        luaM_freegcofixed(L, gco2fix30(o), moo_sizeof(MooFix30), gco2fix30(o)->memcat, page);
         break;
     default:
         LUAU_ASSERT(0);
@@ -1087,13 +1119,13 @@ static void markroot(lua_State* L)
     g->gcstate = GCSpropagate;
 }
 
-static size_t remarkupvals(global_State* g)
+static uint64_t remarkupvals(global_State* g)
 {
-    size_t work = 0;
+    uint64_t work = 0;
 
     for (UpVal* uv = g->uvhead.u.open.next; uv != &g->uvhead; uv = uv->u.open.next)
     {
-        work += sizeof(UpVal);
+        work += moo_sizeof(UpVal);
 
         LUAU_ASSERT(upisopen(uv));
         LUAU_ASSERT(uv->u.open.next->u.open.prev == uv && uv->u.open.prev->u.open.next == uv);
@@ -1106,15 +1138,15 @@ static size_t remarkupvals(global_State* g)
     return work;
 }
 
-static size_t clearupvals(lua_State* L)
+static uint64_t clearupvals(lua_State* L)
 {
     global_State* g = L->global;
 
-    size_t work = 0;
+    uint64_t work = 0;
 
     for (UpVal* uv = g->uvhead.u.open.next; uv != &g->uvhead;)
     {
-        work += sizeof(UpVal);
+        work += moo_sizeof(UpVal);
 
         LUAU_ASSERT(upisopen(uv));
         LUAU_ASSERT(uv->u.open.next->u.open.prev == uv && uv->u.open.prev->u.open.next == uv);
@@ -1140,12 +1172,12 @@ static size_t clearupvals(lua_State* L)
     return work;
 }
 
-static size_t atomic(lua_State* L)
+static uint64_t atomic(lua_State* L)
 {
     global_State* g = L->global;
     LUAU_ASSERT(g->gcstate == GCSatomic);
 
-    size_t work = 0;
+    uint64_t work = 0;
 
 #ifdef LUAI_GCMETRICS
     double currts = lua_clock();
@@ -1284,9 +1316,9 @@ static int sweepgcopage(lua_State* L, lua_Page* page)
     return int(end - start) / blockSize;
 }
 
-static size_t gcstep(lua_State* L, size_t limit)
+static uint64_t gcstep(lua_State* L, uint64_t limit)
 {
-    size_t cost = 0;
+    uint64_t cost = 0;
     global_State* g = L->global;
     switch (g->gcstate)
     {
@@ -1358,7 +1390,7 @@ static size_t gcstep(lua_State* L, size_t limit)
             int steps = sweepgcopage(L, g->sweepgcopage);
 
             g->sweepgcopage = next;
-            cost += static_cast<size_t>(steps * GC_SWEEPPAGESTEPCOST);
+            cost += static_cast<uint64_t>(steps * GC_SWEEPPAGESTEPCOST);
         }
 
         while (g->sweepgcopage_cage && cost < limit)
@@ -1368,7 +1400,7 @@ static size_t gcstep(lua_State* L, size_t limit)
             int steps = sweepgcopage(L, g->sweepgcopage_cage);
 
             g->sweepgcopage_cage = next;
-            cost += static_cast<size_t>(steps * GC_SWEEPPAGESTEPCOST);
+            cost += static_cast<uint64_t>(steps * GC_SWEEPPAGESTEPCOST);
         }
 
         // moo: the end of the GC step for the destructors this sweep step queued
@@ -1423,12 +1455,12 @@ static int64_t getheaptriggererroroffset(global_State* g)
 }
 
 // the heap can shrink between measurements (after a full collection, or when thread stacks are shrunk during marking), which counts as no growth
-static size_t getheapgrowth(size_t current, size_t previous)
+static uint64_t getheapgrowth(uint64_t current, uint64_t previous)
 {
     return current > previous ? current - previous : 0;
 }
 
-static size_t getheaptrigger(global_State* g, size_t heapgoal)
+static uint64_t getheaptrigger(global_State* g, uint64_t heapgoal)
 {
     // adjust threshold based on a guess of how many bytes will be allocated between the cycle start and sweep phase
     // our goal is to begin the sweep when used memory has reached the heap goal
@@ -1440,16 +1472,17 @@ static size_t getheaptrigger(global_State* g, size_t heapgoal)
     int64_t heaptrigger = heapgoal - (expectedgrowth + offset);
 
     // clamp the trigger between memory use at the end of the cycle and the heap goal
-    return heaptrigger < int64_t(g->totalbytes) ? g->totalbytes : (heaptrigger > int64_t(heapgoal) ? heapgoal : size_t(heaptrigger));
+    return heaptrigger < int64_t(g->totalbytes) ? g->totalbytes : (heaptrigger > int64_t(heapgoal) ? heapgoal : uint64_t(heaptrigger));
 }
 
-size_t luaC_step(lua_State* L, bool assist)
+uint64_t luaC_step(lua_State* L, bool assist)
 {
     global_State* g = L->global;
 
-    size_t lim = g->gcstepsize * g->gcstepmul / 100; // how much to work
+    // moo: every pacing quantity is 64 bits wide on every target; a 32-bit size_t wrapped past about 14.3 MB of heap
+    uint64_t lim = g->gcstepsize * g->gcstepmul / 100; // how much to work
     LUAU_ASSERT(g->totalbytes >= g->GCthreshold);
-    size_t debt = g->totalbytes - g->GCthreshold;
+    uint64_t debt = g->totalbytes - g->GCthreshold;
 
     GC_INTERRUPT(0);
 
@@ -1467,7 +1500,7 @@ size_t luaC_step(lua_State* L, bool assist)
     // if allocations outpace the GC to require an assist, adjust step size to cover the difference
     if ((FFlag::LuauBackedgeHeapCheck || LUA_VECTOR_DOUBLE == 1) && assist)
     {
-        size_t need = debt * g->gcstepmul / 100;
+        uint64_t need = debt * g->gcstepmul / 100;
 
         if (need > lim)
             lim = need;
@@ -1475,20 +1508,20 @@ size_t luaC_step(lua_State* L, bool assist)
 
     int lastgcstate = g->gcstate;
 
-    size_t work = gcstep(L, lim);
+    uint64_t work = gcstep(L, lim);
 
 #ifdef LUAI_GCMETRICS
     recordGcStateStep(g, lastgcstate, lua_clock() - lasttimestamp, assist, work);
 #endif
 
-    size_t actualstepsize = work * 100 / g->gcstepmul;
+    uint64_t actualstepsize = work * 100 / g->gcstepmul;
 
     // at the end of the last cycle
     if (g->gcstate == GCSpause)
     {
         // at the end of a collection cycle, set goal based on gcgoal setting
-        size_t heapgoal = (g->totalbytes / 100) * g->gcgoal;
-        size_t heaptrigger = getheaptrigger(g, heapgoal);
+        uint64_t heapgoal = (g->totalbytes / 100) * g->gcgoal;
+        uint64_t heaptrigger = getheaptrigger(g, heapgoal);
 
         g->GCthreshold = heaptrigger;
 
@@ -1538,7 +1571,7 @@ void luaC_fullgc(lua_State* L)
     while (g->gcstate != GCSpause)
     {
         LUAU_ASSERT(g->gcstate == GCSsweep);
-        gcstep(L, SIZE_MAX);
+        gcstep(L, UINT64_MAX);
     }
 
     // clear markedopen bits for all open upvalues; these might be stuck from half-finished mark prior to full gc
@@ -1557,12 +1590,12 @@ void luaC_fullgc(lua_State* L)
     markroot(L);
     while (g->gcstate != GCSpause)
     {
-        gcstep(L, SIZE_MAX);
+        gcstep(L, UINT64_MAX);
     }
     // reclaim as much buffer memory as possible (shrinkbuffers() called during sweep is incremental)
     shrinkbuffersfull(L);
 
-    size_t heapgoalsizebytes = (g->totalbytes / 100) * g->gcgoal;
+    uint64_t heapgoalsizebytes = (g->totalbytes / 100) * g->gcgoal;
 
     // trigger cannot be correctly adjusted after a forced full GC.
     // we will try to place it so that we can reach the goal based on

@@ -87,6 +87,12 @@ typedef struct lua_TValue
 #define ttisquat(o) (ttype(o) == LUA_TQUAT)
 // moo: transform
 #define ttistransform(o) (ttype(o) == LUA_TTRANSFORM)
+// moo: layer 3c narrow types
+#define ttisvec2(o) (ttype(o) == LUA_TVEC2)
+#define ttismat3(o) (ttype(o) == LUA_TMAT3)
+#define ttisplane(o) (ttype(o) == LUA_TPLANE)
+#define ttisaabb(o) (ttype(o) == LUA_TAABB)
+#define ttisfix30(o) (ttype(o) == LUA_TFIX30)
 
 // Macros to access values
 #define ttype(o) ((o)->tt)
@@ -111,6 +117,12 @@ typedef struct lua_TValue
 #define quatvalue(o) check_exp(ttisquat(o), &(o)->value.gc->q)
 // moo: transform
 #define transformvalue(o) check_exp(ttistransform(o), &(o)->value.gc->tf)
+// moo: layer 3c narrow types
+#define vec2value(o) check_exp(ttisvec2(o), &(o)->value.gc->v2)
+#define mat3value(o) check_exp(ttismat3(o), &(o)->value.gc->m3)
+#define planevalue(o) check_exp(ttisplane(o), &(o)->value.gc->pl)
+#define aabbvalue(o) check_exp(ttisaabb(o), &(o)->value.gc->ab)
+#define fix30value(o) check_exp(ttisfix30(o), &(o)->value.gc->f30)
 
 #define l_isfalse(o) (ttisnil(o) || (ttisboolean(o) && bvalue(o) == 0))
 
@@ -295,6 +307,20 @@ typedef struct lua_TValue
         i_o->tt = LUA_TTRANSFORM; \
         checkliveness((L)->global, i_o); \
     }
+
+// moo: layer 3c narrow types, one setter per tag
+#define moo_setobjvalue(L, obj, x, tag) \
+    { \
+        TValue* i_o = (obj); \
+        i_o->value.gc = cast_to(GCObject*, (x)); \
+        i_o->tt = tag; \
+        checkliveness((L)->global, i_o); \
+    }
+#define setvec2value(L, obj, x) moo_setobjvalue(L, obj, x, LUA_TVEC2)
+#define setmat3value(L, obj, x) moo_setobjvalue(L, obj, x, LUA_TMAT3)
+#define setplanevalue(L, obj, x) moo_setobjvalue(L, obj, x, LUA_TPLANE)
+#define setaabbvalue(L, obj, x) moo_setobjvalue(L, obj, x, LUA_TAABB)
+#define setfix30value(L, obj, x) moo_setobjvalue(L, obj, x, LUA_TFIX30)
 
 /*
 ** different types of sets, according to destination

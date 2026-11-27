@@ -589,13 +589,19 @@ TEST_CASE("PowIntCertainEverywhere")
     const int threads = full ? 16 : 1;
     const int64_t step = full ? 16 : 4096;
     std::vector<WalkTotals> totals(threads);
-    std::vector<std::thread> pool;
-    for (int k = 0; k < threads; ++k)
-        pool.emplace_back([k, step, &totals]() {
-            totals[k] = walks(MOO_POW_EXACT_MAX + 1 + k, step);
-        });
-    for (std::thread& t : pool)
-        t.join();
+    // one walk runs on this thread, so the default case runs where there are no threads (wasm32 under node)
+    if (threads == 1)
+        totals[0] = walks(MOO_POW_EXACT_MAX + 1, step);
+    else
+    {
+        std::vector<std::thread> pool;
+        for (int k = 0; k < threads; ++k)
+            pool.emplace_back([k, step, &totals]() {
+                totals[k] = walks(MOO_POW_EXACT_MAX + 1 + k, step);
+            });
+        for (std::thread& t : pool)
+            t.join();
+    }
 
     WalkTotals all;
     for (const WalkTotals& t : totals)

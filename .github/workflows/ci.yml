@@ -198,6 +198,9 @@ jobs:
       - name: moo tests and the determinism suite
         run: build/Moo.Test
 
+      - name: the cross-target hashes (the wasm32 job prints the same)
+        run: MOO_DETERMINISM_PRINT=1 MOO_DETERMINISM_PRINT_ALLOC=1 build/Moo.Test -tc='Determinism*'
+
       - name: the compiler across processes, directories and locales
         run: python3 tools/moo-check-compile.py build/moo-compile
 
@@ -232,6 +235,9 @@ jobs:
 
       - name: moo tests and the determinism suite
         run: build/Moo.Test
+
+      - name: the cross-target hashes (the wasm32 job prints the same)
+        run: MOO_DETERMINISM_PRINT=1 MOO_DETERMINISM_PRINT_ALLOC=1 build/Moo.Test -tc='Determinism*'
 
       - name: the compiler across processes, directories and locales
         run: python3 tools/moo-check-compile.py build/moo-compile
@@ -288,3 +294,44 @@ jobs:
         if: always() && steps.cache.outputs.launcher == 'sccache'
         continue-on-error: true
         run: sccache --show-stats
+
+  # moo on wasm32 (docs/DETERMINISM.md, "Supported platforms"): Moo.Test built with Emscripten and run under node,
+  # on every push and pull request. The determinism suite there must give the same effects, state and allocation
+  # hashes (tests/determinism/expected.txt, alloc.txt) and the same pacing hash as the 64-bit jobs (x86_64 in
+  # push-gate and gcc, arm64 in macos): the cross-target proof. The emsdk is pinned by version; node is the one it
+  # ships.
+  wasm32:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      MOO_EMSDK_VERSION: "6.0.13"
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: emsdk
+        run: |
+          git clone --depth 1 https://github.com/emscripten-core/emsdk.git "$RUNNER_TEMP/emsdk"
+          "$RUNNER_TEMP/emsdk/emsdk" install "$MOO_EMSDK_VERSION"
+          "$RUNNER_TEMP/emsdk/emsdk" activate "$MOO_EMSDK_VERSION"
+
+      - name: configure
+        run: |
+          source "$RUNNER_TEMP/emsdk/emsdk_env.sh"
+          emcc --version | head -1
+          node --version
+          emcmake cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DLUAU_WERROR=ON -DLUAU_BUILD_CLI=OFF -DLUAU_BUILD_TESTS=ON
+
+      - name: build
+        run: |
+          source "$RUNNER_TEMP/emsdk/emsdk_env.sh"
+          cmake --build build --target Moo.Test
+
+      - name: moo tests and the determinism suite under node
+        run: |
+          source "$RUNNER_TEMP/emsdk/emsdk_env.sh"
+          node build/Moo.Test.js
+
+      - name: the cross-target hashes
+        run: |
+          source "$RUNNER_TEMP/emsdk/emsdk_env.sh"
+          MOO_DETERMINISM_PRINT=1 MOO_DETERMINISM_PRINT_ALLOC=1 node build/Moo.Test.js -tc='Determinism*'

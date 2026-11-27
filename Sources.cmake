@@ -422,6 +422,7 @@ target_sources(Luau.VM PRIVATE
     VM/src/linit.cpp
     VM/src/lmathlib.cpp
     VM/src/moo_api.cpp
+    VM/src/moo_layout.h # moo: the canonical allocation sizes, the same on every target (docs/DETERMINISM.md, 5)
     VM/src/moo_layout.cpp
     VM/src/moo_vec3lib.cpp # moo: the fixed vec3 library (docs/DESIGN.md "vec3, quat and transform")
     VM/src/moo_quatlib.cpp # moo: the fixed quat library (docs/DESIGN.md "vec3, quat and transform")

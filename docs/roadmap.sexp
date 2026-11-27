@@ -12,10 +12,10 @@
 ; respective roadmaps."
 (:schema 1 :root "moo/roadmap"
  :page (:title "moo roadmap"
-        :roadmaps ("layer-3" "layer-4" "layer-5" "layer-3b" "layer-3c" "layer-3d" "targets-32" "nightly")
+        :roadmaps ("layer-3" "layer-4" "layer-5" "layer-3b" "layer-3c" "layer-3d" "targets-32" "nightly" "defects")
         :closing ((:title "About this page" :text ("Each table lists the features of one area: ✅ is built, tested and landed, with the evidence in the source data; ❌ is not yet. The open rows were sprint cards when the sprint stopped for its pit stop on 2026-10-20; each one names its card, its archived brief and any pushed head in the source data, so the work can be picked up again."))))
  :nodes
- ((:id "moo/roadmap" :type :work-set :children ("layer-3" "layer-4" "layer-5" "layer-3b" "layer-3c" "layer-3d" "targets-32" "nightly"))
+ ((:id "moo/roadmap" :type :work-set :children ("layer-3" "layer-4" "layer-5" "layer-3b" "layer-3c" "layer-3d" "targets-32" "nightly" "defects"))
   (:id "layer-3" :type :roadmap :title "Fixed-point numbers through the toolchain"
    :text ("Layer 3: every number in moo is Q48.16 fixed point, from the parser and compiler to the bytecode and the VM; the integer and vector types of Luau are removed. Built on the integration branch sprint/moo and merged into main on 2026-10-21.")
    :rows
@@ -170,6 +170,15 @@
    :cells
    (("math-oracle" "moo" "nightly/math-oracle")
     ("virtualgo" "moo" "nightly/virtualgo")))
+  (:id "defects" :type :roadmap :title "Known defects"
+   :text ("Bugs found in use that are not fixed yet, each with its evidence.")
+   :rows
+   (("analyzer-threads" "moo-analyze is safe on its default worker threads")
+    ("numformat-precision" "moo_numformat refuses a precision its buffers cannot hold"))
+   :columns (("moo" "moo"))
+   :cells
+   (("analyzer-threads" "moo" "defects/analyzer-threads")
+    ("numformat-precision" "moo" "defects/numformat-precision")))
   (:id "moo-l3-test-layout" :type :task :title "Each layer 3 change has its own test files" :state :done :evidence ("land commit 1fcc79e5e3a6 on main, merged from sprint/moo (card moo-l3-test-layout, stream moo)"))
   (:id "layer-3/test-layout" :type :work-set :children ("moo-l3-test-layout"))
   (:id "moo-l3-readme-truth" :type :task :title "README says what is built" :state :done :evidence ("land commit c28f669ce5eb on main, merged from sprint/moo (card moo-l3-readme-truth, stream moo)"))
@@ -308,21 +317,25 @@
   (:id "layer-3d/conformance" :type :work-set :children ("moo-l3d-conformance"))
   (:id "moo-l3d-wire" :type :task :title "serialize.moo and the schema moo leg carry wide and time exactly" :state :todo :evidence () :note "W9; min/max as Int64 whole units.")
   (:id "layer-3d/wire" :type :work-set :children ("moo-l3d-wire"))
-  (:id "moo-t32-toolchain" :type :task :title "wasm32 build: pinned emsdk and node, -fwasm-exceptions, an 8 MiB stack" :state :todo :evidence () :note "M0; LUAU_BUILD_WEB stays OFF; JSPI interplay tested.")
+  (:id "moo-t32-toolchain" :type :task :title "wasm32 build: pinned emsdk and node, -fwasm-exceptions, an 8 MiB stack" :state :done :evidence ("commit 72fd0e17 on rowan/moo-t32 (PR #69): CMakeLists.txt builds every object with -fwasm-exceptions and links an 8 MiB stack under Emscripten, refusing LUAU_BUILD_WEB there; Moo.Test built with emsdk 6.0.13 (emcc e13ee988) runs under its node 24.19.0, and errors.luau's C stack overflow cases end in moo's own error") :note "M0; LUAU_BUILD_WEB stays OFF. The JSPI interplay is Virtual Go's web link (-sJSPI), so its test moves to M5.")
   (:id "targets-32/toolchain" :type :work-set :children ("moo-t32-toolchain"))
-  (:id "moo-t32-fixed" :type :task :title "fixed's suite under node, both int128 arms" :state :todo :evidence () :note "M0f, upstream in mas-bandwidth/fixed.")
+  (:id "moo-t32-fixed" :type :task :title "fixed's suite under node, both int128 arms" :state :todo :evidence () :note "M0f, upstream in mas-bandwidth/fixed: PR mas-bandwidth/fixed#69 adds the wasm32 job; on the studio (emsdk 6.0.13, node 24.19.0) all 38 ctest cases pass with the frozen hashes, both 128-bit arms and the negative controls.")
   (:id "targets-32/fixed" :type :work-set :children ("moo-t32-fixed"))
-  (:id "moo-t32-canonical" :type :task :title "Canonical 64-bit allocation sizes and 64-bit GC pacing on every target" :state :todo :evidence () :note "M1; lgc.cpp's size_t pacing wraps past 14.3 MB on wasm32 today; no 64-bit result moves.")
+  (:id "moo-t32-canonical" :type :task :title "Canonical 64-bit allocation sizes and 64-bit GC pacing on every target" :state :done :evidence ("commits c2fed17f and 72fd0e17 on rowan/moo-t32 (PR #69): VM/src/moo_layout.h, every allocation and charge at the 64-bit size, uint64_t pacing; tests/determinism/alloc.txt and expected.txt unchanged on 64-bit; DeterminismPacingWidth pins 97af94b8311776ee at 15 MB and 5 GiB of charged heap on arm64 and wasm32") :note "M1; lgc.cpp's size_t pacing wrapped past 14.3 MB on wasm32; no 64-bit result moved. Running the suite under node found one more pointer-sized size, the inline destructor slot (now 8 bytes everywhere).")
   (:id "targets-32/canonical" :type :work-set :children ("moo-t32-canonical"))
-  (:id "moo-t32-limits" :type :task :title "Size arithmetic audited; host inputs stated" :state :todo :evidence () :note "M2.")
+  (:id "moo-t32-limits" :type :task :title "Size arithmetic audited; host inputs stated" :state :done :evidence ("commit 72fd0e17 on rowan/moo-t32 (PR #69): ErrorSizeLimitsAreTheSameEverywhere pins the whole error of string.rep, buffer.create, table.create and string.format at their caps, equal on arm64 and wasm32; DETERMINISM.md 22 states the host inputs (4 GiB address space, 32-bit light userdata, lua_totalbytes saturated at SIZE_MAX)") :note "M2.")
   (:id "targets-32/limits" :type :work-set :children ("moo-t32-limits"))
-  (:id "moo-t32-conformance" :type :task :title "moo's suites under node, same hashes" :state :todo :evidence () :note "M3; the cross-target determinism test: the same script and seed give the same state hash on arm64, x86_64 and wasm32 under node.")
+  (:id "moo-t32-conformance" :type :task :title "moo's suites under node, same hashes" :state :done :evidence ("commit 72fd0e17 on rowan/moo-t32 (PR #69): Moo.Test 243 of 243 cases and the same 70881275 assertions on the studio (arm64) and under node (wasm32); the determinism lines are byte-identical: suite 1bde3578a92a12d6, alloc suite d001136d9e7beeee, equal to expected.txt and alloc.txt, which the x86_64 jobs check too") :note "M3; the cross-target determinism test: the same script and seed give the same state hash on arm64, x86_64 and wasm32 under node.")
   (:id "targets-32/conformance" :type :work-set :children ("moo-t32-conformance"))
-  (:id "moo-t32-ci" :type :task :title "The wasm32 CI leg" :state :todo :evidence () :note "M4.")
+  (:id "moo-t32-ci" :type :task :title "The wasm32 CI leg" :state :done :evidence ("commit 72fd0e17 on rowan/moo-t32 (PR #69): ci.yml job wasm32, emsdk 6.0.13 pinned, Moo.Test under node on every push and pull request, and the hash lines printed beside the gcc (x86_64) and macos (arm64) jobs' own") :note "M4.")
   (:id "targets-32/ci" :type :work-set :children ("moo-t32-ci"))
   (:id "moo-t32-virtualgo" :type :task :title "Virtual Go's scripts under node and in the web build, one fixed" :state :todo :evidence () :note "M5; lives in virtualgo; FIX_SATURATE everywhere; sim goldens re-run natively.")
   (:id "targets-32/virtualgo" :type :work-set :children ("moo-t32-virtualgo"))
   (:id "moo-t32-other" :type :task :title "i686 and armv7 legs" :state :todo :evidence () :note "M6.")
   (:id "targets-32/other" :type :work-set :children ("moo-t32-other"))
-  (:id "moo-t32-docs" :type :task :title "DETERMINISM.md and DESIGN.md say what is built" :state :todo :evidence () :note "M7.")
-  (:id "targets-32/docs" :type :work-set :children ("moo-t32-docs"))))
+  (:id "moo-t32-docs" :type :task :title "DETERMINISM.md and DESIGN.md say what is built" :state :done :evidence ("commit 72fd0e17 on rowan/moo-t32 (PR #69): DETERMINISM.md supported platforms, 5 (canonical sizes, as built), 15 and 22; README's supported platforms; PATCHES.md rows, tools/moo-check-patches.sh clean") :note "M7.")
+  (:id "targets-32/docs" :type :work-set :children ("moo-t32-docs"))
+  (:id "moo-analyzer-thread-memory-corruption" :type :task :title "moo-analyze is safe on its default worker threads" :state :todo :evidence () :note "Found 2026-11-21: moo-analyze at v1.3.0 sometimes corrupts its heap while checking files on its default worker threads, and libmalloc kills the process (SIGTRAP \"memory corruption of free block\", or SIGABRT \"pointer being freed was not allocated\"). Measured 2026-11-21 on macOS Apple silicon with the v1.3.0 binary over serialize.moo's 11 test files: 5 crashes in 380 runs on default threads, 0 in 440 runs with -j1, which still reports real type errors; about 1 in 7 serialize.moo CI runs went red. Crash report moo-analyze-2026-11-21-082900.ips, faulting thread 3, top frames: _xzm_xzone_malloc_freelist_outlined + 868; operator_new_impl; std::string __grow_by_and_replace + 108; std::string __assign_no_alias<true> + 72; Luau::ConstraintGenerator::resolveTableType + 1068; Luau::ConstraintGenerator::resolveType_ + 164; Luau::ConstraintGenerator::visit(AstStatLocal*) + 592; the exact frames of this and the newest report (moo-analyze-2026-11-21-083433.ips, in Luau::check on a worker) are in docs/defects/moo-analyze-worker-threads.md. Workaround: -j1, applied in mas-bandwidth/serialize.moo PR #35 (merged 2026-11-21); still exposed on default threads: mas-bandwidth/schema's moo leg (make/moo*.mk, internal/codegen/moo) and moo's own ci.yml and nightly.yml. Not known: whether the bug is inherited from upstream Luau at moo's merge base or introduced by moo's analyzer builtins changes; whether it reproduces on Linux (every measurement so far is macOS ARM64). Done means: the cause found and fixed in the analyzer; a test that runs the analyzer on its default threads enough times to have caught this (several hundred runs at 1 crash in 76); and the -j1 workarounds removed.")
+  (:id "defects/analyzer-threads" :type :work-set :children ("moo-analyzer-thread-memory-corruption"))
+  (:id "moo-numformat-precision-bound" :type :task :title "moo_numformat refuses a precision its buffers cannot hold" :state :todo :evidence () :note "Found 2026-11-21 by the worker on PR #76 and checked by reading Common/include/moo_format.h at main d6a57e8c (not by running it): moo_numformat parses any number of precision digits (prec = prec * 10 + (*s++ - '0'), with no bound and no overflow check) into fixed stack buffers: char body[160]; char r[160]; char tmp[160]; and in emitFixed char fr[120], filled for i < p. So %f writes past fr from a precision of 121, %g and %G from 118 (emitFixed gets P - 1 - x digits with x down to -4), %e and %E past tmp and body from about 154; a precision of 100 fits everywhere, and a precision too big for int is signed overflow. Not reachable from scripts today: string.format's scanformat (VM/src/lstrlib.cpp) takes at most 2 precision digits and refuses a third with \"invalid format (width or precision too long)\"; the fuzzer (fuzz/format.cpp) uses precision 0 to 24; the tests use at most .40 (tests/MooNumber.test.cpp FormatMatchesCOnTheExactValue). A direct C++ caller passing 118 or more would overflow the stack. Done means: moo_numformat refuses (returns -1) or clamps an out-of-range precision by a named limit, with the limit stated in its comment, and a test passes precisions 100, 120 and a huge value (more digits than an int holds) for each of f, e, E, g and G and gets the stated result.")
+  (:id "defects/numformat-precision" :type :work-set :children ("moo-numformat-precision-bound"))))

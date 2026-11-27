@@ -12,6 +12,7 @@
 #include "ldo.h"
 #include "ldebug.h"
 #include "ludata.h"
+#include "moo_layout.h" // moo: the canonical sizes of the thread and the global state (docs/DETERMINISM.md, 5)
 
 #include <string.h>
 
@@ -27,6 +28,10 @@ typedef struct LG
     lua_State l;
     global_State g;
 } LG;
+
+// moo: on a 64-bit target the one allocation of lua_newstate is exactly its canonical size
+static_assert(MOO_TARGET_WASM32 || sizeof(LG) == MOO_SIZEOF_LG, "the main thread and global state are the canonical size");
+static_assert(sizeof(LG) <= MOO_SIZEOF_LG, "the main thread and global state fit their canonical allocation");
 
 static void stack_init(lua_State* L1, lua_State* L)
 {
@@ -126,20 +131,20 @@ static void close_state(lua_State* L)
     }
     LUAU_ASSERT(g->allgcopages == NULL);
     LUAU_ASSERT(g->allgcopages_cage == NULL);
-    LUAU_ASSERT(g->totalbytes == sizeof(LG));
-    LUAU_ASSERT(g->memcatbytes[0] == sizeof(LG));
+    LUAU_ASSERT(g->totalbytes == MOO_SIZEOF_LG);
+    LUAU_ASSERT(g->memcatbytes[0] == MOO_SIZEOF_LG);
     for (int i = 1; i < LUA_MEMORY_CATEGORIES; i++)
         LUAU_ASSERT(g->memcatbytes[i] == 0);
 
     if (L->global->ecb.close)
         L->global->ecb.close(L);
 
-    (*g->frealloc)(g->ud, L, sizeof(LG), 0);
+    (*g->frealloc)(g->ud, L, MOO_SIZEOF_LG, 0); // moo: the canonical size it was requested at (moo_layout.h)
 }
 
 lua_State* luaE_newthread(lua_State* L)
 {
-    lua_State* L1 = luaM_newgco(L, lua_State, sizeof(lua_State), L->activememcat, LUA_TTHREAD);
+    lua_State* L1 = luaM_newgco(L, lua_State, moo_sizeof(lua_State), L->activememcat, LUA_TTHREAD); // moo: canonical size
 
     if (FFlag::LuauEasyStateInit)
         memset(L1, 0, sizeof(lua_State));
@@ -166,7 +171,7 @@ void luaE_freethread(lua_State* L, lua_State* L1, lua_Page* page)
         g->cb.userthread(NULL, L1);
 
     freestack(L, L1);
-    luaM_freegco(L, L1, sizeof(lua_State), L1->memcat, page);
+    luaM_freegco(L, L1, moo_sizeof(lua_State), L1->memcat, page);
 }
 
 void lua_resetthread(lua_State* L)
@@ -216,7 +221,8 @@ lua_State* lua_newstate(lua_Alloc allocator, void* ud)
 {
     if (FFlag::LuauEasyStateInit)
     {
-        void* l = allocator(ud, nullptr, 0, sizeof(LG));
+        // moo: requested and charged at the canonical size, the 64-bit sizeof(LG), on every target (moo_layout.h)
+        void* l = allocator(ud, nullptr, 0, MOO_SIZEOF_LG);
         if (l == nullptr)
             return nullptr;
 
@@ -244,8 +250,8 @@ lua_State* lua_newstate(lua_Alloc allocator, void* ud)
 
         g->ptrenckey[0] = 1;
 
-        g->totalbytes = sizeof(LG);
-        g->memcatbytes[0] = sizeof(LG);
+        g->totalbytes = MOO_SIZEOF_LG;
+        g->memcatbytes[0] = MOO_SIZEOF_LG;
 
         g->gcstate = GCSpause;
         g->gcgoal = LUAI_GCGOAL;
@@ -276,7 +282,7 @@ lua_State* lua_newstate(lua_Alloc allocator, void* ud)
         int i;
         lua_State* L;
         global_State* g;
-        void* l = (*allocator)(ud, NULL, 0, sizeof(LG));
+        void* l = (*allocator)(ud, NULL, 0, MOO_SIZEOF_LG); // moo: the canonical size on every target (moo_layout.h)
         if (l == NULL)
             return NULL;
         L = (lua_State*)l;
@@ -319,7 +325,7 @@ lua_State* lua_newstate(lua_Alloc allocator, void* ud)
         g->gray = NULL;
         g->grayagain = NULL;
         g->weak = NULL;
-        g->totalbytes = sizeof(LG);
+        g->totalbytes = MOO_SIZEOF_LG;
         g->gcgoal = LUAI_GCGOAL;
         g->gcstepmul = LUAI_GCSTEPMUL;
         g->gcstepsize = LUAI_GCSTEPSIZE << 10;
@@ -370,7 +376,7 @@ lua_State* lua_newstate(lua_Alloc allocator, void* ud)
         for (i = 0; i < LUA_MEMORY_CATEGORIES; i++)
             g->memcatbytes[i] = 0;
 
-        g->memcatbytes[0] = sizeof(LG);
+        g->memcatbytes[0] = MOO_SIZEOF_LG;
 
         g->cb = lua_Callbacks();
 

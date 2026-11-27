@@ -4,6 +4,7 @@
 
 #include "lobject.h"
 #include "lstate.h"
+#include "moo_layout.h"
 
 // string size limit
 #define MAXSSIZE (1 << 30)
@@ -11,7 +12,8 @@
 // string atoms are not defined by default; the storage is 16-bit integer
 #define ATOM_UNDEF -32768
 
-#define sizestring(len) (offsetof(TString, data) + len + 1)
+// moo: the canonical header size on every target (moo_layout.h); the data is at offsetof(TString, data), at most that
+#define sizestring(len) (MOO_OFFSET_TSTRING_DATA + len + 1)
 
 #define luaS_new(L, s) (luaS_newlstr(L, s, strlen(s)))
 #define luaS_newliteral(L, s) (luaS_newlstr(L, "" s, (sizeof(s) / sizeof(char)) - 1))
